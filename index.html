@@ -177,6 +177,14 @@
 }
 #briefing-fab:active { transform: scale(0.92); }
 
+#brief-capture {
+  position: relative;
+  display: block;
+  width: 1280px;
+  min-height: 600px;
+  overflow: visible;
+}
+
 /* ===== เทมเพลตภาพบรีฟ (ซ่อนไว้นอกจอ, ขนาดคงที่แบบ Desktop เสมอ) ===== */
 #briefing-template {
   position: absolute;
@@ -813,6 +821,27 @@ function getText(id) {
   return el ? el.textContent.trim() : '--';
 }
 
+function resolveCaptureTarget() {
+  const sels = [
+    '#brief-capture',
+    '#conditions-panel', '.conditions-panel',
+    '#metar-panel', '.metar-panel',
+    '#main-dashboard', '.dashboard', 'main'
+  ];
+  for (const s of sels) {
+    const el = document.querySelector(s);
+    if (el && el.offsetWidth > 0 && el.offsetHeight > 0) return el;
+  }
+  const all = Array.from(document.querySelectorAll('div,section,article'));
+  const hit = all.filter(el =>
+    el.offsetHeight > 200 &&
+    /VIS\./i.test(el.textContent || '') &&
+    !el.classList.contains('no-capture')
+  );
+  hit.sort((a, b) => a.offsetHeight - b.offsetHeight);
+  return hit[0] || document.documentElement;
+}
+
 async function generateBriefingImage() {
   // โหมดปัจจุบัน (เตรียมรองรับ TAF ในอนาคต)
   const briefingMode = 'METAR'; // เปลี่ยนเป็น 'TAF' ได้ในอนาคตเมื่อพัฒนาโหมด TAF
@@ -847,14 +876,22 @@ async function generateBriefingImage() {
   content.innerHTML = '';
 
   try {
-    const target = document.getElementById('brief-capture');
+    const target = resolveCaptureTarget();
     target.style.display = 'block';
     const _prevX = window.scrollX, _prevY = window.scrollY;
     window.scrollTo(0, 0);
     await new Promise(r => setTimeout(r, 150));
-    const _rect = target.getBoundingClientRect();
+    const _r = target.getBoundingClientRect();
     console.log('CAP_TARGET=', target.id || target.className,
-                'W=', _rect.width, 'H=', _rect.height);
+                'W=', Math.round(_r.width),  'H=', Math.round(_r.height),
+                'offH=', target.offsetHeight, 'scrollH=', target.scrollHeight);
+    if (target.offsetHeight < 50) {
+      alert('CAPTURE_FAIL: target สูง ' + target.offsetHeight + 'px เลือก element ผิด');
+      window.scrollTo(_prevX, _prevY);
+      modal.style.display = '';
+      modal.classList.add('active');
+      return;
+    }
     const canvas = await html2canvas(target, {
       useCORS: true,
       allowTaint: false,
@@ -862,21 +899,24 @@ async function generateBriefingImage() {
       scale: 2,
       backgroundColor: '#04101d',
       logging: false,
-      scrollX: 0,
-      scrollY: 0,
-      x: 0,
-      y: 0,
-      width:  Math.ceil(_rect.width),
-      height: Math.ceil(_rect.height),
-      windowWidth:  document.documentElement.clientWidth,
-      windowHeight: document.documentElement.clientHeight,
+      scrollX: -window.scrollX,
+      scrollY: -window.scrollY,
+      windowWidth:  document.documentElement.scrollWidth,
+      windowHeight: document.documentElement.scrollHeight,
       ignoreElements: function (el) {
         return el.tagName === 'IFRAME'
             || (el.classList && el.classList.contains('no-capture'))
             || (el.id && el.id.toLowerCase().indexOf('radar') !== -1);
+      },
+      onclone: function (doc) {
+        doc.querySelectorAll('[style*="position: fixed"], [style*="position:fixed"]')
+           .forEach(function (el) { el.style.position = 'absolute'; });
+        const m = doc.querySelector('#briefing-modal, .briefing-modal');
+        if (m) m.style.display = 'none';
       }
     });
     window.scrollTo(_prevX, _prevY);
+    console.log('CANVAS=', canvas.width, 'x', canvas.height);
     content.innerHTML = '';
     canvas.style.maxWidth = '100%';
     canvas.style.height   = 'auto';
