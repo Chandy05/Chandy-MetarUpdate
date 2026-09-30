@@ -271,7 +271,14 @@
   padding: 20px;
 }
 #briefing-modal.active { display: flex; }
-#briefing-modal img {
+#briefing-preview-img {
+  -webkit-touch-callout: default !important;
+  -webkit-user-select: auto !important;
+  user-select: auto !important;
+  touch-action: manipulation !important;
+  pointer-events: auto !important;
+  max-width: 100%;
+  height: auto;
   max-width: 95vw;
   max-height: 80vh;
   border: 2px solid #4fd1ff;
@@ -764,12 +771,16 @@
 
     </script>
 
-<button id="briefing-fab" title="สร้างภาพบรีฟ" onclick="generateBriefingImage()">📷</button>
+<button id="briefing-fab" class="no-capture" data-html2canvas-ignore="true" title="สร้างภาพบรีฟ" onclick="generateBriefingImage()">📷</button>
 
-<div id="briefing-modal">
-  <button class="bm-close" onclick="closeBriefingModal()">×</button>
-  <div id="briefing-modal-content"><span class="bm-loading">กำลังสร้างภาพ...</span></div>
-  <p class="bm-hint">📱 มือถือ: กดค้างที่ภาพเพื่อบันทึกลงแกลลอรี่ | 💻 คอมพิวเตอร์: คลิกขวา &gt; Save Image</p>
+<div id="briefing-modal" class="no-capture" data-html2canvas-ignore="true">
+  <button class="bm-close no-capture" data-html2canvas-ignore="true" onclick="closeBriefingModal()">×</button>
+  <div id="briefing-modal-content">
+    <span class="bm-loading">กำลังสร้างภาพ...</span>
+    <img id="briefing-preview-img" style="display:none;" alt="ATC MET BRIEFING">
+  </div>
+  <p class="bm-hint no-capture" data-html2canvas-ignore="true">📱 มือถือ: กดค้างที่ภาพเพื่อบันทึกลงแกลลอรี่ | 💻 คอมพิวเตอร์: คลิกขวา &gt; Save Image</p>
+  <button id="briefing-save-btn" class="no-capture" data-html2canvas-ignore="true" onclick="saveBriefImage()" style="margin-top:12px;padding:10px 24px;background:#4fd1ff;color:#04101d;border:none;border-radius:6px;font-size:15px;font-weight:bold;cursor:pointer;">💾 บันทึกภาพ</button>
 </div>
 
 <div id="briefing-template">
@@ -817,25 +828,16 @@ function hasMetarText(el) {
 }
 
 function resolveCaptureTarget() {
-  const sels = [
-    '#conditions-panel', '.conditions-panel',
-    '#metar-panel', '.metar-panel',
-    '#main-dashboard', '.dashboard', 'main', '#brief-capture'
-  ];
+  const sels = ['#app', '.app-wrapper', '#dashboard', '#main-dashboard',
+                '.dashboard', '.main-container', '.container', 'main'];
   for (const s of sels) {
     const el = document.querySelector(s);
-    if (el && el.offsetWidth > 100 && el.offsetHeight > 100 && hasMetarText(el)) {
-      console.log('PICKED_BY_SELECTOR=', s);
+    if (el && el.offsetWidth > 300 && el.offsetHeight > 300 && hasMetarText(el)) {
+      console.log('PICKED_FULL=', s, el.offsetWidth + 'x' + el.offsetHeight);
       return el;
     }
   }
-  const all = Array.from(document.querySelectorAll('div,section,article,main'));
-  const hit = all.filter(el =>
-    el.offsetHeight > 200 && el.offsetWidth > 200 &&
-    hasMetarText(el) && !el.classList.contains('no-capture'));
-  hit.sort((a, b) => (a.offsetHeight * a.offsetWidth) - (b.offsetHeight * b.offsetWidth));
-  if (hit[0]) { console.log('PICKED_BY_SCAN=', hit[0].id || hit[0].className); return hit[0]; }
-  console.warn('PICKED_FALLBACK= body');
+  console.log('PICKED_FULL= body');
   return document.body;
 }
 
@@ -870,7 +872,13 @@ async function generateBriefingImage() {
   const content = document.getElementById('briefing-modal-content');
   modal.classList.remove('active');
   modal.style.display = 'none';
+  const oldImg = document.getElementById('briefing-preview-img');
   content.innerHTML = '';
+  if (oldImg) { oldImg.style.display = 'none'; content.appendChild(oldImg); }
+  const loading = document.createElement('span');
+  loading.className = 'bm-loading';
+  loading.textContent = 'กำลังสร้างภาพ...';
+  content.insertBefore(loading, content.firstChild);
 
   try {
     const target = resolveCaptureTarget();
@@ -889,11 +897,14 @@ async function generateBriefingImage() {
     const _px = window.scrollX, _py = window.scrollY;
     window.scrollTo(0, 0);
     await new Promise(r => setTimeout(r, 120));
+    const _w = target.offsetWidth || document.documentElement.clientWidth;
+    const _scale = Math.min(2, Math.max(1, 2400 / _w));
+    console.log('CAP_FULL=', _w + 'x' + target.offsetHeight, 'SCALE=', _scale.toFixed(2));
     const canvas = await html2canvas(target, {
       useCORS: true,
       allowTaint: false,
       imageTimeout: 3000,
-      scale: 2,
+      scale: _scale,
       backgroundColor: '#04101d',
       logging: false,
       ignoreElements: function (el) {
@@ -911,48 +922,81 @@ async function generateBriefingImage() {
           if (cs.filter && cs.filter !== 'none') cs.filter = 'none';
           if (cs.mixBlendMode) cs.mixBlendMode = 'normal';
         });
-        const src = document.querySelector('.conditions-panel, #conditions-panel');
-        const cl  = doc.querySelector('.conditions-panel, #conditions-panel');
-        if (src && cl) {
-          cl.style.width    = src.offsetWidth + 'px';
-          cl.style.maxWidth = 'none';
-          cl.style.minWidth = src.offsetWidth + 'px';
-          cl.style.transform = 'none';
-        }
+        const _srcW = document.body.offsetWidth;
+        doc.body.style.width    = _srcW + 'px';
+        doc.body.style.minWidth = _srcW + 'px';
+        doc.querySelectorAll('.no-capture, [data-html2canvas-ignore]')
+           .forEach(function (el) { el.style.display = 'none'; });
       }
     });
     window.scrollTo(_px, _py);
-    const _expW = target.offsetWidth * 2, _expH = target.offsetHeight * 2;
+    const _expW = target.offsetWidth * _scale, _expH = target.offsetHeight * _scale;
     console.log('CANVAS=', canvas.width, 'x', canvas.height,
                 '| EXPECTED=', _expW, 'x', _expH,
                 '| MATCH=', (Math.abs(canvas.width - _expW) < 40 &&
                              Math.abs(canvas.height - _expH) < 40));
-    content.innerHTML = '';
-    canvas.style.maxWidth = '100%';
-    canvas.style.height   = 'auto';
-    content.appendChild(canvas);
     const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.9);
     console.log('BRIEF_LEN=', jpegDataUrl.length);
-    const saveImg = document.createElement('img');
-    saveImg.src = jpegDataUrl;
-    saveImg.alt = 'Weather Briefing';
-    saveImg.style.display = 'none';
-    content.appendChild(saveImg);
-    modal.style.display = '';
-    modal.classList.add('active');
+    canvas.toBlob(function (blob) {
+      if (window._briefUrl) URL.revokeObjectURL(window._briefUrl);
+      window._briefUrl  = URL.createObjectURL(blob);
+      window._briefBlob = blob;
+
+      let imgEl = document.getElementById('briefing-preview-img');
+      if (!imgEl) {
+        imgEl = document.createElement('img');
+        imgEl.id = 'briefing-preview-img';
+        content.appendChild(imgEl);
+      }
+      const loadingEl = content.querySelector('.bm-loading');
+      if (loadingEl) loadingEl.style.display = 'none';
+      imgEl.src = window._briefUrl;
+      imgEl.alt = 'ATC MET BRIEFING';
+      imgEl.setAttribute('draggable', 'true');
+      imgEl.style.display = '';
+      console.log('BLOB_KB=', Math.round(blob.size / 1024));
+
+      const m = document.getElementById('briefing-modal');
+      m.classList.add('active');
+      m.style.display = 'flex';
+    }, 'image/jpeg', 0.92);
   } catch (err) {
     const _px = typeof _px !== 'undefined' ? _px : window.scrollX;
     const _py = typeof _py !== 'undefined' ? _py : window.scrollY;
     window.scrollTo(_px, _py);
     console.error('BRIEFING_ERROR:', err);
     alert(err.message);
-    modal.style.display = '';
+    const existImg = document.getElementById('briefing-preview-img');
+    content.innerHTML = '';
+    if (existImg) content.appendChild(existImg);
+    const errSpan = document.createElement('span');
+    errSpan.style.color = '#ff6b6b';
+    errSpan.innerHTML = 'เกิดข้อผิดพลาดในการสร้างภาพ: ' + err.message + '<br>(อาจเกิดจากภาพเรดาร์หรือโลโก้ไม่รองรับ CORS)';
+    content.insertBefore(errSpan, content.firstChild);
     modal.classList.add('active');
-    content.innerHTML = '<span style="color:#ff6b6b">เกิดข้อผิดพลาดในการสร้างภาพ: ' + err.message + '<br>(อาจเกิดจากภาพเรดาร์หรือโลโก้ไม่รองรับ CORS)</span>';
+    modal.style.display = '';
   }
 }
 
+async function saveBriefImage() {
+  const blob = window._briefBlob;
+  if (!blob) return;
+  const name = 'ATC_MET_' + new Date().toISOString().slice(0,16).replace(/[-:T]/g,'') + '.jpg';
+  const file = new File([blob], name, { type: 'image/jpeg' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: 'ATC MET BRIEFING' }); return; }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a');
+  a.href = window._briefUrl;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 function closeBriefingModal() {
+  if (window._briefUrl) { URL.revokeObjectURL(window._briefUrl); window._briefUrl = null; }
   document.getElementById('briefing-modal').classList.remove('active');
 }
 </script>
