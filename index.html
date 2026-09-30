@@ -1117,7 +1117,11 @@ async function saveBriefImage() {
 
 function closeBriefingModal() {
   if (window._briefUrl) { URL.revokeObjectURL(window._briefUrl); window._briefUrl = null; }
-  document.getElementById('briefing-modal').classList.remove('active');
+  const modal = document.getElementById('briefing-modal');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+  }
 }
 </script>
 
