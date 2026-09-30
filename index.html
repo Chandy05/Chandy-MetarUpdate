@@ -279,9 +279,8 @@
   pointer-events: auto !important;
   image-rendering: -webkit-optimize-contrast;
   max-width: 100%;
-  height: auto;
-  max-width: 95vw;
-  max-height: 80vh;
+  max-height: 100%;
+  object-fit: contain;
   border: 2px solid #4fd1ff;
   border-radius: 6px;
 }
@@ -781,14 +780,16 @@
 
 <button id="briefing-fab" class="no-capture" data-html2canvas-ignore="true" title="สร้างภาพบรีฟ" onclick="generateBriefingImage()">📷</button>
 
-<div id="briefing-modal" class="no-capture" data-html2canvas-ignore="true" onclick="if(event.target.id === 'briefing-modal') closeBriefingModal()">
-  <button class="bm-close no-capture" data-html2canvas-ignore="true" onclick="closeBriefingModal()" style="pointer-events: auto !important; touch-action: manipulation;">×</button>
-  <div id="briefing-modal-content">
-    <span class="bm-loading">กำลังสร้างภาพ...</span>
-    <img id="briefing-preview-img" style="display:none;" alt="ATC MET BRIEFING">
+<div id="briefing-modal" class="no-capture" data-html2canvas-ignore="true" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:999999; flex-direction:column; align-items:center; justify-content:center; padding:10px;">
+  <div id="briefing-modal-content" style="text-align:center; max-height: 70vh; overflow: hidden; display: flex; justify-content: center; align-items: center;">
+    <span class="bm-loading" style="color:#4fd1ff; font-size:24px; font-weight:bold;">กำลังสร้างภาพ... ⏳</span>
   </div>
-  <p class="bm-hint no-capture" data-html2canvas-ignore="true">📱 มือถือ: กดค้างที่ภาพเพื่อบันทึกลงแกลลอรี่ | 💻 คอมพิวเตอร์: คลิกขวา &gt; Save Image</p>
-  <button id="briefing-save-btn" class="no-capture" data-html2canvas-ignore="true" onclick="saveBriefImage()" style="margin-top:12px;padding:10px 24px;background:#4fd1ff;color:#04101d;border:none;border-radius:6px;font-size:15px;font-weight:bold;cursor:pointer;">💾 บันทึกภาพ</button>
+  <p class="bm-hint no-capture" style="color:#cfe8ff; margin-top:20px; font-size:16px; text-align:center;" data-html2canvas-ignore="true">📱 มือถือ: กดค้างที่ภาพเพื่อบันทึก | 💻 คอมพิวเตอร์: คลิกขวา &gt; Save Image</p>
+  
+  <div style="display:flex; gap:15px; margin-top:15px;" class="no-capture" data-html2canvas-ignore="true">
+    <button onclick="saveBriefImage()" style="padding:15px 30px; background:#4fd1ff; color:#04101d; border:none; border-radius:8px; font-size:18px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 10px rgba(79, 209, 255, 0.4);">💾 บันทึกภาพ</button>
+    <button onclick="closeBriefingModal()" style="padding:15px 30px; background:#ff3333; color:#fff; border:none; border-radius:8px; font-size:18px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 10px rgba(255, 51, 51, 0.4);">❌ ปิดหน้าต่าง</button>
+  </div>
 </div>
 
 <div id="briefing-template">
@@ -970,6 +971,27 @@ async function generateBriefingImage() {
           s.innerHTML = s.innerHTML.replace(/max-width:\s*900px/g, 'max-width: 1px');
         });
 
+        // 1.5 อัดฉีด CSS ขยายขนาดตัวอักษรให้ใหญ่เบิ้ม เพื่อให้อ่านง่ายบนมือถือ (เฉพาะในรูป)
+        const bigTextStyles = doc.createElement('style');
+        bigTextStyles.innerHTML = `
+          .station-title { font-size: 38px !important; }
+          .range-identity { font-size: 24px !important; }
+          .clock-box { font-size: 30px !important; }
+          .clock-box div:first-child { font-size: 20px !important; }
+          .raw-metar-box { font-size: 28px !important; padding: 12px 20px !important; }
+          .panel-title { font-size: 30px !important; padding: 0 15px !important; top: 12px !important; }
+          .data-label { font-size: 32px !important; min-width: 130px !important; }
+          .data-value { font-size: 42px !important; }
+          .data-weather-desc { font-size: 24px !important; }
+          .qnh-value { font-size: 55px !important; }
+          .wind-dir-text { font-size: 45px !important; }
+          .wind-speed-val { font-size: 110px !important; }
+          .wind-unit { font-size: 24px !important; }
+          .dir-mark { font-size: 32px !important; }
+          .compass-circle { width: 480px !important; height: 480px !important; border-width: 8px !important; }
+        `;
+        doc.head.appendChild(bigTextStyles);
+
         // 2. แปลง Dropdown เลือกสถานี เป็นข้อความธรรมดา
         const selectEl = doc.getElementById('station-select');
         if (selectEl) {
@@ -977,7 +999,7 @@ async function generateBriefingImage() {
             const span = doc.createElement('span');
             span.textContent = txt;
             span.style.color = '#ffffff'; 
-            span.style.fontSize = '1.6vw';
+            span.style.fontSize = '40px';
             span.style.fontWeight = 'bold';
             span.style.marginLeft = '10px';
             selectEl.parentNode.insertBefore(span, selectEl);
