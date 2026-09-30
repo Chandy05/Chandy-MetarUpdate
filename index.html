@@ -20,7 +20,7 @@
         /* --- HEADER --- */
         .header-bar { background-color: #0a0f18; border-bottom: 3px solid var(--accent-gold); padding: 1vw 1.5vw; display: flex; justify-content: space-between; align-items: center; }
         .header-left-container { display: flex; align-items: center; gap: 10px; }
-        .main-logo { height: 3.5vw; min-height: 40px; width: auto; filter: drop-shadow(0 0 5px rgba(243, 156, 18, 0.3)); }
+        .main-logo { height: 4.8vw; min-height: 55px; width: auto; filter: drop-shadow(0 0 5px rgba(243, 156, 18, 0.3)); }
         .header-titles-block { display: flex; flex-direction: column; }
         .station-title { font-size: 1.6vw; font-weight: bold; color: #ffffff; letter-spacing: 1px; display: flex; align-items: center; }
         .identity-row { display: flex; align-items: center; margin-top: 3px; }
@@ -55,16 +55,16 @@
         .panel-title { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 1.4vw; font-weight: bold; color: #a0aec0; z-index: 10; background: var(--panel-bg); padding: 0 10px;}
 
         /* --- COL 1: CONDITIONS --- */
-        .conditions-panel { flex: 0.8; justify-content: space-around; padding-top: 35px; }
+        .conditions-panel { flex: 0.8; justify-content: flex-start; gap: 1.8vh; padding-top: 45px; }
         .data-row { display: flex; align-items: center; border-bottom: 1px dashed var(--border-color); padding-bottom: 5px; }
-        .data-label { min-width: 100px; width: 7vw; font-size: 1.6vw; font-weight: bold; color: #a0aec0; margin-right: 5px; }
+        .data-label { min-width: 110px; width: 8vw; font-size: 1.9vw; font-weight: bold; color: #a0aec0; margin-right: 5px; }
         
         /* ป้องกันการตกบรรทัดของกลุ่มคำว่า หมอกแดด */
         .data-value-container { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; flex: 1; margin-left: 5px; }
-        .data-value { font-size: 1.8vw; font-weight: bold; color: var(--data-color); text-shadow: 0 0 8px rgba(0, 255, 204, 0.4); white-space: nowrap; }
+        .data-value { font-size: 2.3vw; font-weight: bold; color: var(--data-color); text-shadow: 0 0 8px rgba(0, 255, 204, 0.4); white-space: nowrap; }
         .data-weather-desc { font-size: 1.1vw; color: #ffb703; font-weight: normal; margin-top: -2px; white-space: nowrap; min-width: max-content; }
         
-        .qnh-value { color: #ffb703; font-size: 2.5vw !important; text-shadow: 0 0 10px rgba(255, 183, 3, 0.4); }
+        .qnh-value { color: #ffb703; font-size: 3vw !important; text-shadow: 0 0 10px rgba(255, 183, 3, 0.4); }
 
         /* --- COL 2: WIND INDICATOR --- */
         .wind-panel { flex: 1.1; align-items: center; justify-content: flex-start; padding-top: 40px; }
@@ -322,7 +322,7 @@
             <img src="logo_main.png?v=2" alt="RTAF Logo" class="main-logo" onerror="this.style.display='none'">
             <div class="header-titles-block">
                 <div class="station-title">
-                    ATC MET DISPLAY : 
+                    METAR DISPLAY : 
                     <select id="station-select" class="station-dropdown no-capture" data-html2canvas-ignore="true">
                         <optgroup label="สถานีกองข่าวอากาศ ทอ.">
                             <option value="VTMD">VTMD (DONMUANG)</option>
@@ -374,11 +374,11 @@
             
             <div class="data-row" style="align-items: flex-start;">
                 <div class="data-label" style="margin-top: 3px;">VIS.</div>
-                <div class="data-value-container">
+                <div class="data-value-container" style="margin-right: 20px;">
                     <div class="data-value" id="val-vis">----</div>
                     <div class="data-weather-desc" id="val-wx"></div>
                 </div>
-                <div class="data-label" style="width: auto; margin-right: 5px; margin-top: 3px;">TIME</div>
+                <div class="data-label" style="width: auto; margin-left: auto; margin-right: 10px; margin-top: 3px;">TIME</div>
                 <div class="data-value" id="val-time" style="color: #ffffff; margin-top: 3px;">----</div>
             </div>
             
@@ -971,24 +971,31 @@ async function generateBriefingImage() {
           s.innerHTML = s.innerHTML.replace(/max-width:\s*900px/g, 'max-width: 1px');
         });
 
-        // 1.5 อัดฉีด CSS ขยายขนาดตัวอักษรให้ใหญ่เบิ้ม เพื่อให้อ่านง่ายบนมือถือ (เฉพาะในรูป)
+        // 1.5 อัดฉีด CSS ขยายโลโก้ ตัวหนังสือ และจัดระเบียบแถวให้แน่นขึ้นในรูป
         const bigTextStyles = doc.createElement('style');
         bigTextStyles.innerHTML = `
-          .station-title { font-size: 38px !important; }
-          .range-identity { font-size: 24px !important; }
-          .clock-box { font-size: 30px !important; }
-          .clock-box div:first-child { font-size: 20px !important; }
-          .raw-metar-box { font-size: 28px !important; padding: 12px 20px !important; }
-          .panel-title { font-size: 30px !important; padding: 0 15px !important; top: 12px !important; }
-          .data-label { font-size: 32px !important; min-width: 130px !important; }
-          .data-value { font-size: 42px !important; }
-          .data-weather-desc { font-size: 24px !important; }
-          .qnh-value { font-size: 55px !important; }
-          .wind-dir-text { font-size: 45px !important; }
-          .wind-speed-val { font-size: 110px !important; }
-          .wind-unit { font-size: 24px !important; }
-          .dir-mark { font-size: 32px !important; }
-          .compass-circle { width: 480px !important; height: 480px !important; border-width: 8px !important; }
+          .main-logo { height: 95px !important; min-height: 95px !important; }
+          .chdy-icon { height: 35px !important; min-height: 35px !important; }
+          .station-title { font-size: 46px !important; }
+          .range-identity { font-size: 28px !important; }
+          .clock-box { font-size: 34px !important; padding: 10px 20px !important; }
+          .clock-box div:first-child { font-size: 22px !important; }
+          .raw-metar-box { font-size: 32px !important; padding: 15px 25px !important; }
+          .panel-title { font-size: 34px !important; padding: 0 20px !important; top: 8px !important; }
+          
+          /* บีบแถวให้แคบลงและขยายตัวอักษร */
+          .conditions-panel { justify-content: flex-start !important; gap: 20px !important; padding-top: 60px !important; }
+          .data-row { padding-bottom: 5px !important; border-bottom: 2px dashed rgba(42, 63, 95, 0.5) !important; align-items: center !important; }
+          .data-label { font-size: 40px !important; min-width: 170px !important; margin-top: 0 !important; }
+          .data-value { font-size: 52px !important; margin-top: 0 !important; }
+          .data-weather-desc { font-size: 30px !important; margin-top: 5px !important; }
+          .qnh-value { font-size: 70px !important; }
+          
+          .wind-dir-text { font-size: 48px !important; }
+          .wind-speed-val { font-size: 120px !important; }
+          .wind-unit { font-size: 26px !important; }
+          .dir-mark { font-size: 36px !important; }
+          .compass-circle { width: 500px !important; height: 500px !important; border-width: 10px !important; margin-top: 25px !important; }
         `;
         doc.head.appendChild(bigTextStyles);
 
@@ -999,7 +1006,7 @@ async function generateBriefingImage() {
             const span = doc.createElement('span');
             span.textContent = txt;
             span.style.color = '#ffffff'; 
-            span.style.fontSize = '40px';
+            span.style.fontSize = '50px';
             span.style.fontWeight = 'bold';
             span.style.marginLeft = '10px';
             selectEl.parentNode.insertBefore(span, selectEl);
