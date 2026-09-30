@@ -18,14 +18,14 @@
         #update-bar { height: 100%; width: 100%; background-color: var(--data-color); transition: width 1s linear; box-shadow: 0 0 10px var(--data-color); }
 
         /* --- HEADER --- */
-        .header-bar { background-color: #0a0f18; border-bottom: 3px solid var(--accent-gold); padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; }
+        .header-bar { background-color: #0a0f18; border-bottom: 3px solid var(--accent-gold); padding: 1vw 1.5vw; display: flex; justify-content: space-between; align-items: center; }
         .header-left-container { display: flex; align-items: center; gap: 10px; }
-        .main-logo { height: 50px; width: auto; filter: drop-shadow(0 0 5px rgba(243, 156, 18, 0.3)); }
+        .main-logo { height: 3.5vw; min-height: 40px; width: auto; filter: drop-shadow(0 0 5px rgba(243, 156, 18, 0.3)); }
         .header-titles-block { display: flex; flex-direction: column; }
         .station-title { font-size: 1.6vw; font-weight: bold; color: #ffffff; letter-spacing: 1px; display: flex; align-items: center; }
         .identity-row { display: flex; align-items: center; margin-top: 3px; }
         .range-identity { font-size: 1vw; color: var(--accent-gold); font-weight: bold; letter-spacing: 2px; text-shadow: 0 0 8px rgba(243, 156, 18, 0.5); }
-        .chdy-icon { height: 20px; width: auto; margin-left: 10px; filter: drop-shadow(0 0 5px var(--accent-gold)); }
+        .chdy-icon { height: 1.5vw; min-height: 15px; width: auto; margin-left: 10px; filter: drop-shadow(0 0 5px var(--accent-gold)); }
 
         .station-dropdown, .radar-dropdown { background-color: #1a2a40; color: var(--data-color); border: 2px solid var(--data-color); border-radius: 5px; font-family: 'Consolas', monospace; font-weight: bold; padding: 2px 5px; cursor: pointer; outline: none; margin-left: 10px; font-size: 1.3vw; }
         .station-dropdown:hover, .radar-dropdown:hover { background-color: #233a57; }
@@ -57,7 +57,7 @@
         /* --- COL 1: CONDITIONS --- */
         .conditions-panel { flex: 0.8; justify-content: space-around; padding-top: 35px; }
         .data-row { display: flex; align-items: center; border-bottom: 1px dashed var(--border-color); padding-bottom: 5px; }
-        .data-label { width: 70px; font-size: 1.6vw; font-weight: bold; color: #a0aec0; }
+        .data-label { min-width: 100px; width: 7vw; font-size: 1.6vw; font-weight: bold; color: #a0aec0; margin-right: 5px; }
         
         /* ป้องกันการตกบรรทัดของกลุ่มคำว่า หมอกแดด */
         .data-value-container { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; flex: 1; margin-left: 5px; }
@@ -781,8 +781,8 @@
 
 <button id="briefing-fab" class="no-capture" data-html2canvas-ignore="true" title="สร้างภาพบรีฟ" onclick="generateBriefingImage()">📷</button>
 
-<div id="briefing-modal" class="no-capture" data-html2canvas-ignore="true">
-  <button class="bm-close no-capture" data-html2canvas-ignore="true" onclick="closeBriefingModal()">×</button>
+<div id="briefing-modal" class="no-capture" data-html2canvas-ignore="true" onclick="if(event.target.id === 'briefing-modal') closeBriefingModal()">
+  <button class="bm-close no-capture" data-html2canvas-ignore="true" onclick="closeBriefingModal()" style="pointer-events: auto !important; touch-action: manipulation;">×</button>
   <div id="briefing-modal-content">
     <span class="bm-loading">กำลังสร้างภาพ...</span>
     <img id="briefing-preview-img" style="display:none;" alt="ATC MET BRIEFING">
@@ -947,7 +947,7 @@ async function generateBriefingImage() {
 
     const CAP_W  = 1920;
     const CAP_H  = 1080;
-    const _scale = 2; 
+    const _scale = 3; 
     console.log('CAP_SCALE=', _scale, 'CAP_W=', CAP_W, 'CAP_H=', CAP_H);
     let canvas = await html2canvas(target, {
       useCORS: true,
@@ -965,12 +965,9 @@ async function generateBriefingImage() {
         const m = doc.querySelector('#briefing-modal, .briefing-modal');
         if (m) m.style.display = 'none';
 
-        // 1. ล็อกเลย์เอาต์ 16:9 ขั้นเด็ดขาด โดยแปลง vw และ vh ให้เป็น Pixel สัดส่วน 1920x1080
+        // 1. ทำลาย Media Query ของมือถือ เพื่อบังคับเป็น Desktop Layout เสมอ
         doc.querySelectorAll('style').forEach(function(s) {
-          let css = s.innerHTML.replace(/max-width:\s*900px/g, 'max-width: 1px');
-          css = css.replace(/([\d.]+)vw/g, function(match, p1) { return (parseFloat(p1) * 19.2) + 'px'; });
-          css = css.replace(/([\d.]+)vh/g, function(match, p1) { return (parseFloat(p1) * 10.8) + 'px'; });
-          s.innerHTML = css;
+          s.innerHTML = s.innerHTML.replace(/max-width:\s*900px/g, 'max-width: 1px');
         });
 
         // 2. แปลง Dropdown เลือกสถานี เป็นข้อความธรรมดา
@@ -979,8 +976,8 @@ async function generateBriefingImage() {
             const txt = selectEl.options[selectEl.selectedIndex].text;
             const span = doc.createElement('span');
             span.textContent = txt;
-            span.style.color = '#ffffff'; // สีขาวตามดีไซน์หลัก
-            span.style.fontSize = '30.72px'; // เทียบเท่า 1.6vw
+            span.style.color = '#ffffff'; 
+            span.style.fontSize = '1.6vw';
             span.style.fontWeight = 'bold';
             span.style.marginLeft = '10px';
             selectEl.parentNode.insertBefore(span, selectEl);
