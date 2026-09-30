@@ -177,14 +177,6 @@
 }
 #briefing-fab:active { transform: scale(0.92); }
 
-#brief-capture {
-  position: relative;
-  display: block;
-  width: 1280px;
-  min-height: 600px;
-  overflow: visible;
-}
-
 /* ===== เทมเพลตภาพบรีฟ (ซ่อนไว้นอกจอ, ขนาดคงที่แบบ Desktop เสมอ) ===== */
 #briefing-template {
   position: absolute;
@@ -780,7 +772,6 @@
   <p class="bm-hint">📱 มือถือ: กดค้างที่ภาพเพื่อบันทึกลงแกลลอรี่ | 💻 คอมพิวเตอร์: คลิกขวา &gt; Save Image</p>
 </div>
 
-<div id="brief-capture" style="position: static;">
 <div id="briefing-template">
   <div class="bt-header">
     <img class="bt-logo" src="https://raw.githubusercontent.com/Chandy05/Chandy-MetarUpdate/9f3085839d43fe0480e075ce74dcdc6e54b91b1e/logo_main.png" crossorigin="anonymous" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgdmlld0JveD0iMCAwIDY0IDY0Ij48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIzMCIgZmlsbD0iIzBkMmI0ZSIgc3Ryb2tlPSIjNGZkMWZmIiBzdHJva2Utd2lkdGg9IjIiLz48dGV4dCB4PSIzMiIgeT0iNDAiIGZvbnQtZmFtaWx5PSJDb25zb2xhcywgbW9ub3NwYWNlIiBmb250LXNpemU9IjI0IiBmaWxsPSIjNGZkMWZmIiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Q0g8L3RleHQ+PC9zdmc+';">
@@ -813,7 +804,6 @@
     <span>Source: METAR / TMD Radar</span>
   </div>
 </div>
-</div>
 
 <script>
 function getText(id) {
@@ -821,25 +811,32 @@ function getText(id) {
   return el ? el.textContent.trim() : '--';
 }
 
+function hasMetarText(el) {
+  const t = (el && el.innerText) || '';
+  return /VIS\./i.test(t) && /(FEW|SCT|BKN|OVC)/i.test(t) && /QNH/i.test(t);
+}
+
 function resolveCaptureTarget() {
   const sels = [
-    '#brief-capture',
     '#conditions-panel', '.conditions-panel',
     '#metar-panel', '.metar-panel',
-    '#main-dashboard', '.dashboard', 'main'
+    '#main-dashboard', '.dashboard', 'main', '#brief-capture'
   ];
   for (const s of sels) {
     const el = document.querySelector(s);
-    if (el && el.offsetWidth > 0 && el.offsetHeight > 0) return el;
+    if (el && el.offsetWidth > 100 && el.offsetHeight > 100 && hasMetarText(el)) {
+      console.log('PICKED_BY_SELECTOR=', s);
+      return el;
+    }
   }
-  const all = Array.from(document.querySelectorAll('div,section,article'));
+  const all = Array.from(document.querySelectorAll('div,section,article,main'));
   const hit = all.filter(el =>
-    el.offsetHeight > 200 &&
-    /VIS\./i.test(el.textContent || '') &&
-    !el.classList.contains('no-capture')
-  );
-  hit.sort((a, b) => a.offsetHeight - b.offsetHeight);
-  return hit[0] || document.documentElement;
+    el.offsetHeight > 200 && el.offsetWidth > 200 &&
+    hasMetarText(el) && !el.classList.contains('no-capture'));
+  hit.sort((a, b) => (a.offsetHeight * a.offsetWidth) - (b.offsetHeight * b.offsetWidth));
+  if (hit[0]) { console.log('PICKED_BY_SCAN=', hit[0].id || hit[0].className); return hit[0]; }
+  console.warn('PICKED_FALLBACK= body');
+  return document.body;
 }
 
 async function generateBriefingImage() {
@@ -881,12 +878,13 @@ async function generateBriefingImage() {
     const _prevX = window.scrollX, _prevY = window.scrollY;
     window.scrollTo(0, 0);
     await new Promise(r => setTimeout(r, 150));
-    const _r = target.getBoundingClientRect();
+    const _txt = (target.innerText || '').replace(/\s+/g, ' ').trim();
     console.log('CAP_TARGET=', target.id || target.className,
-                'W=', Math.round(_r.width),  'H=', Math.round(_r.height),
-                'offH=', target.offsetHeight, 'scrollH=', target.scrollHeight);
-    if (target.offsetHeight < 50) {
-      alert('CAPTURE_FAIL: target สูง ' + target.offsetHeight + 'px เลือก element ผิด');
+                'W=', target.offsetWidth, 'H=', target.offsetHeight,
+                'TEXT_LEN=', _txt.length, 'CHILDREN=', target.children.length);
+    console.log('CAP_PREVIEW=', _txt.slice(0, 120));
+    if (_txt.length < 30 || target.children.length === 0) {
+      alert('CAPTURE_FAIL: target ไม่มีเนื้อหา (TEXT_LEN=' + _txt.length + ')');
       window.scrollTo(_prevX, _prevY);
       modal.style.display = '';
       modal.classList.add('active');
@@ -909,10 +907,15 @@ async function generateBriefingImage() {
             || (el.id && el.id.toLowerCase().indexOf('radar') !== -1);
       },
       onclone: function (doc) {
-        doc.querySelectorAll('[style*="position: fixed"], [style*="position:fixed"]')
-           .forEach(function (el) { el.style.position = 'absolute'; });
         const m = doc.querySelector('#briefing-modal, .briefing-modal');
         if (m) m.style.display = 'none';
+        doc.querySelectorAll('*').forEach(function (el) {
+          const cs = el.style;
+          cs.backdropFilter = 'none';
+          cs.webkitBackdropFilter = 'none';
+          if (cs.filter && cs.filter !== 'none') cs.filter = 'none';
+          if (cs.mixBlendMode) cs.mixBlendMode = 'normal';
+        });
       }
     });
     window.scrollTo(_prevX, _prevY);
