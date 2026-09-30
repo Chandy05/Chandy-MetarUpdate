@@ -296,10 +296,12 @@
   top: 20px;
   right: 28px;
   color: #fff;
-  font-size: 32px;
+  font-size: 45px;
   cursor: pointer;
   background: none;
   border: none;
+  z-index: 99999;
+  text-shadow: 0 0 10px rgba(0,0,0,0.8);
 }
 #briefing-modal .bm-loading {
   color: #4fd1ff;
@@ -933,26 +935,51 @@ async function generateBriefingImage() {
     const _px = window.scrollX, _py = window.scrollY;
     window.scrollTo(0, 0);
     await new Promise(r => setTimeout(r, 120));
-    const CAP_W  = 1280;
-    const _scale = 3;
-    console.log('CAP_SCALE=', _scale, 'CAP_W=', CAP_W);
+    const CAP_W  = 1920;
+    const CAP_H  = 1080;
+    const _scale = 2; 
+    console.log('CAP_SCALE=', _scale, 'CAP_W=', CAP_W, 'CAP_H=', CAP_H);
     let canvas = await html2canvas(target, {
       useCORS: true,
       allowTaint: false,
       imageTimeout: 3000,
       scale: _scale,
-      backgroundColor: '#04101d',
+      backgroundColor: '#0b131e', 
       logging: false,
       windowWidth:  CAP_W,
-      windowHeight: Math.max(900, target.scrollHeight),
+      windowHeight: CAP_H,
       ignoreElements: function (el) {
-        return el.tagName === 'IFRAME'
-            || (el.classList && el.classList.contains('no-capture'))
-            || (el.id && el.id.toLowerCase().indexOf('radar') !== -1);
+        // เอา .no-capture ออกจากฝั่ง ignore เพื่อให้เข้าสู่ onclone ได้
+        return el.tagName === 'IFRAME' || (el.id && el.id.toLowerCase().indexOf('radar') !== -1);
       },
       onclone: function (doc) {
         const m = doc.querySelector('#briefing-modal, .briefing-modal');
         if (m) m.style.display = 'none';
+
+        // 1. ทำลาย Media Query ของมือถือ
+        doc.querySelectorAll('style').forEach(function(s) {
+          s.innerHTML = s.innerHTML.replace(/max-width:\s*900px/g, 'max-width: 1px');
+        });
+
+        // 2. แปลง Dropdown เลือกสถานี เป็นข้อความธรรมดา
+        const selectEl = doc.getElementById('station-select');
+        if (selectEl) {
+            const txt = selectEl.options[selectEl.selectedIndex].text;
+            const span = doc.createElement('span');
+            span.textContent = txt;
+            span.style.color = '#00ffcc';
+            span.style.fontSize = '1.3vw';
+            span.style.fontWeight = 'bold';
+            span.style.marginLeft = '10px';
+            selectEl.parentNode.insertBefore(span, selectEl);
+            selectEl.remove();
+        }
+
+        // 3. ลบปุ่ม PLAY ATIS ออกจากโคลนอย่างเด็ดขาด
+        doc.querySelectorAll('button').forEach(btn => {
+            if (btn.textContent.includes('PLAY ATIS')) btn.remove();
+        });
+
         doc.querySelectorAll('*').forEach(function (el) {
           const cs = el.style;
           cs.backdropFilter = 'none';
@@ -960,19 +987,25 @@ async function generateBriefingImage() {
           if (cs.filter && cs.filter !== 'none') cs.filter = 'none';
           if (cs.mixBlendMode) cs.mixBlendMode = 'normal';
         });
+
+        // 4. บังคับสัดส่วนหน้าจอเป็น 1920x1080 (16:9)
         doc.documentElement.style.width = CAP_W + 'px';
+        doc.documentElement.style.height = CAP_H + 'px';
         doc.body.style.width    = CAP_W + 'px';
+        doc.body.style.height   = CAP_H + 'px';
         doc.body.style.minWidth = CAP_W + 'px';
+        doc.body.style.minHeight = CAP_H + 'px';
         doc.body.style.maxWidth = 'none';
         doc.body.style.margin   = '0';
         doc.body.style.zoom     = '1';
-        const _ct = doc.querySelector('#app, .app-wrapper, #dashboard, #main-dashboard, .dashboard, .main-container, .container, main');
+        doc.body.style.overflow = 'hidden';
+
+        const _ct = doc.querySelector('.dashboard-container');
         if (_ct) {
-          _ct.style.width    = CAP_W + 'px';
-          _ct.style.minWidth = CAP_W + 'px';
-          _ct.style.maxWidth = 'none';
-          _ct.style.transform = 'none';
+          _ct.style.height = 'calc(1080px - 110px)';
         }
+
+        // 5. ซ่อนสิ่งที่เป็น no-capture ที่เหลืออยู่ 
         doc.querySelectorAll('.no-capture, [data-html2canvas-ignore]')
            .forEach(function (el) { el.style.display = 'none'; });
       }
@@ -981,9 +1014,9 @@ async function generateBriefingImage() {
     console.log('RAW_CANVAS=', canvas.width + 'x' + canvas.height,
                 '| DPR=', window.devicePixelRatio,
                 '| VIEWPORT=', window.innerWidth);
-    canvas = trimCanvasBottom(canvas, '#04101d');
+    // canvas = trimCanvasBottom(canvas, '#04101d'); // เอาฟังก์ชันตัดขอบออก บังคับ 16:9 ไปเลย
     console.log('FINAL_CANVAS=', canvas.width + 'x' + canvas.height);
-    const _expW = CAP_W * _scale, _expH = canvas.height;
+    const _expW = CAP_W * _scale, _expH = CAP_H * _scale;
     console.log('CANVAS=', canvas.width, 'x', canvas.height,
                 '| EXPECTED_W=', _expW,
                 '| MATCH_W=', (Math.abs(canvas.width - _expW) < 40));
