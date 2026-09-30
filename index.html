@@ -292,16 +292,21 @@
   text-align: center;
 }
 #briefing-modal .bm-close {
-  position: absolute;
+  position: fixed;
   top: 20px;
-  right: 28px;
+  right: 20px;
+  width: 60px;
+  height: 60px;
   color: #fff;
-  font-size: 45px;
+  font-size: 40px;
+  line-height: 55px;
+  text-align: center;
   cursor: pointer;
-  background: none;
-  border: none;
-  z-index: 99999;
-  text-shadow: 0 0 10px rgba(0,0,0,0.8);
+  background: rgba(0,0,0,0.6);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  z-index: 999999;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.8);
 }
 #briefing-modal .bm-loading {
   color: #4fd1ff;
@@ -935,6 +940,11 @@ async function generateBriefingImage() {
     const _px = window.scrollX, _py = window.scrollY;
     window.scrollTo(0, 0);
     await new Promise(r => setTimeout(r, 120));
+
+    // ปลดล็อก Dropdown ชั่วคราวเพื่อให้หลุดเข้าไปแปลงเป็น Text ใน onclone ได้
+    const stSelect = document.getElementById('station-select');
+    if (stSelect) { stSelect.removeAttribute('data-html2canvas-ignore'); stSelect.classList.remove('no-capture'); }
+
     const CAP_W  = 1920;
     const CAP_H  = 1080;
     const _scale = 2; 
@@ -949,16 +959,18 @@ async function generateBriefingImage() {
       windowWidth:  CAP_W,
       windowHeight: CAP_H,
       ignoreElements: function (el) {
-        // เอา .no-capture ออกจากฝั่ง ignore เพื่อให้เข้าสู่ onclone ได้
         return el.tagName === 'IFRAME' || (el.id && el.id.toLowerCase().indexOf('radar') !== -1);
       },
       onclone: function (doc) {
         const m = doc.querySelector('#briefing-modal, .briefing-modal');
         if (m) m.style.display = 'none';
 
-        // 1. ทำลาย Media Query ของมือถือ
+        // 1. ล็อกเลย์เอาต์ 16:9 ขั้นเด็ดขาด โดยแปลง vw และ vh ให้เป็น Pixel สัดส่วน 1920x1080
         doc.querySelectorAll('style').forEach(function(s) {
-          s.innerHTML = s.innerHTML.replace(/max-width:\s*900px/g, 'max-width: 1px');
+          let css = s.innerHTML.replace(/max-width:\s*900px/g, 'max-width: 1px');
+          css = css.replace(/([\d.]+)vw/g, function(match, p1) { return (parseFloat(p1) * 19.2) + 'px'; });
+          css = css.replace(/([\d.]+)vh/g, function(match, p1) { return (parseFloat(p1) * 10.8) + 'px'; });
+          s.innerHTML = css;
         });
 
         // 2. แปลง Dropdown เลือกสถานี เป็นข้อความธรรมดา
@@ -967,16 +979,16 @@ async function generateBriefingImage() {
             const txt = selectEl.options[selectEl.selectedIndex].text;
             const span = doc.createElement('span');
             span.textContent = txt;
-            span.style.color = '#00ffcc';
-            span.style.fontSize = '1.3vw';
+            span.style.color = '#ffffff'; // สีขาวตามดีไซน์หลัก
+            span.style.fontSize = '30.72px'; // เทียบเท่า 1.6vw
             span.style.fontWeight = 'bold';
             span.style.marginLeft = '10px';
             selectEl.parentNode.insertBefore(span, selectEl);
             selectEl.remove();
         }
 
-        // 3. ลบปุ่ม PLAY ATIS ออกจากโคลนอย่างเด็ดขาด
-        doc.querySelectorAll('button').forEach(btn => {
+        // 3. ลบปุ่ม PLAY ATIS ทิ้ง
+        doc.querySelectorAll('.action-btn, button').forEach(btn => {
             if (btn.textContent.includes('PLAY ATIS')) btn.remove();
         });
 
@@ -988,7 +1000,7 @@ async function generateBriefingImage() {
           if (cs.mixBlendMode) cs.mixBlendMode = 'normal';
         });
 
-        // 4. บังคับสัดส่วนหน้าจอเป็น 1920x1080 (16:9)
+        // 4. บังคับขนาด Body และ Container
         doc.documentElement.style.width = CAP_W + 'px';
         doc.documentElement.style.height = CAP_H + 'px';
         doc.body.style.width    = CAP_W + 'px';
@@ -1002,14 +1014,16 @@ async function generateBriefingImage() {
 
         const _ct = doc.querySelector('.dashboard-container');
         if (_ct) {
-          _ct.style.height = 'calc(1080px - 110px)';
+          _ct.style.height = (CAP_H - 110) + 'px';
         }
 
-        // 5. ซ่อนสิ่งที่เป็น no-capture ที่เหลืออยู่ 
         doc.querySelectorAll('.no-capture, [data-html2canvas-ignore]')
            .forEach(function (el) { el.style.display = 'none'; });
       }
     });
+    
+    // คืนค่า Dropdown ให้กลับมาทำงานปกติบนหน้าเว็บหลัก
+    if (stSelect) { stSelect.setAttribute('data-html2canvas-ignore', 'true'); stSelect.classList.add('no-capture'); }
     window.scrollTo(_px, _py);
     console.log('RAW_CANVAS=', canvas.width + 'x' + canvas.height,
                 '| DPR=', window.devicePixelRatio,
