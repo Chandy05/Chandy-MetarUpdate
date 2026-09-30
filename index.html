@@ -875,9 +875,6 @@ async function generateBriefingImage() {
   try {
     const target = resolveCaptureTarget();
     target.style.display = 'block';
-    const _prevX = window.scrollX, _prevY = window.scrollY;
-    window.scrollTo(0, 0);
-    await new Promise(r => setTimeout(r, 150));
     const _txt = (target.innerText || '').replace(/\s+/g, ' ').trim();
     console.log('CAP_TARGET=', target.id || target.className,
                 'W=', target.offsetWidth, 'H=', target.offsetHeight,
@@ -885,11 +882,13 @@ async function generateBriefingImage() {
     console.log('CAP_PREVIEW=', _txt.slice(0, 120));
     if (_txt.length < 30 || target.children.length === 0) {
       alert('CAPTURE_FAIL: target ไม่มีเนื้อหา (TEXT_LEN=' + _txt.length + ')');
-      window.scrollTo(_prevX, _prevY);
       modal.style.display = '';
       modal.classList.add('active');
       return;
     }
+    const _px = window.scrollX, _py = window.scrollY;
+    window.scrollTo(0, 0);
+    await new Promise(r => setTimeout(r, 120));
     const canvas = await html2canvas(target, {
       useCORS: true,
       allowTaint: false,
@@ -897,10 +896,6 @@ async function generateBriefingImage() {
       scale: 2,
       backgroundColor: '#04101d',
       logging: false,
-      scrollX: -window.scrollX,
-      scrollY: -window.scrollY,
-      windowWidth:  document.documentElement.scrollWidth,
-      windowHeight: document.documentElement.scrollHeight,
       ignoreElements: function (el) {
         return el.tagName === 'IFRAME'
             || (el.classList && el.classList.contains('no-capture'))
@@ -916,10 +911,22 @@ async function generateBriefingImage() {
           if (cs.filter && cs.filter !== 'none') cs.filter = 'none';
           if (cs.mixBlendMode) cs.mixBlendMode = 'normal';
         });
+        const src = document.querySelector('.conditions-panel, #conditions-panel');
+        const cl  = doc.querySelector('.conditions-panel, #conditions-panel');
+        if (src && cl) {
+          cl.style.width    = src.offsetWidth + 'px';
+          cl.style.maxWidth = 'none';
+          cl.style.minWidth = src.offsetWidth + 'px';
+          cl.style.transform = 'none';
+        }
       }
     });
-    window.scrollTo(_prevX, _prevY);
-    console.log('CANVAS=', canvas.width, 'x', canvas.height);
+    window.scrollTo(_px, _py);
+    const _expW = target.offsetWidth * 2, _expH = target.offsetHeight * 2;
+    console.log('CANVAS=', canvas.width, 'x', canvas.height,
+                '| EXPECTED=', _expW, 'x', _expH,
+                '| MATCH=', (Math.abs(canvas.width - _expW) < 40 &&
+                             Math.abs(canvas.height - _expH) < 40));
     content.innerHTML = '';
     canvas.style.maxWidth = '100%';
     canvas.style.height   = 'auto';
@@ -934,6 +941,9 @@ async function generateBriefingImage() {
     modal.style.display = '';
     modal.classList.add('active');
   } catch (err) {
+    const _px = typeof _px !== 'undefined' ? _px : window.scrollX;
+    const _py = typeof _py !== 'undefined' ? _py : window.scrollY;
+    window.scrollTo(_px, _py);
     console.error('BRIEFING_ERROR:', err);
     alert(err.message);
     modal.style.display = '';
