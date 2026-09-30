@@ -385,7 +385,7 @@
             <div id="caution-box" class="caution-box hide">WARNING: NIL</div>
         </div>
 
-        <div class="panel radar-panel">
+        <div class="panel radar-panel no-capture" data-html2canvas-ignore="true">
             <div class="radar-header">
                 <div class="radar-title-text">TMD RADAR LOOP</div>
                 <select id="radar-select" class="radar-dropdown">
@@ -398,7 +398,7 @@
             </div>
             <div class="radar-viewport" id="radar-viewport" title="Double Click เพื่อขยายเรดาร์เต็มจอ">
                 <div class="radar-draggable-area" id="radar-draggable">
-                    <iframe id="radar-iframe" class="radar-iframe" src="https://weather.tmd.go.th/kkw240_HQ_Loop_edit2.php" scrolling="no"></iframe>
+                    <iframe id="radar-iframe" class="radar-iframe" src="https://weather.tmd.go.th/kkw240_HQ_Loop_edit2.php" scrolling="no" loading="lazy"></iframe>
                 </div>
             </div>
         </div>
@@ -407,8 +407,8 @@
 
     <div id="radar-modal" class="fullscreen-modal hide">
         <div class="close-modal-btn" onclick="closeRadarModal()">✖</div>
-        <div class="fs-radar-container">
-            <iframe id="fs-radar-iframe" style="width: 100%; height: 100%; border: none;" src=""></iframe>
+        <div class="fs-radar-container no-capture" data-html2canvas-ignore="true">
+            <iframe id="fs-radar-iframe" style="width: 100%; height: 100%; border: none;" src="" loading="lazy"></iframe>
         </div>
     </div>
 
@@ -690,9 +690,6 @@
             }).catch(error => { 
                 overlay.classList.remove('hide'); overlay.innerHTML = `<span style="color:red; font-weight:bold;">❌ SYSTEM ERROR<br><br>${error.message}<br><br><span style="font-size:1.5vw; color:#fff;">RETRYING IN 10 MINS...</span></span>`; 
             }); 
-            const radarIframe = document.getElementById('radar-iframe'); radarIframe.src = radarIframe.src; 
-            const fsRadarIframe = document.getElementById('fs-radar-iframe');
-            if(fsRadarIframe.src) fsRadarIframe.src = fsRadarIframe.src;
         }
         document.getElementById('station-select').addEventListener('change', renderDashboard);
         fetchWeatherData(); setInterval(fetchWeatherData, updateIntervalMS); 
@@ -787,7 +784,7 @@
   </div>
   <div class="bt-raw" id="bt-raw-metar">-- RAW METAR --</div>
   <div class="bt-body">
-    <div class="bt-radar">
+    <div class="bt-radar no-capture" data-html2canvas-ignore="true">
       <img src="https://weather.tmd.go.th/kkw/kkw240_HQ_latest.jpg" crossorigin="anonymous" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1NjAiIGhlaWdodD0iNDgwIiB2aWV3Qm94PSIwIDAgNTYwIDQ4MCI+PGRlZnM+PHJhZGlhbEdyYWRpZW50IGlkPSJnIiBjeD0iNTAlIiBjeT0iNTAlIiByPSI3NSUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMxYTNkNjYiLz48c3RvcCBvZmZzZXQ9IjUwJSIgc3RvcC1jb2xvcj0iIzBhMWEyZiIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iIzA1MGQxOSIvPjwvcmFkaWFsR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI1NjAiIGhlaWdodD0iNDgwIiBmaWxsPSJ1cmwoI2cpIi8+PGNpcmNsZSBjeD0iMjgwIiBjeT0iMjQwIiByPSIyMDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzJkNmE5OSIgc3Ryb2tlLXdpZHRoPSIxIi8+PGNpcmNsZSBjeD0iMjgwIiBjeT0iMjQwIiByPSIxNTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzJkNmE5OSIgc3Ryb2tlLXdpZHRoPSIxIi8+PGNpcmNsZSBjeD0iMjgwIiBjeT0iMjQwIiByPSIxMDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzJkNmE5OSIgc3Ryb2tlLXdpZHRoPSIxIi8+PGNpcmNsZSBjeD0iMjgwIiBjeT0iMjQwIiByPSI1MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmQ2YTk5IiBzdHJva2Utd2lkdGg9IjEiLz48bGluZSB4MT0iMjgwIiB5MT0iNDAiIHgyPSIyODAiIHkyPSI0NDAiIHN0cm9rZT0iIzJkNmE5OSIgc3Ryb2tlLXdpZHRoPSIxIi8+PGxpbmUgeDE9IjQwIiB5MT0iMjQwIiB4Mj0iNTIwIiB5Mj0iMjQwIiBzdHJva2U9IiMyZDZhOTkiIHN0cm9rZS13aWR0aD0iMSIvPjx0ZXh0IHg9IjI4MCIgeT0iMjUwIiBmb250LWZhbWlseT0iQ29uc29sYXMsIE1vbm9zcGFjZSIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzRmZDFmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+UkVBTElOWSBJTVBPUlQ8L3RleHQ+PHRleHQgeD0iMjgwIiB5PSIyNzAiIGZvbnQtZmFtaWx5PSJDb25zb2xhcywgTW9ub3NwYWNlIiBmb250LXNpemU9IjEyIiBmaWxsPSIjN2ZhOGM5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5jb3JzIGRpc2FibGVkIG9uIHNlcnZlcjwvdGV4dD48L3N2Zz4=';">
       <div class="bt-radar-label">Khao Khiao Radar — Source: TMD</div>
     </div>
@@ -843,8 +840,9 @@ async function generateBriefingImage() {
 
   const modal = document.getElementById('briefing-modal');
   const content = document.getElementById('briefing-modal-content');
-  content.innerHTML = '<span class="bm-loading">กำลังสร้างภาพ...</span>';
-  modal.classList.add('active');
+  modal.classList.remove('active');
+  modal.style.display = 'none';
+  content.innerHTML = '';
 
   try {
     const tpl = document.getElementById('briefing-template');
@@ -852,18 +850,27 @@ async function generateBriefingImage() {
     const canvas = await html2canvas(tpl, {
       useCORS: true,
       allowTaint: false,
+      imageTimeout: 3000,
       scale: 2,
-      backgroundColor: '#0a1a2f',
-      logging: false,
-      foreignObjectRendering: false,
-      imageTimeout: 10000,
-      removeContainer: true
+      backgroundColor: '#04101d',
+      logging: true,
+      ignoreElements: function (el) {
+        return el.tagName === 'IFRAME'
+            || (el.classList && el.classList.contains('no-capture'))
+            || (el.id && el.id.toLowerCase().indexOf('radar') !== -1);
+      }
     });
-    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    console.log('BRIEF_LEN=', jpegDataUrl.length);
     content.innerHTML = '<img src="' + jpegDataUrl + '" alt="Weather Briefing">';
+    modal.style.display = '';
+    modal.classList.add('active');
   } catch (err) {
+    console.error('BRIEFING_ERROR:', err);
+    alert(err.message);
+    modal.style.display = '';
+    modal.classList.add('active');
     content.innerHTML = '<span style="color:#ff6b6b">เกิดข้อผิดพลาดในการสร้างภาพ: ' + err.message + '<br>(อาจเกิดจากภาพเรดาร์หรือโลโก้ไม่รองรับ CORS)</span>';
-    console.error('Briefing generation error:', err);
   }
 }
 
