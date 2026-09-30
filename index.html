@@ -153,6 +153,151 @@
             .close-modal-btn { font-size: 8vw; }
         }
     </style>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+/* ===== ปุ่มลอยสร้างภาพบรีฟ ===== */
+#briefing-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #0d2b4e;
+  border: 2px solid #4fd1ff;
+  color: #4fd1ff;
+  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 9998;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+  transition: transform 0.15s ease;
+}
+#briefing-fab:active { transform: scale(0.92); }
+
+/* ===== เทมเพลตภาพบรีฟ (ซ่อนไว้นอกจอ, ขนาดคงที่แบบ Desktop เสมอ) ===== */
+#briefing-template {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1280px;
+  background: #0a1a2f;
+  color: #e6f1ff;
+  font-family: 'Consolas', 'Courier New', monospace;
+  border: 3px solid #4fd1ff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+#briefing-template .bt-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 28px;
+  background: linear-gradient(90deg, #0d2b4e, #0a1a2f);
+  border-bottom: 2px solid #4fd1ff;
+}
+#briefing-template .bt-logo { width: 64px; height: 64px; object-fit: contain; }
+#briefing-template .bt-title { flex: 1; }
+#briefing-template .bt-title h1 { margin: 0; font-size: 26px; letter-spacing: 1px; color: #4fd1ff; }
+#briefing-template .bt-title p { margin: 4px 0 0; font-size: 14px; color: #a8c4de; }
+#briefing-template .bt-raw {
+  padding: 14px 28px;
+  background: #071322;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #234a6b;
+  word-break: break-all;
+}
+#briefing-template .bt-body {
+  display: flex;
+  min-height: 480px;
+}
+#briefing-template .bt-radar {
+  flex: 0 0 560px;
+  position: relative;
+  overflow: hidden;
+  border-right: 2px solid #234a6b;
+}
+#briefing-template .bt-radar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 41% 28%;
+  display: block;
+}
+#briefing-template .bt-radar .bt-radar-label {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0,0,0,0.6);
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  color: #4fd1ff;
+}
+#briefing-template .bt-data {
+  flex: 1;
+  padding: 24px 28px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 28px;
+}
+#briefing-template .bt-item .bt-label { font-size: 13px; color: #7fa8c9; letter-spacing: 1px; }
+#briefing-template .bt-item .bt-value { font-size: 24px; font-weight: bold; color: #ffffff; }
+#briefing-template .bt-item.full { grid-column: 1 / -1; }
+#briefing-template .bt-footer {
+  padding: 12px 28px;
+  border-top: 2px solid #4fd1ff;
+  font-size: 12px;
+  color: #7fa8c9;
+  display: flex;
+  justify-content: space-between;
+  background: #071322;
+}
+
+/* ===== Preview Modal ===== */
+#briefing-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 20px;
+}
+#briefing-modal.active { display: flex; }
+#briefing-modal img {
+  max-width: 95vw;
+  max-height: 80vh;
+  border: 2px solid #4fd1ff;
+  border-radius: 6px;
+}
+#briefing-modal .bm-hint {
+  color: #cfe8ff;
+  margin-top: 14px;
+  font-size: 14px;
+  text-align: center;
+}
+#briefing-modal .bm-close {
+  position: absolute;
+  top: 20px;
+  right: 28px;
+  color: #fff;
+  font-size: 32px;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+#briefing-modal .bm-loading {
+  color: #4fd1ff;
+  font-size: 18px;
+}
+</style>
 </head>
 <body>
 
@@ -421,7 +566,12 @@
                     if (/^\d{4}$/.test(metarWords[i]) && !metarWords[i].includes('KT')) { 
                         visMeters = parseInt(metarWords[i], 10); 
                         if (visMeters === 9999) { parsed.vis = '10 km'; parsed.visVal = '10 kilometers'; }
-                        else { parsed.vis = (visMeters / 1000) + ' km'; parsed.visVal = (visMeters / 1000) + ' kilometers'; }
+                        else {
+                            const visKm = visMeters / 1000;
+                            const visNm = Math.round(visMeters / 1852);
+                            parsed.vis = visKm + ' km / ' + visNm + ' nm';
+                            parsed.visVal = visKm + ' kilometers, ' + visNm + ' nautical miles';
+                        }
                         break; 
                     } 
                 } 
@@ -616,6 +766,111 @@
         }
 
     </script>
+
+<button id="briefing-fab" title="สร้างภาพบรีฟ" onclick="generateBriefingImage()">📷</button>
+
+<div id="briefing-modal">
+  <button class="bm-close" onclick="closeBriefingModal()">×</button>
+  <div id="briefing-modal-content"><span class="bm-loading">กำลังสร้างภาพ...</span></div>
+  <p class="bm-hint">📱 มือถือ: กดค้างที่ภาพเพื่อบันทึกลงแกลลอรี่ | 💻 คอมพิวเตอร์: คลิกขวา &gt; Save Image</p>
+</div>
+
+<div id="briefing-template">
+  <div class="bt-header">
+    <img class="bt-logo" src="https://raw.githubusercontent.com/Chandy05/Chandy-MetarUpdate/9f3085839d43fe0480e075ce74dcdc6e54b91b1e/logo_main.png" crossorigin="anonymous" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgdmlld0JveD0iMCAwIDY0IDY0Ij48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIzMCIgZmlsbD0iIzBkMmI0ZSIgc3Ryb2tlPSIjNGZkMWZmIiBzdHJva2Utd2lkdGg9IjIiLz48dGV4dCB4PSIzMiIgeT0iNDAiIGZvbnQtZmFtaWx5PSJDb25zb2xhcywgbW9ub3NwYWNlIiBmb250LXNpemU9IjI0IiBmaWxsPSIjNGZkMWZmIiBmb250LXdlaWdodD0iYm9sZCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Q0g8L3RleHQ+PC9zdmc+';">
+
+    <div class="bt-title">
+      <h1 id="bt-station-name">WEATHER BRIEFING</h1>
+      <p id="bt-mode-label">METAR OBSERVATION</p>
+      <p id="bt-generated-time">Generated: --</p>
+    </div>
+  </div>
+  <div class="bt-raw" id="bt-raw-metar">-- RAW METAR --</div>
+  <div class="bt-body">
+    <div class="bt-radar">
+      <img src="https://weather.tmd.go.th/kkw/kkw240_HQ_latest.jpg" crossorigin="anonymous" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1NjAiIGhlaWdodD0iNDgwIiB2aWV3Qm94PSIwIDAgNTYwIDQ4MCI+PGRlZnM+PHJhZGlhbEdyYWRpZW50IGlkPSJnIiBjeD0iNTAlIiBjeT0iNTAlIiByPSI3NSUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMxYTNkNjYiLz48c3RvcCBvZmZzZXQ9IjUwJSIgc3RvcC1jb2xvcj0iIzBhMWEyZiIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iIzA1MGQxOSIvPjwvcmFkaWFsR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI1NjAiIGhlaWdodD0iNDgwIiBmaWxsPSJ1cmwoI2cpIi8+PGNpcmNsZSBjeD0iMjgwIiBjeT0iMjQwIiByPSIyMDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzJkNmE5OSIgc3Ryb2tlLXdpZHRoPSIxIi8+PGNpcmNsZSBjeD0iMjgwIiBjeT0iMjQwIiByPSIxNTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzJkNmE5OSIgc3Ryb2tlLXdpZHRoPSIxIi8+PGNpcmNsZSBjeD0iMjgwIiBjeT0iMjQwIiByPSIxMDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzJkNmE5OSIgc3Ryb2tlLXdpZHRoPSIxIi8+PGNpcmNsZSBjeD0iMjgwIiBjeT0iMjQwIiByPSI1MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmQ2YTk5IiBzdHJva2Utd2lkdGg9IjEiLz48bGluZSB4MT0iMjgwIiB5MT0iNDAiIHgyPSIyODAiIHkyPSI0NDAiIHN0cm9rZT0iIzJkNmE5OSIgc3Ryb2tlLXdpZHRoPSIxIi8+PGxpbmUgeDE9IjQwIiB5MT0iMjQwIiB4Mj0iNTIwIiB5Mj0iMjQwIiBzdHJva2U9IiMyZDZhOTkiIHN0cm9rZS13aWR0aD0iMSIvPjx0ZXh0IHg9IjI4MCIgeT0iMjUwIiBmb250LWZhbWlseT0iQ29uc29sYXMsIE1vbm9zcGFjZSIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzRmZDFmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+UkVBTElOWSBJTVBPUlQ8L3RleHQ+PHRleHQgeD0iMjgwIiB5PSIyNzAiIGZvbnQtZmFtaWx5PSJDb25zb2xhcywgTW9ub3NwYWNlIiBmb250LXNpemU9IjEyIiBmaWxsPSIjN2ZhOGM5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5jb3JzIGRpc2FibGVkIG9uIHNlcnZlcjwvdGV4dD48L3N2Zz4=';">
+      <div class="bt-radar-label">Khao Khiao Radar — Source: TMD</div>
+    </div>
+    <div class="bt-data">
+      <div class="bt-item"><div class="bt-label">VISIBILITY</div><div class="bt-value" id="bt-vis">--</div></div>
+      <div class="bt-item"><div class="bt-label">CONDITION TIME</div><div class="bt-value" id="bt-time">--</div></div>
+      <div class="bt-item"><div class="bt-label">FEW</div><div class="bt-value" id="bt-few">--</div></div>
+      <div class="bt-item"><div class="bt-label">SCT</div><div class="bt-value" id="bt-sct">--</div></div>
+      <div class="bt-item"><div class="bt-label">BKN</div><div class="bt-value" id="bt-bkn">--</div></div>
+      <div class="bt-item"><div class="bt-label">OVC</div><div class="bt-value" id="bt-ovc">--</div></div>
+      <div class="bt-item"><div class="bt-label">QNH</div><div class="bt-value" id="bt-qnh">--</div></div>
+      <div class="bt-item full"><div class="bt-label">TEMP / DEWPOINT</div><div class="bt-value" id="bt-temp">--</div></div>
+    </div>
+  </div>
+  <div class="bt-footer">
+    <span>⚠ FOR OFFICIAL BRIEFING USE ONLY</span>
+    <span>Source: METAR / TMD Radar</span>
+  </div>
+</div>
+
+<script>
+function getText(id) {
+  const el = document.getElementById(id);
+  return el ? el.textContent.trim() : '--';
+}
+
+async function generateBriefingImage() {
+  // โหมดปัจจุบัน (เตรียมรองรับ TAF ในอนาคต)
+  const briefingMode = 'METAR'; // เปลี่ยนเป็น 'TAF' ได้ในอนาคตเมื่อพัฒนาโหมด TAF
+
+  const stationSelect = document.getElementById('station-select');
+  const stationName = stationSelect ? stationSelect.options[stationSelect.selectedIndex].text : 'VTMM';
+
+  document.getElementById('bt-station-name').textContent = 'WEATHER BRIEFING - ' + stationName;
+  document.getElementById('bt-mode-label').textContent = briefingMode + ' OBSERVATION';
+
+  const now = new Date();
+  const bkkTime = new Intl.DateTimeFormat('th-TH', {
+    timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit',
+    day: '2-digit', month: '2-digit', year: 'numeric'
+  }).format(now);
+  document.getElementById('bt-generated-time').textContent = 'Generated: ' + bkkTime + ' (Bangkok Time)';
+
+  document.getElementById('bt-raw-metar').textContent = getText('raw-metar');
+  document.getElementById('bt-vis').textContent = getText('val-vis');
+  document.getElementById('bt-time').textContent = getText('val-time');
+  document.getElementById('bt-few').textContent = getText('val-few');
+  document.getElementById('bt-sct').textContent = getText('val-sct');
+  document.getElementById('bt-bkn').textContent = getText('val-bkn');
+  document.getElementById('bt-ovc').textContent = getText('val-ovc');
+  document.getElementById('bt-qnh').textContent = getText('val-qnh');
+  document.getElementById('bt-temp').textContent = getText('val-temp');
+
+  const modal = document.getElementById('briefing-modal');
+  const content = document.getElementById('briefing-modal-content');
+  content.innerHTML = '<span class="bm-loading">กำลังสร้างภาพ...</span>';
+  modal.classList.add('active');
+
+  try {
+    const tpl = document.getElementById('briefing-template');
+    tpl.style.display = 'block';
+    const canvas = await html2canvas(tpl, {
+      useCORS: true,
+      allowTaint: false,
+      scale: 2,
+      backgroundColor: '#0a1a2f',
+      logging: false,
+      foreignObjectRendering: false,
+      imageTimeout: 10000,
+      removeContainer: true
+    });
+    const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    content.innerHTML = '<img src="' + jpegDataUrl + '" alt="Weather Briefing">';
+  } catch (err) {
+    content.innerHTML = '<span style="color:#ff6b6b">เกิดข้อผิดพลาดในการสร้างภาพ: ' + err.message + '<br>(อาจเกิดจากภาพเรดาร์หรือโลโก้ไม่รองรับ CORS)</span>';
+    console.error('Briefing generation error:', err);
+  }
+}
+
+function closeBriefingModal() {
+  document.getElementById('briefing-modal').classList.remove('active');
+}
+</script>
 
 </body>
 </html>
