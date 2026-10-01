@@ -1026,13 +1026,13 @@ async function generateBriefingImage() {
           if (cs.mixBlendMode) cs.mixBlendMode = 'normal';
         });
 
-        // 4. บังคับขนาด Body และ Container
+        // 4. บังคับขนาด Body และ Container (ให้ความสูงแนบสนิทกับเนื้อหา)
         doc.documentElement.style.width = CAP_W + 'px';
-        doc.documentElement.style.height = CAP_H + 'px';
+        doc.documentElement.style.height = 'auto';
         doc.body.style.width    = CAP_W + 'px';
-        doc.body.style.height   = CAP_H + 'px';
+        doc.body.style.height   = 'auto';
         doc.body.style.minWidth = CAP_W + 'px';
-        doc.body.style.minHeight = CAP_H + 'px';
+        doc.body.style.minHeight = 'auto';
         doc.body.style.maxWidth = 'none';
         doc.body.style.margin   = '0';
         doc.body.style.zoom     = '1';
