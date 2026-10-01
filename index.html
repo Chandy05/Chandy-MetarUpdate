@@ -24,27 +24,27 @@
         .header-titles-block { display: flex; flex-direction: column; }
         .station-title { font-size: 1.6vw; font-weight: bold; color: #ffffff; letter-spacing: 1px; display: flex; align-items: center; }
         .identity-row { display: flex; align-items: center; margin-top: 3px; }
-        .range-identity { font-size: 1vw; color: var(--accent-gold); font-weight: bold; letter-spacing: 2px; text-shadow: 0 0 8px rgba(243, 156, 18, 0.5); }
+        .range-identity { font-size: 0.85vw; color: var(--accent-gold); font-weight: bold; letter-spacing: 2px; text-shadow: 0 0 8px rgba(243, 156, 18, 0.5); }
         .chdy-icon { height: 1.5vw; min-height: 15px; width: auto; margin-left: 10px; filter: drop-shadow(0 0 5px var(--accent-gold)); }
 
         .station-dropdown, .radar-dropdown { background-color: #1a2a40; color: var(--data-color); border: 2px solid var(--data-color); border-radius: 5px; font-family: 'Consolas', monospace; font-weight: bold; padding: 2px 5px; cursor: pointer; outline: none; margin-left: 10px; font-size: 1.3vw; }
         .station-dropdown:hover, .radar-dropdown:hover { background-color: #233a57; }
         optgroup, option { background-color: #0b131e; color: #fff; }
 
-        .header-right-container { display: flex; align-items: center; gap: 15px; }
+        .header-right-container { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 5px; }
         
-        .action-btn { background-color: rgba(0, 255, 204, 0.1); border: 2px solid var(--data-color); color: var(--data-color); padding: 6px 12px; border-radius: 5px; font-family: 'Consolas', monospace; font-size: 1.3vw; font-weight: bold; cursor: pointer; box-shadow: 0 0 8px rgba(0, 255, 204, 0.3); transition: all 0.2s; }
+        .action-btn { background-color: rgba(0, 255, 204, 0.1); border: 2px solid var(--data-color); color: var(--data-color); padding: 5px 12px; border-radius: 5px; font-family: 'Consolas', monospace; font-size: 1.1vw; font-weight: bold; cursor: pointer; box-shadow: 0 0 8px rgba(0, 255, 204, 0.3); transition: all 0.2s; }
         .action-btn:hover { background-color: var(--data-color); color: #000; }
         .action-btn:active { transform: scale(0.95); }
 
-        .flight-rule-badge { padding: 6px 12px; border-radius: 5px; font-size: 1.6vw; font-weight: bold; color: white; text-shadow: 1px 1px 2px #000; letter-spacing: 2px; border: 2px solid rgba(255,255,255,0.5); transition: all 0.3s; }
+        .flight-rule-badge { padding: 4px 10px; border-radius: 5px; font-size: 1.2vw; font-weight: bold; color: white; text-shadow: 1px 1px 2px #000; letter-spacing: 2px; border: 2px solid rgba(255,255,255,0.5); transition: all 0.3s; }
         
         @keyframes flash-imc { 0% { background-color: var(--imc-color); box-shadow: 0 0 20px var(--imc-color); } 50% { background-color: #8b0000; box-shadow: 0 0 5px #8b0000; } 100% { background-color: var(--imc-color); box-shadow: 0 0 20px var(--imc-color); } }
         .imc-flashing { animation: flash-imc 1s infinite; border-color: #fff; }
         .vmc-steady { background-color: var(--vmc-color); box-shadow: 0 0 10px var(--vmc-color); }
         .na-steady { background-color: #555; box-shadow: none; border-color: #777; }
         
-        .clock-box { display: flex; flex-direction: column; align-items: center; font-size: 1.4vw; color: var(--data-color); font-weight: bold; background: #111; padding: 6px 12px; border-radius: 5px; border: 1px solid var(--border-color); cursor: pointer; transition: all 0.2s; }
+        .clock-box { display: flex; flex-direction: column; align-items: center; font-size: 1.1vw; color: var(--data-color); font-weight: bold; background: #111; padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border-color); cursor: pointer; transition: all 0.2s; }
         .clock-box:hover { background: #1a2a40; box-shadow: 0 0 15px rgba(0,255,204,0.3); transform: scale(1.05); }
 
         .raw-metar-box { padding: 6px 15px; font-size: 1.3vw; color: #f1c40f; background-color: #111; border-bottom: 2px solid var(--border-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -320,7 +320,7 @@
     <div class="header-bar">
         <div class="header-left-container">
             <img src="logo_main.png?v=2" alt="RTAF Logo" class="main-logo" onerror="this.style.display='none'">
-            <div class="header-titles-block">
+            <div class="header-titles-block" style="justify-content: center;">
                 <div class="station-title">
                     ATC METAR BRIEFING : 
                     <select id="station-select" class="station-dropdown no-capture" data-html2canvas-ignore="true">
@@ -347,20 +347,21 @@
                         </optgroup>
                     </select>
                 </div>
-                <div class="identity-row">
-                    <div class="range-identity">CHANDY RANGE (VTP4)</div>
-                    <img src="logo_chdy.png?v=2" alt="CHDY Icon" class="chdy-icon" onerror="this.style.display='none'">
-                </div>
             </div>
         </div>
         
         <div class="header-right-container">
-            <button class="action-btn no-capture" data-html2canvas-ignore="true" onclick="playATIS()">🔊 PLAY ATIS</button>
-            <div id="flight-rule-badge" class="flight-rule-badge vmc-steady">VMC</div>
-            
-            <div class="clock-box" id="main-clock-box" title="Double Click เพื่อเปิดนาฬิกาจับเวลา">
-                <div style="font-size: 0.9vw; color: #8898aa;">LOCAL TIME</div>
-                <div id="sys-time-local" class="clock-local">--:--:--</div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button class="action-btn no-capture" data-html2canvas-ignore="true" onclick="generateBriefingImage()">� Create Briefing Card</button>
+                <div id="flight-rule-badge" class="flight-rule-badge vmc-steady">VMC</div>
+                <div class="clock-box" id="main-clock-box" title="Double Click เพื่อเปิดนาฬิกาจับเวลา">
+                    <div style="font-size: 0.75vw; color: #8898aa;">LOCAL TIME</div>
+                    <div id="sys-time-local" class="clock-local">--:--:--</div>
+                </div>
+            </div>
+            <div class="identity-row" style="margin-top: 0; justify-content: flex-end;">
+                <div class="range-identity">CHANDY RANGE (VTP4)</div>
+                <img src="logo_chdy.png?v=2" alt="CHDY Icon" class="chdy-icon" onerror="this.style.display='none'">
             </div>
         </div>
     </div>
@@ -776,7 +777,6 @@
 
     </script>
 
-<button id="briefing-fab" class="no-capture" data-html2canvas-ignore="true" title="สร้างภาพบรีฟ" onclick="generateBriefingImage()">📷</button>
 
 <div id="briefing-modal" class="no-capture" data-html2canvas-ignore="true" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:999999; flex-direction:column; align-items:center; justify-content:center; padding:10px;">
   <div id="briefing-modal-content" style="text-align:center; max-height: 70vh; overflow: hidden; display: flex; justify-content: center; align-items: center;">
@@ -975,9 +975,11 @@ async function generateBriefingImage() {
           .main-logo { height: 95px !important; min-height: 95px !important; }
           .chdy-icon { height: 35px !important; min-height: 35px !important; }
           .station-title { font-size: 46px !important; }
-          .range-identity { font-size: 28px !important; }
-          .clock-box { font-size: 34px !important; padding: 10px 20px !important; }
-          .clock-box div:first-child { font-size: 22px !important; }
+          .range-identity { font-size: 20px !important; }
+          .chdy-icon { height: 25px !important; min-height: 25px !important; }
+          .flight-rule-badge { font-size: 28px !important; padding: 6px 15px !important; }
+          .clock-box { font-size: 26px !important; padding: 6px 15px !important; }
+          .clock-box div:first-child { font-size: 14px !important; }
           .raw-metar-box { font-size: 32px !important; padding: 15px 25px !important; }
           .panel-title { font-size: 40px !important; padding: 0 20px !important; top: 10px !important; }
           
