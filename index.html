@@ -50,7 +50,7 @@
         .raw-metar-box { padding: 6px 15px; font-size: 1.3vw; color: #f1c40f; background-color: #111; border-bottom: 2px solid var(--border-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* --- DASHBOARD --- */
-        .dashboard-container { display: flex; flex: 1; padding: 15px; gap: 15px; box-sizing: border-box; height: calc(100vh - 85px); }
+        .dashboard-container { display: flex; flex: 1; padding: 15px; gap: 15px; box-sizing: border-box; }
         .panel { background-color: var(--panel-bg); border: 2px solid var(--border-color); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; position: relative; }
         .panel-title { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 1.8vw; font-weight: bold; color: #a0aec0; z-index: 10; background: var(--panel-bg); padding: 0 10px; white-space: nowrap;}
 
@@ -370,17 +370,13 @@
     <div class="dashboard-container">
         
         <div class="panel conditions-panel">
-            <div class="panel-title">CONDITIONS</div>
+            <div class="panel-title">CONDITIONS <span style="margin-left: 20px; color: #a0aec0;">TIME</span> <span id="val-time" style="color: #ffffff;">----</span></div>
             
             <div class="data-row" style="align-items: flex-start;">
                 <div class="data-label" style="margin-top: 3px;">VIS.</div>
-                <div class="data-value-container" style="margin-right: 20px;">
+                <div class="data-value-container">
                     <div class="data-value" id="val-vis">----</div>
                     <div class="data-weather-desc" id="val-wx"></div>
-                </div>
-                <div style="display: flex; align-items: center; margin-left: auto;">
-                    <div class="data-label" style="width: auto; min-width: auto; margin-right: 5px; margin-top: 3px;">TIME</div>
-                    <div class="data-value" id="val-time" style="color: #ffffff; margin-top: 3px;">----</div>
                 </div>
             </div>
             
@@ -391,7 +387,7 @@
             
             <div class="data-row"><div class="data-label">QNH</div><div class="data-value qnh-value" id="val-qnh">----</div></div>
             
-            <div class="data-row" style="border: none; padding-bottom: 0;"><div class="data-label" style="width: auto; min-width: auto; margin-right: 15px;">TMP/DP</div><div class="data-value" id="val-temp" style="color: #3498db;">----</div></div>
+            <div class="data-row" style="border: none; padding-bottom: 0;"><div class="data-label" style="width: auto !important; min-width: auto !important; margin-right: 15px !important;">TMP/DP</div><div class="data-value" id="val-temp" style="color: #3498db;">----</div></div>
         </div>
 
         <div class="panel wind-panel">
@@ -1046,7 +1042,7 @@ async function generateBriefingImage() {
         if (_ct) {
           _ct.style.padding = '20px';
           _ct.style.gap = '20px';
-          _ct.style.height = '980px'; 
+          _ct.style.height = 'auto'; 
         }
 
         doc.querySelectorAll('.no-capture, [data-html2canvas-ignore]')
