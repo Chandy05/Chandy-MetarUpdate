@@ -50,14 +50,14 @@
         .raw-metar-box { padding: 6px 15px; font-size: 1.3vw; color: #f1c40f; background-color: #111; border-bottom: 2px solid var(--border-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* --- DASHBOARD --- */
-        .dashboard-container { display: flex; flex: 1; padding: 10px; gap: 10px; box-sizing: border-box; height: calc(100vh - 110px); }
+        .dashboard-container { display: flex; flex: 1; padding: 15px; gap: 15px; box-sizing: border-box; height: calc(100vh - 85px); }
         .panel { background-color: var(--panel-bg); border: 2px solid var(--border-color); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; position: relative; }
         .panel-title { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 1.8vw; font-weight: bold; color: #a0aec0; z-index: 10; background: var(--panel-bg); padding: 0 10px; white-space: nowrap;}
 
         /* --- COL 1: CONDITIONS --- */
         .conditions-panel { flex: 0.8; justify-content: space-evenly; padding-top: 45px; padding-left: 1.5vw; }
         .data-row { display: flex; align-items: center; border-bottom: 1px dashed var(--border-color); padding-bottom: 5px; }
-        .data-label { min-width: 85px; width: 6.5vw; font-size: 1.9vw; font-weight: bold; color: #a0aec0; margin-right: 5px; }
+        .data-label { min-width: 60px; width: 4.5vw; font-size: 1.9vw; font-weight: bold; color: #a0aec0; margin-right: 5px; }
         
         /* ป้องกันการตกบรรทัดของกลุ่มคำว่า หมอกแดด */
         .data-value-container { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; flex: 1; margin-left: 5px; }
@@ -379,7 +379,7 @@
                     <div class="data-weather-desc" id="val-wx"></div>
                 </div>
                 <div style="display: flex; align-items: center; margin-left: auto;">
-                    <div class="data-label" style="width: auto; min-width: auto; margin-right: 10px; margin-top: 3px;">TIME</div>
+                    <div class="data-label" style="width: auto; min-width: auto; margin-right: 5px; margin-top: 3px;">TIME</div>
                     <div class="data-value" id="val-time" style="color: #ffffff; margin-top: 3px;">----</div>
                 </div>
             </div>
@@ -391,7 +391,7 @@
             
             <div class="data-row"><div class="data-label">QNH</div><div class="data-value qnh-value" id="val-qnh">----</div></div>
             
-            <div class="data-row" style="border: none; padding-bottom: 0;"><div class="data-label">TMP/DP</div><div class="data-value" id="val-temp" style="color: #3498db;">----</div></div>
+            <div class="data-row" style="border: none; padding-bottom: 0;"><div class="data-label" style="width: auto; min-width: auto; margin-right: 15px;">TMP/DP</div><div class="data-value" id="val-temp" style="color: #3498db;">----</div></div>
         </div>
 
         <div class="panel wind-panel">
@@ -989,8 +989,8 @@ async function generateBriefingImage() {
           .conditions-panel { justify-content: space-evenly !important; gap: 0 !important; padding-top: 60px !important; padding-left: 30px !important; }
           .data-row { padding-bottom: 5px !important; border-bottom: 2px dashed rgba(42, 63, 95, 0.5) !important; align-items: center !important; }
           .panel-title { white-space: nowrap !important; }
-          /* ขยายความกว้าง Label ให้ TMP/DP ไม่ทับตัวเลข */
-          .data-label { font-size: 40px !important; min-width: 180px !important; width: 180px !important; margin-top: 0 !important; }
+          /* บีบความกว้าง Label ให้แคบลง (เว้นบรรทัด TMP/DP ที่ใส่ inline ป้องกันไว้แล้ว) */
+          .data-label { font-size: 40px !important; min-width: 100px !important; width: 100px !important; margin-top: 0 !important; }
           .data-value { font-size: 52px !important; margin-top: 0 !important; }
           .data-weather-desc { font-size: 30px !important; margin-top: 5px !important; }
           .qnh-value { font-size: 70px !important; }
@@ -1044,7 +1044,9 @@ async function generateBriefingImage() {
 
         const _ct = doc.querySelector('.dashboard-container');
         if (_ct) {
-          _ct.style.height = '930px'; 
+          _ct.style.padding = '20px';
+          _ct.style.gap = '20px';
+          _ct.style.height = '980px'; 
         }
 
         doc.querySelectorAll('.no-capture, [data-html2canvas-ignore]')
