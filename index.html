@@ -25,13 +25,13 @@
         .station-title { font-size: 1.6vw; font-weight: bold; color: #ffffff; letter-spacing: 1px; display: flex; align-items: center; }
         .identity-row { display: flex; align-items: center; margin-top: 3px; }
         .range-identity { font-size: 0.85vw; color: var(--accent-gold); font-weight: bold; letter-spacing: 2px; text-shadow: 0 0 8px rgba(243, 156, 18, 0.5); }
-        .chdy-icon { height: 1.5vw; min-height: 15px; width: auto; margin-left: 10px; filter: drop-shadow(0 0 5px var(--accent-gold)); }
+        .chdy-icon { height: 2.5vw; min-height: 35px; width: auto; margin-left: 5px; filter: drop-shadow(0 0 5px var(--accent-gold)); }
 
         .station-dropdown, .radar-dropdown { background-color: #1a2a40; color: var(--data-color); border: 2px solid var(--data-color); border-radius: 5px; font-family: 'Consolas', monospace; font-weight: bold; padding: 2px 5px; cursor: pointer; outline: none; margin-left: 10px; font-size: 1.3vw; }
         .station-dropdown:hover, .radar-dropdown:hover { background-color: #233a57; }
         optgroup, option { background-color: #0b131e; color: #fff; }
 
-        .header-right-container { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 5px; }
+        .header-right-container { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
         
         .action-btn { background-color: rgba(0, 255, 204, 0.1); border: 2px solid var(--data-color); color: var(--data-color); padding: 5px 12px; border-radius: 5px; font-family: 'Consolas', monospace; font-size: 1.1vw; font-weight: bold; cursor: pointer; box-shadow: 0 0 8px rgba(0, 255, 204, 0.3); transition: all 0.2s; }
         .action-btn:hover { background-color: var(--data-color); color: #000; }
@@ -351,18 +351,15 @@
         </div>
         
         <div class="header-right-container">
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <button class="action-btn no-capture" data-html2canvas-ignore="true" onclick="generateBriefingImage()">� Create Briefing Card</button>
-                <div id="flight-rule-badge" class="flight-rule-badge vmc-steady">VMC</div>
-                <div class="clock-box" id="main-clock-box" title="Double Click เพื่อเปิดนาฬิกาจับเวลา">
-                    <div style="font-size: 0.75vw; color: #8898aa;">LOCAL TIME</div>
-                    <div id="sys-time-local" class="clock-local">--:--:--</div>
-                </div>
+            <button class="action-btn no-capture" data-html2canvas-ignore="true" onclick="generateBriefingImage()">&#128247; Create Briefing Card</button>
+            <div id="flight-rule-badge" class="flight-rule-badge vmc-steady">VMC</div>
+            
+            <div class="clock-box" id="main-clock-box" title="Double Click เพื่อเปิดนาฬิกาจับเวลา">
+                <div style="font-size: 0.75vw; color: #8898aa;">LOCAL TIME</div>
+                <div id="sys-time-local" class="clock-local">--:--:--</div>
             </div>
-            <div class="identity-row" style="margin-top: 0; justify-content: flex-end;">
-                <div class="range-identity">CHANDY RANGE (VTP4)</div>
-                <img src="logo_chdy.png?v=2" alt="CHDY Icon" class="chdy-icon" onerror="this.style.display='none'">
-            </div>
+            
+            <img src="logo_chdy.png?v=2" alt="CHDY Icon" class="chdy-icon" onerror="this.style.display='none'">
         </div>
     </div>
 
@@ -973,10 +970,8 @@ async function generateBriefingImage() {
         const bigTextStyles = doc.createElement('style');
         bigTextStyles.innerHTML = `
           .main-logo { height: 95px !important; min-height: 95px !important; }
-          .chdy-icon { height: 35px !important; min-height: 35px !important; }
           .station-title { font-size: 46px !important; }
-          .range-identity { font-size: 20px !important; }
-          .chdy-icon { height: 25px !important; min-height: 25px !important; }
+          .chdy-icon { height: 42px !important; min-height: 42px !important; margin-left: 10px !important; }
           .flight-rule-badge { font-size: 28px !important; padding: 6px 15px !important; }
           .clock-box { font-size: 26px !important; padding: 6px 15px !important; }
           .clock-box div:first-child { font-size: 14px !important; }
