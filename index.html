@@ -311,6 +311,114 @@
   color: #4fd1ff;
   font-size: 18px;
 }
+/* ================= UPPER WIND MODULE ================= */
+#uwCard{
+  grid-column:1 / -1; flex:1 1 100%; width:100%;
+  background:linear-gradient(180deg,#0d1b26 0%,#0a141c 100%);
+  border:1px solid #1e3a4a; border-radius:10px;
+  padding:10px 14px 12px; box-sizing:border-box;
+  font-family:'Share Tech Mono','Consolas',monospace;
+  box-shadow:0 0 18px rgba(0,255,204,.06);
+}
+#uwCard .uw-head{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:10px; flex-wrap:wrap; margin-bottom:8px;
+  border-bottom:1px solid #16303f; padding-bottom:6px;
+}
+#uwCard .uw-title{color:#9fb3c8;font-size:15px;letter-spacing:3px;font-weight:700;}
+#uwCard .uw-title b{color:#00ffcc;}
+#uwCard .uw-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+#uwCard .uw-badge{
+  font-size:11px;letter-spacing:1px;color:#8ba3b8;
+  border:1px solid #1e3a4a;border-radius:4px;padding:2px 8px;white-space:nowrap;
+}
+#uwCard .uw-badge.model{color:#00ffcc;border-color:#0d5c4d;}
+#uwCard .uw-badge.disc{color:#ffd166;border-color:#5c4a16;}
+#uwCard .uw-nav{display:flex;gap:4px;align-items:center;}
+#uwCard .uw-nav button{
+  background:#11212d;color:#9fb3c8;border:1px solid #1e3a4a;border-radius:4px;
+  width:26px;height:24px;cursor:pointer;font-family:inherit;font-size:13px;line-height:1;
+}
+#uwCard .uw-nav button:hover{color:#00ffcc;border-color:#00ffcc;}
+#uwCard .uw-nav span{font-size:12px;color:#9fb3c8;min-width:78px;text-align:center;}
+
+/* ---- แท็บ ---- */
+#uwCard .uw-tabs{display:flex;gap:6px;}
+#uwCard .uw-tab{
+  background:#0f1d28;color:#6f879b;border:1px solid #1e3a4a;border-radius:4px;
+  padding:3px 12px;font-size:11px;letter-spacing:1.5px;cursor:pointer;font-family:inherit;
+}
+#uwCard .uw-tab:hover{color:#9fb3c8;}
+#uwCard .uw-tab.active{background:#06251f;color:#00ffcc;border-color:#00ffcc;}
+#uwCard .uw-pane{display:none;}
+#uwCard .uw-pane.active{display:block;}
+
+/* ---- ตาราง ---- */
+#uwCard .uw-scroll{overflow-x:auto;}
+#uwTable{width:100%;border-collapse:collapse;table-layout:fixed;min-width:780px;}
+#uwTable th,#uwTable td{text-align:center;padding:4px 2px;border-right:1px dashed #152a39;}
+#uwTable th:last-child,#uwTable td:last-child{border-right:none;}
+#uwTable th:first-child,#uwTable td:first-child{
+  width:74px;text-align:left;color:#6f879b;font-size:11px;
+  letter-spacing:1.5px;border-right:1px solid #1e3a4a;
+}
+#uwTable thead th{
+  color:#00ffcc;font-size:14px;letter-spacing:1px;
+  border-bottom:1px solid #1e3a4a;padding-bottom:5px;
+}
+#uwTable .uw-r-barb td{height:40px;padding:2px;}
+#uwTable .uw-r-wind td{color:#fff;font-size:15px;font-weight:700;letter-spacing:.5px;}
+#uwTable .uw-r-temp td{color:#5bc0f8;font-size:13px;}
+#uwTable .uw-r-shr td{color:#7d93a6;font-size:12px;}
+#uwTable tbody tr+tr td{border-top:1px solid #0f1e29;}
+.uw-barb{color:#00ffcc;display:block;margin:0 auto;}
+.spd-calm{color:#7fe3a1 !important;}
+.spd-mod{color:#ffd166 !important;}
+.spd-strong{color:#ff9f45 !important;}
+.spd-severe{color:#ff4d4d !important;}
+.uw-shr-mod{color:#ffd166 !important;}
+.uw-shr-sev{color:#ff4d4d !important;animation:uwBlink 1.1s steps(2,start) infinite;}
+@keyframes uwBlink{50%{opacity:.25;}}
+.uw-loading{color:#6f879b;font-size:13px;padding:16px;text-align:center;letter-spacing:2px;}
+.uw-error{color:#ff6b6b;font-size:13px;padding:14px;text-align:center;}
+
+/* ---- แท็บแผนที่ Windy ---- */
+#uwMapPane .uw-maptools{display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;}
+#uwMapPane select{
+  background:#11212d;color:#00ffcc;border:1px solid #1e3a4a;border-radius:4px;
+  padding:3px 8px;font-family:inherit;font-size:12px;
+}
+#uwMapPane .uw-hint{color:#5c7284;font-size:11px;letter-spacing:1px;}
+#uwFrame{width:100%;height:420px;border:1px solid #16303f;border-radius:6px;display:block;background:#061018;}
+
+/* ---- แถบสรุปสำหรับ Briefing Card ---- */
+#uwBrief{
+  display:none; grid-column:1 / -1; width:100%; box-sizing:border-box;
+  background:linear-gradient(180deg,#0d1b26 0%,#0a141c 100%);
+  border:1px solid #1e3a4a;border-radius:10px;padding:10px 16px 12px;
+  font-family:'Share Tech Mono','Consolas',monospace;
+}
+body.uw-brief-mode #uwBrief{display:block;}
+body.uw-brief-mode #uwCard{display:none;}
+#uwBrief .uwb-head{
+  display:flex;justify-content:space-between;align-items:center;
+  border-bottom:1px solid #16303f;padding-bottom:5px;margin-bottom:8px;
+}
+#uwBrief .uwb-head .t{color:#9fb3c8;font-size:16px;letter-spacing:3px;font-weight:700;}
+#uwBrief .uwb-head .m{color:#6f879b;font-size:11px;letter-spacing:1px;}
+#uwBrief .uwb-grid{display:flex;justify-content:space-around;gap:10px;flex-wrap:wrap;}
+#uwBrief .uwb-cell{text-align:center;min-width:110px;}
+#uwBrief .uwb-alt{color:#00ffcc;font-size:14px;letter-spacing:2px;margin-bottom:2px;}
+#uwBrief .uwb-wind{color:#fff;font-size:28px;font-weight:700;line-height:1.1;}
+#uwBrief .uwb-tmp{color:#5bc0f8;font-size:14px;margin-top:2px;}
+
+@media (max-width:900px){
+  #uwCard .uw-title{font-size:13px;letter-spacing:1.5px;}
+  #uwTable{min-width:680px;}
+  #uwFrame{height:320px;}
+  #uwBrief .uwb-wind{font-size:22px;}
+}
+/* =============== END UPPER WIND MODULE =============== */
 </style>
 </head>
 <body>
@@ -412,6 +520,70 @@
                 </div>
             </div>
         </div>
+
+<!-- ============ UPPER WIND CARD ============ -->
+<div id="uwCard">
+  <div class="uw-head">
+    <div class="uw-title">UPPER WIND <b id="uwStn">--</b></div>
+    <div class="uw-meta">
+      <div class="uw-tabs">
+        <button class="uw-tab active" data-uwtab="table">TABLE</button>
+        <button class="uw-tab" data-uwtab="map">WINDY MAP</button>
+      </div>
+      <div class="uw-nav">
+        <button id="uwPrev" title="ย้อนเวลา -3 ชม.">&#9664;</button>
+        <span id="uwValid">--</span>
+        <button id="uwNext" title="ล่วงหน้า +3 ชม.">&#9654;</button>
+      </div>
+      <span class="uw-badge model" id="uwModel">--</span>
+      <span class="uw-badge disc">MODEL DATA &middot; AMSL</span>
+    </div>
+  </div>
+
+  <div class="uw-pane active" id="uwTablePane">
+    <div class="uw-scroll">
+      <table id="uwTable">
+        <thead><tr id="uwHeadRow"><th>ALT</th></tr></thead>
+        <tbody>
+          <tr class="uw-r-barb"><td>BARB</td></tr>
+          <tr class="uw-r-wind"><td>WIND</td></tr>
+          <tr class="uw-r-temp"><td>TEMP</td></tr>
+          <tr class="uw-r-shr"><td>SHEAR</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="uwMsg" class="uw-loading">LOADING UPPER WIND DATA...</div>
+  </div>
+
+  <div class="uw-pane" id="uwMapPane">
+    <div class="uw-maptools">
+      <select id="uwLevel">
+        <option value="surface">SFC</option>
+        <option value="950h">1,600 FT (950 hPa)</option>
+        <option value="925h">2,500 FT (925 hPa)</option>
+        <option value="900h">3,300 FT (900 hPa)</option>
+        <option value="850h" selected>5,000 FT (850 hPa)</option>
+        <option value="800h">6,400 FT (800 hPa)</option>
+        <option value="700h">10,000 FT (700 hPa)</option>
+        <option value="600h">14,000 FT (600 hPa)</option>
+        <option value="500h">18,000 FT (500 hPa)</option>
+        <option value="400h">24,000 FT (400 hPa)</option>
+      </select>
+      <span class="uw-hint">WINDY.COM &middot; ECMWF &middot; CROSS-CHECK ONLY</span>
+    </div>
+    <iframe id="uwFrame" src="about:blank" frameborder="0" loading="lazy"></iframe>
+  </div>
+</div>
+
+<!-- ======= UPPER WIND SUMMARY (BRIEFING CARD MODE) ======= -->
+<div id="uwBrief">
+  <div class="uwb-head">
+    <span class="t">UPPER WIND</span>
+    <span class="m" id="uwbMeta">--</span>
+  </div>
+  <div class="uwb-grid" id="uwbGrid"></div>
+</div>
+<!-- ========== END UPPER WIND CARD ========== -->
 
     </div>
 
@@ -689,6 +861,7 @@
                 if (pData.caution.length > 0) { cautionBox.innerHTML = `⚠️ WARNING: ${pData.caution.join(' | ')}`; cautionBox.classList.remove('hide'); } 
                 else { cautionBox.classList.add('hide'); } 
             } catch (parseError) { console.error(parseError); } 
+            loadUpperWind(selectedStation);
         }
         
         function fetchWeatherData() { 
@@ -945,7 +1118,10 @@ async function generateBriefingImage() {
     const CAP_H  = 1080;
     const _scale = 3; 
     console.log('CAP_SCALE=', _scale, 'CAP_W=', CAP_W, 'CAP_H=', CAP_H);
-    let canvas = await html2canvas(target, {
+    uwBriefMode(true);
+    let canvas;
+    try {
+    canvas = await html2canvas(target, {
       useCORS: true,
       allowTaint: false,
       imageTimeout: 3000,
@@ -1089,11 +1265,15 @@ async function generateBriefingImage() {
       m.classList.add('active');
       m.style.display = 'flex';
     }, 'image/png');
+    } finally {
+      uwBriefMode(false);
+    }
   } catch (err) {
     const _px = typeof _px !== 'undefined' ? _px : window.scrollX;
     const _py = typeof _py !== 'undefined' ? _py : window.scrollY;
     window.scrollTo(_px, _py);
     console.error('BRIEFING_ERROR:', err);
+    uwBriefMode(false);
     alert(err.message);
     const existImg = document.getElementById('briefing-preview-img');
     content.innerHTML = '';
@@ -1132,6 +1312,337 @@ function closeBriefingModal() {
     modal.style.display = 'none';
   }
 }
+
+/* ================= UPPER WIND MODULE (JS) ================= */
+/* ---- 4.1 พิกัดสถานี : ตรวจสอบให้ครบทุกรหัสที่มีใน dropdown เดิม ---- */
+const UW_COORDS = {
+  VTNC: { lat: 18.7669, lon: 98.9626 },
+  VTNP: { lat: 16.7829, lon: 100.2792 },
+  VTED: { lat: 17.3864, lon: 102.7883 },
+  VTEU: { lat: 15.2513, lon: 104.8702 },
+  VTEN: { lat: 14.9345, lon: 102.0787 },
+  VTEZ: { lat: 16.6510, lon: 102.9593 },
+  VTMG: { lat: 14.4400, lon: 101.3800 },
+  VTMP: { lat: 11.7783, lon: 99.6119 },
+  VTDB: { lat: 9.1326, lon: 99.1355 },
+  VTDS: { lat: 6.9332, lon: 100.3926 },
+  VTDT: { lat: 6.7855, lon: 101.1540 },
+  VTBD:{lat:13.9126,lon:100.6068}, VTMD:{lat:13.9126,lon:100.6068},
+  VTMI:{lat:15.2770,lon:100.2960}, VTPI:{lat:15.2770,lon:100.2960},
+  VTMU:{lat:12.6799,lon:101.0050}, VTBU:{lat:12.6799,lon:101.0050},
+  VTMH:{lat:12.6362,lon: 99.9515}, VTPH:{lat:12.6362,lon: 99.9515},
+  VTMK:{lat:14.1017,lon: 99.9173}, VTBK:{lat:14.1017,lon: 99.9173},
+  VTML:{lat:14.8747,lon:100.6639}, VTBL:{lat:14.8747,lon:100.6639},
+  VTPM:{lat:16.6996,lon: 98.5450}, VTPO:{lat:17.2380,lon: 99.8183},
+  VTPP:{lat:16.7829,lon:100.2792}, VTCC:{lat:18.7669,lon: 98.9626},
+  VTCL:{lat:18.2709,lon: 99.5042}, VTCN:{lat:18.8100,lon:100.7833},
+  VTCP:{lat:19.1352,lon:100.1372}, VTCT:{lat:19.9524,lon: 99.8829},
+  VTUD:{lat:17.3864,lon:102.7883}, VTUU:{lat:15.2513,lon:104.8702},
+  VTUN:{lat:14.9345,lon:102.0787}, VTUK:{lat:16.4666,lon:102.7836},
+  VTUI:{lat:14.8683,lon:103.4986}, VTUV:{lat:16.1168,lon:103.7736},
+  VTUO:{lat:15.2295,lon:103.2531}, VTUQ:{lat:14.9494,lon:102.3133},
+  VTSB:{lat: 9.1326,lon: 99.1355}, VTSH:{lat: 7.1864,lon:100.6083},
+  VTSS:{lat: 6.9332,lon:100.3926}, VTSP:{lat: 8.1132,lon: 98.3169},
+  VTSG:{lat: 8.0991,lon: 98.9862}, VTSM:{lat: 9.5479,lon:100.0623},
+  VTSR:{lat: 9.7784,lon: 99.0247}, VTSF:{lat: 8.5496,lon: 99.9447},
+  VTSC:{lat: 6.5199,lon:101.7434}, VTST:{lat: 7.5087,lon: 99.6166},
+  VTSE:{lat:11.7783,lon: 99.6119}, VTBO:{lat:12.2746,lon:102.3190},
+  VTBS:{lat:13.6900,lon:100.7501}, VTBC:{lat:12.5996,lon:102.1689}
+};
+
+const UW_MODELS = [
+  {id:'ecmwf_ifs025', label:'ECMWF IFS', levels:[1000,925,850,700,500,300]},
+  {id:'gfs_global',   label:'GFS',       levels:[1000,975,950,925,900,850,800,700,600,500,400,300]}
+];
+const UW_TARGET_FT  = [0,1000,2000,3000,5000,7000,10000,14000,18000,24000];
+const UW_BRIEF_FT   = [2000,5000,10000,24000];
+const UW_M_PER_FT   = 0.3048;
+const UW_TTL_MS     = 30*60*1000;
+
+let uwState = {icao:null, rows:[], times:[], idx:0, model:'', elev:0, _data:null};
+
+/* ---- 4.2 วาด Wind Barb (SVG) ---- */
+function uwBarb(dir, spd, size){
+  size = size || 36;
+  const c = size/2, L = size*0.44, yTop = c-L, yBot = c+L;
+  if(!isFinite(spd) || spd < 2.5){
+    return '<svg class="uw-barb" width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'
+         + '<circle cx="'+c+'" cy="'+c+'" r="'+(L*0.32)+'" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+  }
+  let p = '<line x1="'+c+'" y1="'+yBot+'" x2="'+c+'" y2="'+yTop+'" stroke="currentColor" stroke-width="1.7"/>';
+  let kt = Math.round(spd/5)*5;
+  const flags = Math.floor(kt/50); kt -= flags*50;
+  const longs = Math.floor(kt/10); kt -= longs*10;
+  const shorts = Math.floor(kt/5);
+  const step = size*0.135, armL = size*0.30, armS = size*0.17;
+  let y = yTop;
+  for(let i=0;i<flags;i++){
+    p += '<polygon points="'+c+','+y+' '+(c+armL)+','+(y+step*0.5)+' '+c+','+(y+step)+'" fill="currentColor"/>';
+    y += step*1.3;
+  }
+  for(let i=0;i<longs;i++){
+    p += '<line x1="'+c+'" y1="'+y+'" x2="'+(c+armL)+'" y2="'+(y-step*0.45)+'" stroke="currentColor" stroke-width="1.7"/>';
+    y += step;
+  }
+  for(let i=0;i<shorts;i++){
+    p += '<line x1="'+c+'" y1="'+y+'" x2="'+(c+armS)+'" y2="'+(y-step*0.26)+'" stroke="currentColor" stroke-width="1.7"/>';
+    y += step;
+  }
+  return '<svg class="uw-barb" width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'" '
+       + 'style="transform:rotate('+dir+'deg)">'+p+'</svg>';
+}
+
+/* ---- 4.3 ดึงข้อมูล (Open-Meteo : ECMWF ก่อน, GFS สำรอง) ---- */
+async function uwFetch(icao){
+  const st = UW_COORDS[icao];
+  if(!st) throw new Error('ไม่พบพิกัดสถานี '+icao+' ใน UW_COORDS');
+  const key = 'uw_'+icao;
+  try{
+    const hit = JSON.parse(localStorage.getItem(key)||'null');
+    if(hit && Date.now()-hit.ts < UW_TTL_MS) return hit.data;
+  }catch(e){}
+
+  let lastErr = null;
+  for(const m of UW_MODELS){
+    try{
+      const vars = m.levels.flatMap(function(p){ return [
+        'wind_speed_'+p+'hPa','wind_direction_'+p+'hPa',
+        'geopotential_height_'+p+'hPa','temperature_'+p+'hPa'
+      ];}).concat(['wind_speed_10m','wind_direction_10m','temperature_2m']).join(',');
+      const url = 'https://api.open-meteo.com/v1/forecast?latitude='+st.lat+'&longitude='+st.lon
+                + '&hourly='+vars+'&models='+m.id
+                + '&wind_speed_unit=kn&forecast_days=2&timezone=UTC';
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      const j = await res.json();
+      if(!j.hourly || !j.hourly.time) throw new Error('no hourly data');
+      const data = {model:m.label, levels:m.levels, elev:j.elevation||0, hourly:j.hourly};
+      try{ localStorage.setItem(key, JSON.stringify({ts:Date.now(), data:data})); }catch(e){}
+      return data;
+    }catch(err){ lastErr = err; }
+  }
+  try{
+    const hit = JSON.parse(localStorage.getItem(key)||'null');
+    if(hit) return hit.data;
+  }catch(e){}
+  throw lastErr || new Error('ดึงข้อมูลลมชั้นบนไม่สำเร็จ');
+}
+
+/* ---- 4.4 สร้าง profile + interpolate ด้วย u/v component ---- */
+function uwBuildProfile(data, i){
+  const h = data.hourly;
+  const prof = data.levels.map(function(p){
+    const spd = h['wind_speed_'+p+'hPa'][i];
+    const dir = h['wind_direction_'+p+'hPa'][i];
+    const gh  = h['geopotential_height_'+p+'hPa'][i];
+    const tmp = h['temperature_'+p+'hPa'][i];
+    if(![spd,dir,gh].every(Number.isFinite)) return null;
+    const r = dir*Math.PI/180;
+    return {ft:gh/UW_M_PER_FT, u:-spd*Math.sin(r), v:-spd*Math.cos(r), t:tmp};
+  }).filter(Boolean).sort(function(a,b){return a.ft-b.ft;});
+
+  const sfcSpd = h.wind_speed_10m ? h.wind_speed_10m[i] : null;
+  const sfcDir = h.wind_direction_10m ? h.wind_direction_10m[i] : null;
+  const sfcT   = h.temperature_2m ? h.temperature_2m[i] : null;
+  const elevFt = (data.elev||0)/UW_M_PER_FT;
+
+  return UW_TARGET_FT.map(function(ft){
+    if(ft === 0){
+      if(Number.isFinite(sfcSpd) && Number.isFinite(sfcDir))
+        return uwFmt(0, sfcDir, sfcSpd, sfcT, elevFt);
+      return uwFmt(0, NaN, NaN, NaN, elevFt);
+    }
+    if(!prof.length) return uwFmt(ft, NaN, NaN, NaN, ft);
+    if(ft <= prof[0].ft) return uwUV(ft, prof[0]);
+    const top = prof[prof.length-1];
+    if(ft >= top.ft) return uwUV(ft, top);
+    for(let k=0;k<prof.length-1;k++){
+      const lo = prof[k], hi = prof[k+1];
+      if(ft >= lo.ft && ft <= hi.ft){
+        const f = (ft-lo.ft)/(hi.ft-lo.ft);
+        return uwUV(ft,{u:lo.u+f*(hi.u-lo.u), v:lo.v+f*(hi.v-lo.v), t:lo.t+f*(hi.t-lo.t)});
+      }
+    }
+    return uwFmt(ft, NaN, NaN, NaN, ft);
+  });
+}
+function uwUV(ft, o){
+  const spd = Math.hypot(o.u,o.v);
+  const dir = (Math.atan2(-o.u,-o.v)*180/Math.PI+360)%360;
+  return uwFmt(ft, dir, spd, o.t, ft);
+}
+function uwFmt(ft, dir, spd, t, realFt){
+  const ok = Number.isFinite(dir) && Number.isFinite(spd);
+  const d10 = ok ? (Math.round(dir/10)*10)%360 : null;
+  return {
+    ft: ft,
+    hdr: ft===0 ? 'SFC' : (ft/1000)+'K',
+    dir: ok ? d10 : null,
+    spd: ok ? Math.round(spd) : null,
+    temp: Number.isFinite(t) ? Math.round(t) : null,
+    realFt: realFt,
+    label: ok ? (String(d10===0?360:d10).padStart(3,'0')+'/'+String(Math.round(spd)).padStart(2,'0')) : '---/--'
+  };
+}
+
+/* ---- 4.5 คำนวณ Wind Shear (kt ต่อ 1,000 ft) ---- */
+function uwShear(rows){
+  return rows.map(function(r,i){
+    if(i===0 || r.spd===null || rows[i-1].spd===null) return Object.assign({},r,{shr:null});
+    const toUV = function(x){ const a=x.dir*Math.PI/180; return [-x.spd*Math.sin(a), -x.spd*Math.cos(a)]; };
+    const a = toUV(rows[i-1]), b = toUV(r);
+    const dz = (r.realFt - rows[i-1].realFt)/1000;
+    if(dz <= 0) return Object.assign({},r,{shr:null});
+    return Object.assign({},r,{shr: Math.hypot(b[0]-a[0], b[1]-a[1])/dz});
+  });
+}
+
+/* ---- 4.6 Render ตาราง + แถบสรุป ---- */
+function uwSpdClass(s){
+  if(s===null) return '';
+  if(s<20) return 'spd-calm';
+  if(s<40) return 'spd-mod';
+  if(s<60) return 'spd-strong';
+  return 'spd-severe';
+}
+function uwValidStr(){
+  const t = uwState.times[uwState.idx];
+  return t ? (t.slice(8,10)+t.slice(11,13)+'Z') : '--';
+}
+function uwRender(){
+  const rows = uwShear(uwState.rows);
+  const head = document.getElementById('uwHeadRow');
+  const tb   = document.querySelectorAll('#uwTable tbody tr');
+  if(!head || tb.length < 4) return;
+
+  head.innerHTML = '<th>ALT</th>' + rows.map(function(r){ return '<th>'+r.hdr+'</th>'; }).join('');
+  tb[0].innerHTML = '<td>BARB</td>' + rows.map(function(r){
+    return '<td>'+(r.spd===null?'<span style="color:#44596b">--</span>':uwBarb(r.dir,r.spd))+'</td>';
+  }).join('');
+  tb[1].innerHTML = '<td>WIND</td>' + rows.map(function(r){
+    return '<td class="'+uwSpdClass(r.spd)+'">'+r.label+'</td>';
+  }).join('');
+  tb[2].innerHTML = '<td>TEMP</td>' + rows.map(function(r){
+    return '<td>'+(r.temp===null?'--':(r.temp>0?'+':'')+r.temp)+'&deg;</td>';
+  }).join('');
+  tb[3].innerHTML = '<td>SHEAR</td>' + rows.map(function(r){
+    if(r.shr===null) return '<td>&mdash;</td>';
+    const cls = r.shr>=10 ? 'uw-shr-sev' : (r.shr>=6 ? 'uw-shr-mod' : '');
+    return '<td class="'+cls+'">'+r.shr.toFixed(1)+'</td>';
+  }).join('');
+
+  document.getElementById('uwModel').textContent = uwState.model;
+  document.getElementById('uwStn').textContent   = uwState.icao || '--';
+  document.getElementById('uwValid').textContent = uwValidStr();
+  document.getElementById('uwMsg').style.display = 'none';
+  document.getElementById('uwTable').style.display = '';
+  uwRenderBrief();
+}
+function uwRenderBrief(){
+  const g = document.getElementById('uwbGrid');
+  const m = document.getElementById('uwbMeta');
+  if(!g) return;
+  const pick = uwState.rows.filter(function(r){ return UW_BRIEF_FT.indexOf(r.ft) >= 0; });
+  g.innerHTML = pick.map(function(r){
+    return '<div class="uwb-cell">'
+         + '<div class="uwb-alt">'+r.ft.toLocaleString()+' FT</div>'
+         + '<div class="uwb-wind '+uwSpdClass(r.spd)+'">'+r.label+'</div>'
+         + '<div class="uwb-tmp">'+(r.temp===null?'--':(r.temp>0?'+':'')+r.temp)+'&deg;C</div>'
+         + '</div>';
+  }).join('');
+  if(m) m.textContent = (uwState.model||'--')+'  VALID '+uwValidStr()+'  AMSL  MODEL DATA';
+}
+
+/* ---- 4.7 แท็บแผนที่ Windy ---- */
+function uwUpdateMap(){
+  const fr = document.getElementById('uwFrame');
+  const sel= document.getElementById('uwLevel');
+  const st = UW_COORDS[uwState.icao];
+  if(!fr || !sel || !st) return;
+  const lvl = sel.value;
+  fr.src = 'https://embed.windy.com/embed.html?type=map&location=coordinates'
+         + '&metricWind=kt&metricTemp=%C2%B0C&zoom=7&overlay=wind&product=ecmwf'
+         + '&level='+lvl
+         + '&lat='+st.lat+'&lon='+st.lon
+         + '&detailLat='+st.lat+'&detailLon='+st.lon
+         + '&detail=true&marker=true&calendar=now&message=true';
+}
+function uwSwitchTab(name){
+  document.querySelectorAll('#uwCard .uw-tab').forEach(function(b){
+    b.classList.toggle('active', b.dataset.uwtab === name);
+  });
+  document.getElementById('uwTablePane').classList.toggle('active', name === 'table');
+  document.getElementById('uwMapPane').classList.toggle('active', name === 'map');
+  if(name === 'map'){
+    const fr = document.getElementById('uwFrame');
+    if(fr && (!fr.src || fr.src === 'about:blank')) uwUpdateMap();
+  }
+}
+
+/* ---- 4.8 ฟังก์ชันหลัก : เรียกทุกครั้งที่เปลี่ยนสถานี ---- */
+async function loadUpperWind(icao){
+  if(!icao) return;
+  icao = String(icao).trim().toUpperCase().slice(0,4);
+  const msg = document.getElementById('uwMsg');
+  const tbl = document.getElementById('uwTable');
+  if(!msg || !tbl) return;
+  uwState.icao = icao;
+  document.getElementById('uwStn').textContent = icao;
+  msg.className = 'uw-loading';
+  msg.textContent = 'LOADING UPPER WIND DATA...';
+  msg.style.display = '';
+  tbl.style.display = 'none';
+  try{
+    const data = await uwFetch(icao);
+    const nowH = new Date().toISOString().slice(0,13);
+    let i = data.hourly.time.findIndex(function(t){ return t.slice(0,13) >= nowH; });
+    if(i < 0) i = 0;
+    uwState.times = data.hourly.time;
+    uwState.idx   = i;
+    uwState.model = data.model;
+    uwState.elev  = data.elev;
+    uwState._data = data;
+    uwState.rows  = uwBuildProfile(data, i);
+    uwRender();
+    if(document.getElementById('uwMapPane').classList.contains('active')) uwUpdateMap();
+  }catch(err){
+    msg.className = 'uw-error';
+    msg.textContent = 'UPPER WIND UNAVAILABLE : ' + err.message;
+    msg.style.display = '';
+    tbl.style.display = 'none';
+  }
+}
+
+/* ---- 4.9 เลื่อนเวลา +/- 3 ชม. ---- */
+function uwShift(step){
+  if(!uwState._data) return;
+  let i = uwState.idx + step;
+  if(i < 0) i = 0;
+  if(i > uwState.times.length-1) i = uwState.times.length-1;
+  uwState.idx  = i;
+  uwState.rows = uwBuildProfile(uwState._data, i);
+  uwRender();
+}
+
+/* ---- 4.10 โหมด Briefing Card (เรียกจาก STEP 6) ---- */
+function uwBriefMode(on){
+  document.body.classList.toggle('uw-brief-mode', !!on);
+  if(on) uwRenderBrief();
+}
+
+/* ---- 4.11 ผูก event ---- */
+document.addEventListener('DOMContentLoaded', function(){
+  const p = document.getElementById('uwPrev'), n = document.getElementById('uwNext');
+  if(p) p.addEventListener('click', function(){ uwShift(-3); });
+  if(n) n.addEventListener('click', function(){ uwShift(3); });
+  document.querySelectorAll('#uwCard .uw-tab').forEach(function(b){
+    b.addEventListener('click', function(){ uwSwitchTab(b.dataset.uwtab); });
+  });
+  const lv = document.getElementById('uwLevel');
+  if(lv) lv.addEventListener('change', uwUpdateMap);
+  setInterval(function(){ if(uwState.icao) loadUpperWind(uwState.icao); }, UW_TTL_MS);
+});
+/* =============== END UPPER WIND MODULE (JS) =============== */
 </script>
 
 </body>
