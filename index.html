@@ -52,7 +52,7 @@
         /* --- DASHBOARD --- */
         .dashboard-container { display: flex; flex: 1; padding: 10px; gap: 10px; box-sizing: border-box; height: calc(100vh - 110px); }
         .panel { background-color: var(--panel-bg); border: 2px solid var(--border-color); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; position: relative; }
-        .panel-title { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 1.9vw; font-weight: bold; color: #a0aec0; z-index: 10; background: var(--panel-bg); padding: 0 10px;}
+        .panel-title { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 1.8vw; font-weight: bold; color: #a0aec0; z-index: 10; background: var(--panel-bg); padding: 0 10px; white-space: nowrap;}
 
         /* --- COL 1: CONDITIONS --- */
         .conditions-panel { flex: 0.8; justify-content: space-evenly; padding-top: 45px; padding-left: 1.5vw; }
@@ -315,7 +315,7 @@
 </head>
 <body>
 
-    <div id="update-bar-container"><div id="update-bar"></div></div>
+    <div id="update-bar-container" class="no-capture" data-html2canvas-ignore="true"><div id="update-bar"></div></div>
 
     <div class="header-bar">
         <div class="header-left-container">
@@ -374,7 +374,7 @@
             
             <div class="data-row" style="align-items: flex-start;">
                 <div class="data-label" style="margin-top: 3px;">VIS.</div>
-                <div class="data-value-container">
+                <div class="data-value-container" style="margin-right: 20px;">
                     <div class="data-value" id="val-vis">----</div>
                     <div class="data-weather-desc" id="val-wx"></div>
                 </div>
@@ -988,8 +988,9 @@ async function generateBriefingImage() {
           /* กระจายบรรทัดเต็มกล่อง และขยับเข้ามาจากขอบซ้าย */
           .conditions-panel { justify-content: space-evenly !important; gap: 0 !important; padding-top: 60px !important; padding-left: 30px !important; }
           .data-row { padding-bottom: 5px !important; border-bottom: 2px dashed rgba(42, 63, 95, 0.5) !important; align-items: center !important; }
-          /* บีบความกว้าง Label ให้ Value ขยับเข้ามาใกล้ขึ้น */
-          .data-label { font-size: 40px !important; min-width: 135px !important; width: 135px !important; margin-top: 0 !important; }
+          .panel-title { white-space: nowrap !important; }
+          /* ขยายความกว้าง Label ให้ TMP/DP ไม่ทับตัวเลข */
+          .data-label { font-size: 40px !important; min-width: 180px !important; width: 180px !important; margin-top: 0 !important; }
           .data-value { font-size: 52px !important; margin-top: 0 !important; }
           .data-weather-desc { font-size: 30px !important; margin-top: 5px !important; }
           .qnh-value { font-size: 70px !important; }
@@ -1043,7 +1044,7 @@ async function generateBriefingImage() {
 
         const _ct = doc.querySelector('.dashboard-container');
         if (_ct) {
-          _ct.style.height = (CAP_H - 110) + 'px';
+          _ct.style.height = '930px'; 
         }
 
         doc.querySelectorAll('.no-capture, [data-html2canvas-ignore]')
