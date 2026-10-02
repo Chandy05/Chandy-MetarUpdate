@@ -352,7 +352,7 @@
             <img src="logo_main.png?v=2" alt="RTAF Logo" class="main-logo" onerror="this.style.display='none'">
             <div class="header-titles-block" style="justify-content: center;">
                 <div class="station-title">
-                    ATC METAR BRIEFING : 
+                    CHANDY ATC BRIEFING : 
                     <select id="station-select" class="station-dropdown no-capture" data-html2canvas-ignore="true">
                         <optgroup label="สถานีกองข่าวอากาศ ทอ.">
                             <option value="VTMD">VTMD (DONMUANG)</option>
@@ -645,6 +645,8 @@
             let visMeters = 9999; let wxDetected = []; let metarWords = metar.split(' '); 
             for (let w of metarWords) { if (wxDictionary[w]) wxDetected.push(wxDictionary[w]); } 
             
+            // ลบคำที่ซ้ำกันออกโดยใช้ Set ก่อนนำไปแสดงผล
+            wxDetected = [...new Set(wxDetected)]; 
             if (wxDetected.length > 0) { parsed.wxDesc = `(${wxDetected.join(', ')})`; }
 
             if (metar.includes('CAVOK')) { 
@@ -682,7 +684,7 @@
             }
 
             if(metar.includes(' TS') || metar.includes('TS ') || metar.includes('VCTS')) { 
-                let warnStr = 'ฝนฟ้าคะนองบริเวณสนามฝึกฯ';
+                let warnStr = 'ฝนฟ้าคะนองบริเวณสนาม';
                 if(hasRmkCb) warnStr += ` (${cbDesc})`;
                 parsed.caution.push(warnStr); 
             } else if(metar.includes(' RA') || metar.includes('RA ') || metar.includes('-RA') || metar.includes('+RA')) { 
@@ -1037,7 +1039,8 @@ async function generateBriefingImage() {
       windowWidth:  CAP_W,
       windowHeight: 100, // บังคับให้เริ่มจาก 100px แล้วขยายตามเนื้อหา
       ignoreElements: function (el) {
-        return el.tagName === 'IFRAME' || (el.id && el.id.toLowerCase().indexOf('radar') !== -1);
+        // ละเว้นเฉพาะ iframe (ไม่ละเว้นกล่องเรดาร์แล้ว)
+        return el.tagName === 'IFRAME';
       },
       onclone: function (doc) {
         const m = doc.querySelector('#briefing-modal, .briefing-modal');
@@ -1126,6 +1129,37 @@ async function generateBriefingImage() {
 
         doc.querySelectorAll('.no-capture, [data-html2canvas-ignore]')
            .forEach(function (el) { el.style.display = 'none'; });
+
+        // --- เพิ่มโค้ดจัดการภาพถ่าย Radar / Windy Map ในกล่องที่ 3 ---
+        const radarPanel = doc.querySelector('.radar-panel');
+        if (radarPanel) {
+            // ขยายขนาดตัวหนังสือในกล่องที่ 3 ให้สวยงามบาลานซ์กับกล่องอื่นๆ ตอนถ่ายรูป
+            doc.querySelectorAll('.panel-tab').forEach(t => { t.style.fontSize = '30px'; t.style.padding = '8px 20px'; });
+            doc.querySelectorAll('.radar-dropdown').forEach(d => { d.style.fontSize = '30px'; d.style.padding = '5px 10px'; });
+            doc.querySelector('.radar-header').style.gap = '15px';
+            
+            const isWindy = doc.getElementById('tab-windy').classList.contains('active');
+            const radarViewport = doc.querySelector('#radar-viewport');
+            const windyViewport = doc.querySelector('#windy-viewport');
+            
+            if (isWindy && windyViewport) {
+                // แทนที่ Windy iframe ด้วยข้อความ Placeholder
+                windyViewport.innerHTML = '<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; background:#0b131e; color:#00ffcc; font-size:45px; font-weight:bold; text-align:center; border:4px dashed #00ffcc; border-radius:10px;">WINDY MAP<span style="font-size:30px; color:#a0aec0; margin-top:20px; font-weight:normal;">(INTERACTIVE VIEW ONLY)</span></div>';
+            } else if (radarViewport) {
+                // แปลง URL iframe ให้กลายเป็น URL ไฟล์ภาพนิ่งล่าสุด
+                const selectedRadarUrl = doc.getElementById('radar-select').value;
+                let staticUrl = "https://weather.tmd.go.th/kkw/kkw240_HQ_latest.jpg"; // ค่าเริ่มต้น
+                
+                if (selectedRadarUrl.includes('kkw480')) staticUrl = "https://weather.tmd.go.th/kkw/kkw480_HQ_latest.jpg";
+                else if (selectedRadarUrl.includes('chn240')) staticUrl = "https://weather.tmd.go.th/chn/chn240_latest.jpg";
+                else if (selectedRadarUrl.includes('phb240')) staticUrl = "https://weather.tmd.go.th/phb/phb240_latest.jpg";
+                else if (selectedRadarUrl.includes('tklLoop')) staticUrl = "https://weather.tmd.go.th/tkl/tkl240_latest.jpg";
+                
+                // ใช้ CSS Background เพื่อป้องกันไม่ให้ระบบพังหากภาพเว็บอุตุฯ ติดปัญหา CORS
+                radarViewport.innerHTML = `<div style="width:100%; height:100%; background:#0b131e url('${staticUrl}') center/cover no-repeat; border-radius:10px;"></div>`;
+            }
+        }
+        // -----------------------------------------------------
       }
     });
     
