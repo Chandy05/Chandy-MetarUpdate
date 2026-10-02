@@ -846,31 +846,6 @@
             fsModal.classList.remove('hide');
         });
 
-        function switchPanelTab(tab) {
-            const tabRadar = document.getElementById('tab-radar');
-            const tabWindy = document.getElementById('tab-windy');
-            const radarViewport = document.getElementById('radar-viewport');
-            const windyViewport = document.getElementById('windy-viewport');
-            const radarSelect = document.getElementById('radar-select');
-            const uwLevel = document.getElementById('uwLevel');
-            
-            if (tab === 'radar') {
-                tabRadar.classList.add('active');
-                tabWindy.classList.remove('active');
-                radarViewport.classList.remove('hide');
-                windyViewport.classList.add('hide');
-                radarSelect.classList.remove('hide');
-                uwLevel.classList.add('hide');
-            } else if (tab === 'windy') {
-                tabWindy.classList.add('active');
-                tabRadar.classList.remove('active');
-                windyViewport.classList.remove('hide');
-                radarViewport.classList.add('hide');
-                uwLevel.classList.remove('hide');
-                radarSelect.classList.add('hide');
-            }
-        }
-
         function closeRadarModal() {
             document.getElementById('radar-modal').classList.add('hide');
             document.getElementById('fs-radar-iframe').src = ""; 
@@ -1296,8 +1271,8 @@ const UW_MODELS = [
   {id:'ecmwf_ifs025', label:'ECMWF IFS', levels:[1000,925,850,700,500,300]},
   {id:'gfs_global',   label:'GFS',       levels:[1000,975,950,925,900,850,800,700,600,500,400,300]}
 ];
-const UW_TARGET_FT  = [0,1000,2000,3000,5000,7000,10000,14000,18000,24000];
-const UW_BRIEF_FT   = [2000,5000,10000,24000];
+const UW_TARGET_FT  = [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 12000, 15000, 24000];
+// Removed UW_BRIEF_FT (No longer needed)
 const UW_M_PER_FT   = 0.3048;
 const UW_TTL_MS     = 30*60*1000;
 const UW_CACHE_VER  = 'v2';
@@ -1436,19 +1411,7 @@ function uwFmt(ft, dir, spd, t, realFt){
   };
 }
 
-/* ---- 4.5 คำนวณ Wind Shear (kt ต่อ 1,000 ft) ---- */
-function uwShear(rows){
-  return rows.map(function(r,i){
-    if(i===0 || r.spd===null || rows[i-1].spd===null) return Object.assign({},r,{shr:null});
-    const toUV = function(x){ const a=x.dir*Math.PI/180; return [-x.spd*Math.sin(a), -x.spd*Math.cos(a)]; };
-    const a = toUV(rows[i-1]), b = toUV(r);
-    const dz = (r.realFt - rows[i-1].realFt)/1000;
-    if(dz <= 0) return Object.assign({},r,{shr:null});
-    return Object.assign({},r,{shr: Math.hypot(b[0]-a[0], b[1]-a[1])/dz});
-  });
-}
-
-/* ---- 4.6 Render ตาราง + แถบสรุป ---- */
+/* ---- 4.5 & 4.6 Render Horizontal Bar ---- */
 function uwSpdClass(s){
   if(s===null) return '';
   if(s<20) return 'spd-calm';
@@ -1456,88 +1419,61 @@ function uwSpdClass(s){
   if(s<60) return 'spd-strong';
   return 'spd-severe';
 }
+
 function uwValidStr(){
   const t = uwState.times[uwState.idx];
   return t ? (t.slice(8,10)+t.slice(11,13)+'Z') : '--';
 }
+
 function uwRender(){
-  const rows = uwShear(uwState.rows);
-  const head = document.getElementById('uwHeadRow');
-  const tb   = document.querySelectorAll('#uwTable tbody tr');
-  if(!head || tb.length < 4) return;
-
-  head.innerHTML = '<th>ALT</th>' + rows.map(function(r){ return '<th>'+r.hdr+'</th>'; }).join('');
-  tb[0].innerHTML = '<td>BARB</td>' + rows.map(function(r){
-    return '<td>'+(r.spd===null?'<span style="color:#44596b">--</span>':uwBarb(r.dir,r.spd))+'</td>';
-  }).join('');
-  tb[1].innerHTML = '<td>WIND</td>' + rows.map(function(r){
-    return '<td class="'+uwSpdClass(r.spd)+'">'+r.label+'</td>';
-  }).join('');
-  tb[2].innerHTML = '<td>TEMP</td>' + rows.map(function(r){
-    return '<td>'+(r.temp===null?'--':(r.temp>0?'+':'')+r.temp)+'&deg;</td>';
-  }).join('');
-  tb[3].innerHTML = '<td>SHEAR</td>' + rows.map(function(r){
-    if(r.shr===null) return '<td>&mdash;</td>';
-    const cls = r.shr>=10 ? 'uw-shr-sev' : (r.shr>=6 ? 'uw-shr-mod' : '');
-    return '<td class="'+cls+'">'+r.shr.toFixed(1)+'</td>';
-  }).join('');
-
+  const dataWrapper = document.getElementById('uw-hbar-data');
+  if(!dataWrapper) return;
+  
   const md = document.getElementById('uwModel');
   if(md){ md.textContent = uwState.model; md.style.opacity = ''; }
-  const sw = document.getElementById('uwStale');
-  if(sw) sw.style.display = uwState.stale ? '' : 'none';
-  document.getElementById('uwStn').textContent   = uwState.icao || '--';
+  
+  document.getElementById('uwStn').textContent = uwState.icao || '--';
   document.getElementById('uwValid').textContent = uwValidStr();
-  document.getElementById('uwMsg').style.display = 'none';
-  document.getElementById('uwTable').style.display = '';
-  uwMarkSubSurface();
-  uwRenderBrief();
-}
-
-function uwMarkSubSurface(){
-  const floorFt = uwFloorFt();
-  const head = document.getElementById('uwHeadRow');
-  const tb   = document.querySelectorAll('#uwTable tbody tr');
-  if(!head) return;
-  const ths = head.querySelectorAll('th');
-  if(floorFt === null || !uwState.rows || !uwState.rows.length) return;
-  uwState.rows.forEach(function(r, n){
-    const below = (typeof r.ft === 'number') && (r.ft < floorFt);
-    const th = ths[n+1];
-    if(th){
-      th.style.opacity = below ? '.38' : '';
-      th.title = below ? 'ต่ำกว่าระดับพื้นจริงของสถานี ('+floorFt.toLocaleString()+' FT AMSL)' : '';
-    }
-    tb.forEach(function(tr){
-      const td = tr.querySelectorAll('td')[n+1];
-      if(td){
-        td.style.opacity = below ? '.38' : '';
-        td.title = below ? 'BELOW STATION ELEVATION' : '';
-      }
-    });
-  });
-}
-function uwRenderBrief(){
-  const g = document.getElementById('uwbGrid');
-  const m = document.getElementById('uwbMeta');
-  if(!g) return;
+  
   if(!uwState.rows || !uwState.rows.length){
-    g.innerHTML = '';
-    if(m) m.textContent = 'NO DATA';
-    return;
+      dataWrapper.innerHTML = '<div class="uw-hbar-loading">NO DATA</div>';
+      return;
   }
-  const pick = uwState.rows.filter(function(r){ return UW_BRIEF_FT.indexOf(r.ft) >= 0; });
-  g.innerHTML = pick.map(function(r){
-    return '<div class="uwb-cell">'
-         + '<div class="uwb-alt">'+r.ft.toLocaleString()+' FT</div>'
-         + '<div class="uwb-wind '+uwSpdClass(r.spd)+'">'+r.label+'</div>'
-         + '<div class="uwb-tmp">'+(r.temp===null?'--':(r.temp>0?'+':'')+r.temp)+'&deg;C</div>'
-         + '</div>';
+
+  dataWrapper.innerHTML = uwState.rows.map(r => {
+      const speedClass = uwSpdClass(r.spd);
+      const isBelowFloor = (uwFloorFt() !== null && typeof r.ft === 'number' && r.ft < uwFloorFt());
+      const opacityStyle = isBelowFloor ? 'opacity: 0.4;' : '';
+      const titleText = isBelowFloor ? 'title="BELOW STATION ELEVATION"' : '';
+      
+      return `<div class="uw-item-box" style="${opacityStyle}" ${titleText}>
+                <div class="uw-item-alt">${r.hdr}</div>
+                <div class="uw-item-wind ${speedClass}">${r.label}</div>
+              </div>`;
   }).join('');
-  if(m) m.textContent = (uwState.model||'--')+'  VALID '+uwValidStr()+'  AMSL  MODEL DATA'+(uwState.stale ? '  ** STALE **' : '');
 }
 
-/* ---- 4.7 แท็บแผนที่ Windy ---- */
+/* ---- 4.7 แท็บแผนที่ Windy & Panel 3 Switching ---- */
+function switchPanelTab(tabName) {
+    document.getElementById('tab-radar').classList.remove('active');
+    document.getElementById('tab-windy').classList.remove('active');
+    document.getElementById('radar-select').classList.add('hide');
+    document.getElementById('uwLevel').classList.add('hide');
+    document.getElementById('radar-viewport').classList.add('hide');
+    document.getElementById('windy-viewport').classList.add('hide');
+
+    if (tabName === 'radar') {
+        document.getElementById('tab-radar').classList.add('active');
+        document.getElementById('radar-select').classList.remove('hide');
+        document.getElementById('radar-viewport').classList.remove('hide');
+    } else if (tabName === 'windy') {
+        document.getElementById('tab-windy').classList.add('active');
+        document.getElementById('uwLevel').classList.remove('hide');
+        document.getElementById('windy-viewport').classList.remove('hide');
+        uwUpdateMap();
+    }
+}
+
 function uwUpdateMap(){
   const fr = document.getElementById('uwFrame');
   const sel= document.getElementById('uwLevel');
@@ -1559,14 +1495,6 @@ function uwUpdateMap(){
          + '&detail=true&marker=true&calendar='+cal+'&message=true'
          + '&uwts='+Date.now();
 }
-function uwSwitchTab(name){
-  document.querySelectorAll('#uwCard .uw-tab').forEach(function(b){
-    b.classList.toggle('active', b.dataset.uwtab === name);
-  });
-  document.getElementById('uwTablePane').classList.toggle('active', name === 'table');
-  document.getElementById('uwMapPane').classList.toggle('active', name === 'map');
-  if(name === 'map') uwUpdateMap();
-}
 
 function uwFloorFt(){
   const e = UW_ELEV_FT[uwState.icao];
@@ -1580,17 +1508,12 @@ function uwClearData(){
   uwState.idx   = 0;
   uwState.model = '--';
   uwState.stale = false;
-  const head = document.getElementById('uwHeadRow');
-  if(head) head.innerHTML = '<th>ALT</th>';
-  document.querySelectorAll('#uwTable tbody tr').forEach(function(tr){
-    const lab = tr.querySelector('td');
-    tr.innerHTML = '<td>' + (lab ? lab.textContent : '') + '</td>';
-  });
-  const g  = document.getElementById('uwbGrid');  if(g)  g.innerHTML = '';
-  const bm = document.getElementById('uwbMeta');  if(bm) bm.textContent = 'NO DATA';
+  
+  const dataWrapper = document.getElementById('uw-hbar-data');
+  if(dataWrapper) dataWrapper.innerHTML = '';
+  
   const md = document.getElementById('uwModel');  if(md){ md.textContent = '--'; md.style.opacity = '.4'; }
   const vl = document.getElementById('uwValid');  if(vl) vl.textContent = '--';
-  const sw = document.getElementById('uwStale');  if(sw) sw.style.display = 'none';
 }
 
 function uwSetNav(on){
@@ -1608,16 +1531,12 @@ function uwSetNav(on){
 async function loadUpperWind(icao){
   if(!icao) return;
   icao = String(icao).trim().toUpperCase().slice(0,4);
-  const msg = document.getElementById('uwMsg');
-  const tbl = document.getElementById('uwTable');
-  if(!msg || !tbl) return;
+  const dataWrapper = document.getElementById('uw-hbar-data');
+  if(!dataWrapper) return;
   if(uwState.icao !== icao) uwClearData();
   uwState.icao = icao;
   document.getElementById('uwStn').textContent = icao;
-  msg.className = 'uw-loading';
-  msg.textContent = 'LOADING UPPER WIND DATA...';
-  msg.style.display = '';
-  tbl.style.display = 'none';
+  dataWrapper.innerHTML = '<div class="uw-hbar-loading">LOADING UPPER WIND DATA...</div>';
   uwSetNav(false);
   try{
     const data = await uwFetch(icao);
@@ -1635,10 +1554,8 @@ async function loadUpperWind(icao){
     uwSetNav(true);
   }catch(err){
     uwClearData();
-    msg.className = 'uw-error';
-    msg.textContent = 'UPPER WIND UNAVAILABLE : ' + err.message;
-    msg.style.display = '';
-    tbl.style.display = 'none';
+    const dataWrapper = document.getElementById('uw-hbar-data');
+    if(dataWrapper) dataWrapper.innerHTML = `<div class="uw-hbar-loading" style="color:#ff4d4d;">UNAVAILABLE: ${err.message}</div>`;
     uwSetNav(false);
   }
   uwUpdateMap();
@@ -1660,8 +1577,7 @@ function uwShift(step){
 
 /* ---- 4.10 โหมด Briefing Card (เรียกจาก STEP 6) ---- */
 function uwBriefMode(on){
-  document.body.classList.toggle('uw-brief-mode', !!on);
-  if(on) uwRenderBrief();
+  // ถูกปิดการทำงานไว้ เนื่องจากดีไซน์ใหม่ใช้วิธีถ่ายติดหน้าจอแนวนอนโดยตรง
 }
 
 /* ---- 4.11 ผูก event ---- */
@@ -1672,9 +1588,6 @@ document.addEventListener('DOMContentLoaded', function(){
   uwSetNav(false);
   const uwLv = document.getElementById('uwLevel');
   if(uwLv && !uwLv.dataset.uwBound){ uwLv.dataset.uwBound = '1'; uwLv.addEventListener('change', uwUpdateMap); }
-  document.querySelectorAll('#uwCard .uw-tab').forEach(function(b){
-    b.addEventListener('click', function(){ uwSwitchTab(b.dataset.uwtab); });
-  });
   setInterval(function(){ if(uwState.icao) loadUpperWind(uwState.icao); }, 15*60*1000);
 });
 /* =============== END UPPER WIND MODULE (JS) =============== */
