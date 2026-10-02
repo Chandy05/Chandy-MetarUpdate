@@ -970,7 +970,7 @@ async function fetchRadarAsDataUrl(imageUrl, timeoutMs = 15000) {
         clearTimeout(timer);
         if (!response.ok) {
             console.warn('RADAR_FETCH_BAD_STATUS', response.status);
-            return null;
+            return { success: false, error: 'HTTP ' + response.status };
         }
         const blob = await response.blob();
         const dataUrl = await new Promise((resolve, reject) => {
@@ -980,10 +980,10 @@ async function fetchRadarAsDataUrl(imageUrl, timeoutMs = 15000) {
             reader.readAsDataURL(blob);
         });
         console.log('RADAR_FETCH_OK', Math.round(dataUrl.length / 1024), 'KB (base64)');
-        return dataUrl;
+        return { success: true, data: dataUrl };
     } catch (err) {
         console.warn('RADAR_FETCH_FAIL', err);
-        return null;
+        return { success: false, error: err.name === 'AbortError' ? 'Timeout (15s)' : err.message };
     }
 }
 
@@ -1064,7 +1064,7 @@ async function generateBriefingImage() {
     else if (selectedRadarUrlForCapture.includes('tklLoop')) radarStaticUrlForCapture = "https://weather.tmd.go.th/tkl/tkl240_latest.jpg";
 
     const radarProxiedUrlForCapture = "https://chandy-radar-proxy.chandy-score.workers.dev/?url=" + encodeURIComponent(radarStaticUrlForCapture) + "&t=" + Date.now();
-    const radarCaptureDataUrl = await fetchRadarAsDataUrl(radarProxiedUrlForCapture);
+    const radarFetchResult = await fetchRadarAsDataUrl(radarProxiedUrlForCapture);
 
     // ดึงค่าตำแหน่ง Top, Left ล่าสุดจากหน้าจอหลัก เพื่อนำไปใช้ครอปรูปภาพ (โฟกัสพื้นที่ลพบุรี)
     const liveRadarDraggable = document.getElementById('radar-draggable');
@@ -1191,18 +1191,22 @@ async function generateBriefingImage() {
                 windyViewport.innerHTML = '<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%; background:#0b131e; color:#00ffcc; font-size:45px; font-weight:bold; text-align:center; border:4px dashed #00ffcc; border-radius:10px; box-sizing:border-box;">WINDY MAP<br><span style="font-size:30px; color:#a0aec0; margin-top:15px;">(INTERACTIVE VIEW ONLY)</span></div>';
             } else if (radarViewport) {
                 // ใช้ภาพที่เตรียมไว้ล่วงหน้าแล้ว (Data URL) ไม่ต้องยิงเครือข่ายระหว่างแคปเจอร์อีก
-                console.log('RADAR_ONCLONE_USE_DATAURL', !!radarCaptureDataUrl);
-                if (radarCaptureDataUrl) {
-                    // สร้างกล่องจำลองและใส่ offset (top, left) แบบเดียวกับหน้าจอหลักเป๊ะๆ
+                console.log('RADAR_ONCLONE_USE_DATAURL', radarFetchResult.success);
+                if (radarFetchResult.success) {
+                    // ใช้ background-image แทน img tag เพราะ html2canvas บนมือถือเรนเดอร์ css background เสถียรกว่ามาก
                     radarViewport.style.position = 'relative';
                     radarViewport.style.overflow = 'hidden';
                     radarViewport.innerHTML = `
-                        <div style="position: absolute; width: 200%; height: 200%; top: ${captureRadarTop}; left: ${captureRadarLeft};">
-                            <img src="${radarCaptureDataUrl}" style="width: 100%; height: 100%; object-fit: fill; border-radius: 10px;">
+                        <div style="position: absolute; width: 200%; height: 200%; top: ${captureRadarTop}; left: ${captureRadarLeft}; background-image: url('${radarFetchResult.data}'); background-size: 100% 100%; background-repeat: no-repeat; border-radius: 10px;">
                         </div>
                     `;
                 } else {
-                    radarViewport.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:#0b131e;color:#ff6b6b;font-size:24px;text-align:center;">RADAR<br>UNAVAILABLE</div>`;
+                    // โชว์สาเหตุ Error บนหน้าจอไปเลย จะได้รู้ว่ามือถือพังเพราะอะไร (Timeout, Network, etc.)
+                    radarViewport.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%; background:#0b131e; color:#ff6b6b; font-size:24px; text-align:center; border-radius: 10px;">
+                        <span style="font-size: 40px; margin-bottom: 10px;">⚠️</span>
+                        <span>RADAR FAILED</span>
+                        <span style="font-size: 16px; color: #a0aec0; margin-top: 5px;">ERR: ${radarFetchResult.error}</span>
+                    </div>`;
                 }
             }
         }
