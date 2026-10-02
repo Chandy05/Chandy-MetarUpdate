@@ -85,7 +85,7 @@
         .radar-panel { flex: 1.3; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
         .radar-header { background: rgba(10, 15, 24, 0.8); padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; z-index: 20; border-bottom: 1px solid var(--border-color); }
         .radar-title-text { font-size: 1.4vw; font-weight: bold; color: #a0aec0; }
-        .radar-dropdown { font-size: 1.2vw; max-width: 60%; }
+        .radar-dropdown { font-size: 1vw; max-width: 45%; padding: 2px; margin-left: 5px; }
         
         .radar-viewport { flex: 1; position: relative; overflow: hidden; background-color: #000; cursor: grab; }
         .radar-viewport:active { cursor: grabbing; }
@@ -336,8 +336,8 @@
 .spd-severe { color: #ff4d4d !important; }
 
 /* Panel Tabs */
-.panel-tabs { display: flex; gap: 5px; }
-.panel-tab { background: #0f1d28; color: #6f879b; border: 1px solid var(--border-color); padding: 3px 10px; font-size: 1vw; cursor: pointer; font-family: 'Consolas'; border-radius: 4px; outline: none; }
+.panel-tabs { display: flex; gap: 3px; }
+.panel-tab { background: #0f1d28; color: #6f879b; border: 1px solid var(--border-color); padding: 2px 6px; font-size: 0.85vw; cursor: pointer; font-family: 'Consolas'; border-radius: 4px; outline: none; white-space: nowrap; }
 .panel-tab:hover { color: #fff; }
 .panel-tab.active { background: #06251f; color: #00ffcc; border-color: #00ffcc; font-weight: bold; }
 /* =============== END NEW UPPER WIND BAR =============== */
@@ -485,26 +485,27 @@
             </div>
 
             <!-- Viewport Windy (Hidden by default) -->
-            <div class="radar-viewport hide" id="windy-viewport" style="cursor: crosshair; overflow: hidden; position: relative;" title="Double Click เพื่อขยายแผนที่เต็มจอ">
+            <div class="radar-viewport hide" id="windy-viewport" style="cursor: crosshair; overflow: hidden; position: relative;">
                 <iframe id="uwFrame" style="position: absolute; top: 0; left: 0; width: 100%; height: calc(100% + 55px); border: none;" src="about:blank" loading="lazy"></iframe>
+                <button onclick="openWindyFullscreen()" style="position: absolute; bottom: 15px; right: 15px; background: rgba(11, 19, 30, 0.85); color: #00ffcc; border: 2px solid #00ffcc; border-radius: 8px; padding: 8px 15px; font-weight: bold; cursor: pointer; z-index: 100; font-family: 'Consolas', monospace; font-size: 1.2vw; box-shadow: 0 0 10px rgba(0,255,204,0.3);">🔍 FULLSCREEN</button>
             </div>
 
             <!-- Viewport Mission & NOTAM -->
-            <div class="radar-viewport" id="mission-viewport" style="cursor: default; overflow-y: auto; padding: 15px; box-sizing: border-box; background-color: #0b131e;">
+            <div class="radar-viewport" id="mission-viewport" style="cursor: default; padding: 15px; box-sizing: border-box; background-color: #0b131e; display: flex; flex-direction: column;">
                 <div id="mission-loading" style="color: #00ffcc; font-size: 1.5vw; text-align: center; margin-top: 20px;">กำลังดึงข้อมูลภารกิจ... ⏳</div>
-                <div id="mission-content" class="hide" style="display: flex; flex-direction: column; gap: 15px;">
-                    <div style="display: flex; justify-content: flex-end; align-items: flex-end;">
+                <div id="mission-content" class="hide" style="display: flex; flex-direction: column; gap: 15px; height: 100%;">
+                    <div style="flex-shrink: 0; display: flex; justify-content: flex-end; align-items: flex-end;">
                         <div style="color: #a0aec0; font-size: 1.2vw; font-weight: bold; letter-spacing: 1px;" id="mission-date-label">--</div>
                     </div>
-                    <div style="overflow-x: hidden;">
+                    <div style="flex-shrink: 0; overflow-x: hidden;">
                         <table style="width: 100%; border-collapse: collapse; color: #ffffff; text-align: center; border: 2px solid #ffffff; table-layout: fixed;">
                             <thead id="mission-table-head"></thead>
                             <tbody id="mission-table-body"></tbody>
                         </table>
                     </div>
-                    <div>
-                        <div style="color: #facc15; font-size: 1.3vw; font-weight: bold; margin-bottom: 8px; border-bottom: 1px dashed #4a5568; padding-bottom: 5px; text-align: right;">NOTAM</div>
-                        <div id="mission-notam-text" style="color: #e2e8f0; font-size: 1.1vw; white-space: pre-wrap; line-height: 1.6; font-family: 'Consolas', monospace;"></div>
+                    <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                        <div style="flex-shrink: 0; color: #facc15; font-size: 1.3vw; font-weight: bold; margin-bottom: 8px; border-bottom: 1px dashed #4a5568; padding-bottom: 5px; text-align: right;">NOTAM</div>
+                        <div id="mission-notam-text" style="flex: 1; overflow-y: auto; color: #e2e8f0; font-size: 1.1vw; white-space: pre-wrap; line-height: 1.6; font-family: 'Consolas', monospace; padding-right: 5px;"></div>
                     </div>
                 </div>
             </div>
@@ -881,15 +882,12 @@
             document.getElementById('fs-radar-iframe').src = ""; 
         }
 
-        // --- เพิ่ม Event Double Click สำหรับ Windy ---
-        const windyViewport = document.getElementById('windy-viewport');
-        if(windyViewport) {
-            windyViewport.addEventListener('dblclick', () => {
-                const fsModal = document.getElementById('windy-modal');
-                const fsIframe = document.getElementById('fs-windy-iframe');
-                fsIframe.src = document.getElementById('uwFrame').src; 
-                fsModal.classList.remove('hide');
-            });
+        // --- ฟังก์ชันขยายเต็มจอสำหรับ Windy (กดผ่านปุ่มเพราะ iframe ดักจับดับเบิลคลิกไม่ได้) ---
+        function openWindyFullscreen() {
+            const fsModal = document.getElementById('windy-modal');
+            const fsIframe = document.getElementById('fs-windy-iframe');
+            fsIframe.src = document.getElementById('uwFrame').src; 
+            fsModal.classList.remove('hide');
         }
 
         function closeWindyModal() {
@@ -1171,6 +1169,13 @@ async function generateBriefingImage() {
           .wind-unit { font-size: 26px !important; }
           .dir-mark { font-size: 36px !important; }
           .compass-circle { width: 500px !important; height: 500px !important; border-width: 10px !important; margin-top: 25px !important; }
+          
+          /* ปลดล็อค Scrollbar ให้กล่องยืดตามเนื้อหาเวลาถ่ายภาพ */
+          #mission-viewport, #mission-content, #mission-notam-text {
+              height: auto !important;
+              min-height: max-content !important;
+              overflow: visible !important;
+          }
         `;
         doc.head.appendChild(bigTextStyles);
 
