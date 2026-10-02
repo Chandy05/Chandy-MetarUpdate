@@ -1032,7 +1032,7 @@ async function generateBriefingImage() {
     canvas = await html2canvas(target, {
       useCORS: true,
       allowTaint: false,
-      imageTimeout: 3000,
+      imageTimeout: 8000,
       scale: _scale,
       backgroundColor: '#0b131e', 
       logging: false,
@@ -1156,8 +1156,11 @@ async function generateBriefingImage() {
                 else if (selectedRadarUrl.includes('phb240')) staticUrl = "https://weather.tmd.go.th/phb/phb240_latest.jpg";
                 else if (selectedRadarUrl.includes('tklLoop')) staticUrl = "https://weather.tmd.go.th/tkl/tkl240_latest.jpg";
                 
-                // ใช้แท็ก <img> เพื่อบังคับให้ระบบ "รอ" จนกว่าภาพจะโหลดเสร็จค่อยถ่าย
-                radarViewport.innerHTML = `<img src="${staticUrl}" crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">`;
+                // ส่งภาพผ่าน Worker ตัวกลาง เพื่อหลีกเลี่ยงปัญหา CORS จากเซิร์ฟเวอร์ TMD
+                const proxiedUrl = "https://chandy-radar-proxy.chandy-score.workers.dev/?url=" + encodeURIComponent(staticUrl) + "&t=" + Date.now();
+                
+                // ใช้แท็ก <img> เพื่อบังคับให้ระบบ "รอ" จนกว่าภาพจะโหลดเสร็จค่อยถ่าย พร้อมสำรองข้อความเมื่อโหลดไม่สำเร็จ
+                radarViewport.innerHTML = `<img src="${proxiedUrl}" crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; border-radius:10px;" onerror="this.parentElement.innerHTML='<div style=&quot;display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:#ff6b6b;font-size:24px;&quot;>RADAR IMAGE UNAVAILABLE</div>';">`;
             }
         }
         // -----------------------------------------------------
