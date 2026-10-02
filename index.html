@@ -961,6 +961,32 @@ function trimCanvasBottom(cv, bgHex) {
   } catch (e) { console.warn('TRIM_SKIP:', e.message); return cv; }
 }
 
+async function fetchRadarAsDataUrl(imageUrl, timeoutMs = 6000) {
+    try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        console.log('RADAR_FETCH_START', imageUrl);
+        const response = await fetch(imageUrl, { signal: controller.signal, cache: 'no-store' });
+        clearTimeout(timer);
+        if (!response.ok) {
+            console.warn('RADAR_FETCH_BAD_STATUS', response.status);
+            return null;
+        }
+        const blob = await response.blob();
+        const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+        console.log('RADAR_FETCH_OK', Math.round(dataUrl.length / 1024), 'KB (base64)');
+        return dataUrl;
+    } catch (err) {
+        console.warn('RADAR_FETCH_FAIL', err);
+        return null;
+    }
+}
+
 async function generateBriefingImage() {
   // โหมดปัจจุบัน (เตรียมรองรับ TAF ในอนาคต)
   const briefingMode = 'METAR'; // เปลี่ยนเป็น 'TAF' ได้ในอนาคตเมื่อพัฒนาโหมด TAF
@@ -1027,6 +1053,19 @@ async function generateBriefingImage() {
     const _scale = 3; 
     console.log('CAP_SCALE=', _scale, 'CAP_W=', CAP_W, 'CAP_H=', CAP_H);
     uwBriefMode(true);
+    
+    // เตรียมภาพเรดาร์ให้พร้อมใช้งานก่อนแคปเจอร์ (แก้ปัญหาจังหวะเวลาที่ html2canvas โหลดภาพไม่ทัน)
+    const radarSelectForCapture = document.getElementById('radar-select');
+    const selectedRadarUrlForCapture = radarSelectForCapture ? radarSelectForCapture.value : '';
+    let radarStaticUrlForCapture = "https://weather.tmd.go.th/kkw/kkw240_HQ_latest.jpg";
+    if (selectedRadarUrlForCapture.includes('kkw480')) radarStaticUrlForCapture = "https://weather.tmd.go.th/kkw/kkw480_HQ_latest.jpg";
+    else if (selectedRadarUrlForCapture.includes('chn240')) radarStaticUrlForCapture = "https://weather.tmd.go.th/chn/chn240_latest.jpg";
+    else if (selectedRadarUrlForCapture.includes('phb240')) radarStaticUrlForCapture = "https://weather.tmd.go.th/phb/phb240_latest.jpg";
+    else if (selectedRadarUrlForCapture.includes('tklLoop')) radarStaticUrlForCapture = "https://weather.tmd.go.th/tkl/tkl240_latest.jpg";
+
+    const radarProxiedUrlForCapture = "https://chandy-radar-proxy.chandy-score.workers.dev/?url=" + encodeURIComponent(radarStaticUrlForCapture) + "&t=" + Date.now();
+    const radarCaptureDataUrl = await fetchRadarAsDataUrl(radarProxiedUrlForCapture);
+
     let canvas;
     try {
     canvas = await html2canvas(target, {
@@ -1146,21 +1185,13 @@ async function generateBriefingImage() {
                 // กรณีเป็น Windy Map: สร้างกล่องข้อความสวยๆ
                 windyViewport.innerHTML = '<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%; background:#0b131e; color:#00ffcc; font-size:45px; font-weight:bold; text-align:center; border:4px dashed #00ffcc; border-radius:10px; box-sizing:border-box;">WINDY MAP<br><span style="font-size:30px; color:#a0aec0; margin-top:15px;">(INTERACTIVE VIEW ONLY)</span></div>';
             } else if (radarViewport) {
-                // กรณีเป็น TMD Radar: ต้องอ่านค่า Dropdown จากหน้าจอจริง (เพราะหน้าจอจำลองซ่อนไปแล้ว)
-                const origRadarSelect = document.getElementById('radar-select');
-                const selectedRadarUrl = origRadarSelect ? origRadarSelect.value : '';
-                let staticUrl = "https://weather.tmd.go.th/kkw/kkw240_HQ_latest.jpg"; // ค่าเริ่มต้น
-                
-                if (selectedRadarUrl.includes('kkw480')) staticUrl = "https://weather.tmd.go.th/kkw/kkw480_HQ_latest.jpg";
-                else if (selectedRadarUrl.includes('chn240')) staticUrl = "https://weather.tmd.go.th/chn/chn240_latest.jpg";
-                else if (selectedRadarUrl.includes('phb240')) staticUrl = "https://weather.tmd.go.th/phb/phb240_latest.jpg";
-                else if (selectedRadarUrl.includes('tklLoop')) staticUrl = "https://weather.tmd.go.th/tkl/tkl240_latest.jpg";
-                
-                // ส่งภาพผ่าน Worker ตัวกลาง เพื่อหลีกเลี่ยงปัญหา CORS จากเซิร์ฟเวอร์ TMD
-                const proxiedUrl = "https://chandy-radar-proxy.chandy-score.workers.dev/?url=" + encodeURIComponent(staticUrl) + "&t=" + Date.now();
-                
-                // ใช้แท็ก <img> เพื่อบังคับให้ระบบ "รอ" จนกว่าภาพจะโหลดเสร็จค่อยถ่าย พร้อมสำรองข้อความเมื่อโหลดไม่สำเร็จ
-                radarViewport.innerHTML = `<img src="${proxiedUrl}" crossorigin="anonymous" style="width:100%; height:100%; object-fit:cover; border-radius:10px;" onerror="this.parentElement.innerHTML='<div style=&quot;display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:#ff6b6b;font-size:24px;&quot;>RADAR IMAGE UNAVAILABLE</div>';">`;
+                // ใช้ภาพที่เตรียมไว้ล่วงหน้าแล้ว (Data URL) ไม่ต้องยิงเครือข่ายระหว่างแคปเจอร์อีก
+                console.log('RADAR_ONCLONE_USE_DATAURL', !!radarCaptureDataUrl);
+                if (radarCaptureDataUrl) {
+                    radarViewport.innerHTML = `<img src="${radarCaptureDataUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">`;
+                } else {
+                    radarViewport.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:#ff6b6b;font-size:24px;">RADAR IMAGE UNAVAILABLE</div>`;
+                }
             }
         }
         // -----------------------------------------------------
