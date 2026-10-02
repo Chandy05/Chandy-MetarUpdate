@@ -448,9 +448,9 @@
             <div class="radar-header" style="flex-direction: column; align-items: flex-start; gap: 5px;">
                 <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
                     <div class="panel-tabs">
-                        <button class="panel-tab active" id="tab-radar" onclick="switchPanelTab('radar')">TMD RADAR</button>
+                        <button class="panel-tab active" id="tab-mission" onclick="switchPanelTab('mission')">MISSION & NOTAM</button>
+                        <button class="panel-tab" id="tab-radar" onclick="switchPanelTab('radar')">TMD RADAR</button>
                         <button class="panel-tab" id="tab-windy" onclick="switchPanelTab('windy')">WINDY MAP</button>
-                        <button class="panel-tab" id="tab-mission" onclick="switchPanelTab('mission')">MISSION & NOTAM</button>
                     </div>
                     
                     <!-- Dropdown for Radar -->
@@ -478,19 +478,19 @@
             </div>
             
             <!-- Viewport Radar -->
-            <div class="radar-viewport" id="radar-viewport" title="Double Click เพื่อขยายเรดาร์เต็มจอ">
+            <div class="radar-viewport hide" id="radar-viewport" title="Double Click เพื่อขยายเรดาร์เต็มจอ">
                 <div class="radar-draggable-area" id="radar-draggable">
                     <iframe id="radar-iframe" class="radar-iframe" src="https://weather.tmd.go.th/kkw240_HQ_Loop_edit2.php" scrolling="no" loading="lazy"></iframe>
                 </div>
             </div>
 
             <!-- Viewport Windy (Hidden by default) -->
-            <div class="radar-viewport hide" id="windy-viewport" style="cursor: default;">
-                <iframe id="uwFrame" style="width: 100%; height: 100%; border: none;" src="about:blank" loading="lazy"></iframe>
+            <div class="radar-viewport hide" id="windy-viewport" style="cursor: crosshair; overflow: hidden; position: relative;" title="Double Click เพื่อขยายแผนที่เต็มจอ">
+                <iframe id="uwFrame" style="position: absolute; top: 0; left: 0; width: 100%; height: calc(100% + 55px); border: none;" src="about:blank" loading="lazy"></iframe>
             </div>
 
             <!-- Viewport Mission & NOTAM -->
-            <div class="radar-viewport hide" id="mission-viewport" style="cursor: default; overflow-y: auto; padding: 15px; box-sizing: border-box; background-color: #0b131e;">
+            <div class="radar-viewport" id="mission-viewport" style="cursor: default; overflow-y: auto; padding: 15px; box-sizing: border-box; background-color: #0b131e;">
                 <div id="mission-loading" style="color: #00ffcc; font-size: 1.5vw; text-align: center; margin-top: 20px;">กำลังดึงข้อมูลภารกิจ... ⏳</div>
                 <div id="mission-content" class="hide" style="display: flex; flex-direction: column; gap: 15px;">
                     <div style="display: flex; justify-content: flex-end; align-items: flex-end;">
@@ -518,6 +518,13 @@
         <div class="close-modal-btn no-capture" data-html2canvas-ignore="true" onclick="closeRadarModal()">✖</div>
         <div class="fs-radar-container no-capture" data-html2canvas-ignore="true">
             <iframe id="fs-radar-iframe" style="width: 100%; height: 100%; border: none;" src="" loading="lazy"></iframe>
+        </div>
+    </div>
+
+    <div id="windy-modal" class="fullscreen-modal hide">
+        <div class="close-modal-btn no-capture" data-html2canvas-ignore="true" onclick="closeWindyModal()">✖</div>
+        <div class="fs-radar-container no-capture" data-html2canvas-ignore="true" style="overflow: hidden; position: relative;">
+            <iframe id="fs-windy-iframe" style="position: absolute; top: 0; left: 0; width: 100%; height: calc(100% + 55px); border: none;" src="" loading="lazy"></iframe>
         </div>
     </div>
 
@@ -874,6 +881,27 @@
             document.getElementById('fs-radar-iframe').src = ""; 
         }
 
+        // --- เพิ่ม Event Double Click สำหรับ Windy ---
+        const windyViewport = document.getElementById('windy-viewport');
+        if(windyViewport) {
+            windyViewport.addEventListener('dblclick', () => {
+                const fsModal = document.getElementById('windy-modal');
+                const fsIframe = document.getElementById('fs-windy-iframe');
+                fsIframe.src = document.getElementById('uwFrame').src; 
+                fsModal.classList.remove('hide');
+            });
+        }
+
+        function closeWindyModal() {
+            document.getElementById('windy-modal').classList.add('hide');
+            document.getElementById('fs-windy-iframe').src = "about:blank"; 
+        }
+
+        // โหลดข้อมูล Mission อัตโนมัติเมื่อเปิดหน้าเว็บ (เพราะตั้งเป็นแท็บแรก)
+        window.addEventListener('DOMContentLoaded', () => {
+            if(typeof fetchMissionData === 'function') fetchMissionData();
+        });
+
     </script>
 
 
@@ -1199,7 +1227,7 @@ async function generateBriefingImage() {
         const radarPanel = doc.querySelector('.radar-panel');
         if (radarPanel) {
             // ปรับขนาดแท็บให้สวยงาม และซ่อน Dropdown เพื่อป้องกันกล้องเอ๋อ
-            doc.querySelectorAll('.panel-tab').forEach(t => { t.style.fontSize = '30px'; t.style.padding = '8px 20px'; });
+            doc.querySelectorAll('.panel-tab').forEach(t => { t.style.fontSize = '20px'; t.style.padding = '6px 15px'; });
             doc.querySelectorAll('.radar-dropdown').forEach(d => d.style.display = 'none');
             
             // อ่านค่าว่ากำลังเปิดแท็บไหนอยู่
