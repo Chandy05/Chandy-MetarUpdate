@@ -158,6 +158,9 @@
         }
     </style>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<!-- เพิ่ม Leaflet Library สำหรับแผนที่ในโหมด TAF -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 /* ===== ปุ่มลอยสร้างภาพบรีฟ ===== */
 #briefing-fab {
@@ -457,76 +460,104 @@
             </div>
         </div>
 
-        <div class="panel wind-panel">
-            <div class="panel-title">WIND INDICATOR</div>
-            <div class="compass-circle"><div class="dir-mark mark-n">N</div><div class="dir-mark mark-e">E</div><div class="dir-mark mark-s">S</div><div class="dir-mark mark-w">W</div><div class="wind-center"><div class="wind-dir-text" id="wind-dir-text">---°</div><div class="wind-speed-val" id="wind-spd">--</div><div class="wind-unit">KNOTS</div></div><div class="wind-needle-container" id="wind-needle-box"><div class="wind-needle"></div></div></div>
-            <div id="gust-alert" class="gust-alert"></div>
-            <div id="caution-box" class="caution-box hide">WARNING: NIL</div>
+        <div class="panel wind-panel" id="panel-box-2">
+            <div class="panel-title" id="box2-title">WIND INDICATOR</div>
+            <!-- METAR View -->
+            <div id="box2-metar" style="display:flex; flex-direction:column; align-items:center; width:100%; height:100%;">
+                <div class="compass-circle"><div class="dir-mark mark-n">N</div><div class="dir-mark mark-e">E</div><div class="dir-mark mark-s">S</div><div class="dir-mark mark-w">W</div><div class="wind-center"><div class="wind-dir-text" id="wind-dir-text">---°</div><div class="wind-speed-val" id="wind-spd">--</div><div class="wind-unit">KNOTS</div></div><div class="wind-needle-container" id="wind-needle-box"><div class="wind-needle"></div></div></div>
+                <div id="gust-alert" class="gust-alert"></div>
+                <div id="caution-box" class="caution-box hide">WARNING: NIL</div>
+            </div>
+            <!-- TAF View (Smart Query) -->
+            <div id="box2-taf" class="hide" style="width:100%; height:100%; display:flex; flex-direction:column; gap:10px; padding-top:20px;">
+                <div style="font-size:1.1vw; color:#a0aec0; font-weight:bold;">1. กำหนดพิกัด (คลิกบนแผนที่)</div>
+                <div id="taf-leaflet-map" style="width:100%; flex:1; min-height:150px; border:2px solid var(--border-color); border-radius:6px; background:#000;"></div>
+                <div style="font-size:1vw; color:#00ffcc; font-weight:bold;" id="taf-sel-loc">📍 พิกัด: สนามบินปัจจุบัน</div>
+                
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <div style="flex:1; display:flex; flex-direction:column;">
+                        <span style="font-size:1vw; color:#a0aec0; font-weight:bold;">ตั้งแต่เวลา (L):</span>
+                        <input type="time" id="taf-time-start" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px; font-size:1vw; font-family:'Consolas', monospace; outline:none;">
+                    </div>
+                    <div style="flex:1; display:flex; flex-direction:column;">
+                        <span style="font-size:1vw; color:#a0aec0; font-weight:bold;">ถึงเวลา (L):</span>
+                        <input type="time" id="taf-time-end" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px; font-size:1vw; font-family:'Consolas', monospace; outline:none;">
+                    </div>
+                </div>
+                <button onclick="triggerManualAIAnalysis()" style="background:var(--data-color); color:#000; font-weight:bold; font-size:1.2vw; padding:8px; border:none; border-radius:6px; cursor:pointer; box-shadow:0 0 10px rgba(0,255,204,0.4); margin-top:5px; transition:all 0.2s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">🔍 วิเคราะห์สภาพอากาศ</button>
+            </div>
         </div>
 
-        <div class="panel radar-panel">
-            <div class="radar-header" style="flex-direction: column; align-items: flex-start; gap: 5px;">
-                <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                    <div class="panel-tabs">
-                        <button class="panel-tab active" id="tab-mission" onclick="switchPanelTab('mission')">MISSION & NOTAM</button>
-                        <button class="panel-tab" id="tab-radar" onclick="switchPanelTab('radar')">TMD RADAR</button>
-                        <button class="panel-tab" id="tab-windy" onclick="switchPanelTab('windy')">WINDY MAP</button>
-                    </div>
-                    
-                    <!-- Dropdown for Radar -->
-                    <select id="radar-select" class="radar-dropdown">
-                        <option value="https://weather.tmd.go.th/kkw240_HQ_Loop_edit2.php" selected>NAKHON NAYOK</option>
-                        <option value="https://weather.tmd.go.th/kkw480_HQ_Loop_edit2.php">NAKHON NAYOK 480</option>
-                        <option value="https://weather.tmd.go.th/chn240_HQ_Loop_edit2.php">CHAINAT</option>
-                        <option value="https://weather.tmd.go.th/phb240_HQ_Loop_edit2.php">PHETCHABUN</option>
-                        <option value="https://weather.tmd.go.th/tklLoop.php">TAKHLI</option>
-                    </select>
-
-                    <!-- Dropdown for Windy (Hidden by default) -->
-                    <select id="uwLevel" class="radar-dropdown hide">
-                        <option value="surface">SFC</option>
-                        <option value="950h">1,600 FT</option>
-                        <option value="925h">2,500 FT</option>
-                        <option value="900h">3,300 FT</option>
-                        <option value="850h" selected>5,000 FT</option>
-                        <option value="700h">10,000 FT</option>
-                        <option value="600h">14,000 FT</option>
-                        <option value="500h">18,000 FT</option>
-                        <option value="400h">24,000 FT</option>
-                    </select>
-                </div>
-            </div>
+        <div class="panel radar-panel" id="panel-box-3">
+            <div class="panel-title hide" id="box3-title" style="z-index: 50;">DETAILED AI REPORT</div>
             
-            <!-- Viewport Radar -->
-            <div class="radar-viewport hide" id="radar-viewport" title="Double Click เพื่อขยายเรดาร์เต็มจอ">
-                <div class="radar-draggable-area" id="radar-draggable">
-                    <iframe id="radar-iframe" class="radar-iframe" src="https://weather.tmd.go.th/kkw240_HQ_Loop_edit2.php" scrolling="no" loading="lazy"></iframe>
+            <!-- METAR View (Tabs & Viewports) -->
+            <div id="box3-metar" style="display:flex; flex-direction:column; width:100%; height:100%;">
+                <div class="radar-header" style="flex-direction: column; align-items: flex-start; gap: 5px;">
+                    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                        <div class="panel-tabs">
+                            <button class="panel-tab active" id="tab-mission" onclick="switchPanelTab('mission')">MISSION & NOTAM</button>
+                            <button class="panel-tab" id="tab-radar" onclick="switchPanelTab('radar')">TMD RADAR</button>
+                            <button class="panel-tab" id="tab-windy" onclick="switchPanelTab('windy')">WINDY MAP</button>
+                        </div>
+                        
+                        <select id="radar-select" class="radar-dropdown">
+                            <option value="https://weather.tmd.go.th/kkw240_HQ_Loop_edit2.php" selected>NAKHON NAYOK</option>
+                            <option value="https://weather.tmd.go.th/kkw480_HQ_Loop_edit2.php">NAKHON NAYOK 480</option>
+                            <option value="https://weather.tmd.go.th/chn240_HQ_Loop_edit2.php">CHAINAT</option>
+                            <option value="https://weather.tmd.go.th/phb240_HQ_Loop_edit2.php">PHETCHABUN</option>
+                            <option value="https://weather.tmd.go.th/tklLoop.php">TAKHLI</option>
+                        </select>
+
+                        <select id="uwLevel" class="radar-dropdown hide">
+                            <option value="surface">SFC</option>
+                            <option value="950h">1,600 FT</option>
+                            <option value="925h">2,500 FT</option>
+                            <option value="900h">3,300 FT</option>
+                            <option value="850h" selected>5,000 FT</option>
+                            <option value="700h">10,000 FT</option>
+                            <option value="600h">14,000 FT</option>
+                            <option value="500h">18,000 FT</option>
+                            <option value="400h">24,000 FT</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="radar-viewport hide" id="radar-viewport" title="Double Click เพื่อขยายเรดาร์เต็มจอ">
+                    <div class="radar-draggable-area" id="radar-draggable">
+                        <iframe id="radar-iframe" class="radar-iframe" src="https://weather.tmd.go.th/kkw240_HQ_Loop_edit2.php" scrolling="no" loading="lazy"></iframe>
+                    </div>
+                </div>
+
+                <div class="radar-viewport hide" id="windy-viewport" style="cursor: crosshair; overflow: hidden; position: relative;">
+                    <iframe id="uwFrame" style="position: absolute; top: 0; left: 0; width: 100%; height: calc(100% + 55px); border: none;" src="about:blank" loading="lazy"></iframe>
+                    <button onclick="openWindyFullscreen()" style="position: absolute; bottom: 15px; right: 15px; background: rgba(11, 19, 30, 0.85); color: #00ffcc; border: 2px solid #00ffcc; border-radius: 8px; padding: 8px 15px; font-weight: bold; cursor: pointer; z-index: 100; font-family: 'Consolas', monospace; font-size: 1.2vw; box-shadow: 0 0 10px rgba(0,255,204,0.3);">🔍 FULLSCREEN</button>
+                </div>
+
+                <div class="radar-viewport" id="mission-viewport" style="cursor: default; padding: 15px; box-sizing: border-box; background-color: #0b131e; display: flex; flex-direction: column;">
+                    <div id="mission-loading" style="color: #00ffcc; font-size: 1.5vw; text-align: center; margin-top: 20px;">กำลังดึงข้อมูลภารกิจ... ⏳</div>
+                    <div id="mission-content" class="hide" style="display: flex; flex-direction: column; gap: 15px; height: 100%;">
+                        <div style="flex-shrink: 0; display: flex; justify-content: flex-end; align-items: flex-end;">
+                            <div style="color: #a0aec0; font-size: 1.2vw; font-weight: bold; letter-spacing: 1px;" id="mission-date-label">--</div>
+                        </div>
+                        <div style="flex-shrink: 0; overflow-x: hidden;">
+                            <table style="width: 100%; border-collapse: collapse; color: #ffffff; text-align: center; border: 2px solid #ffffff; table-layout: fixed;">
+                                <thead id="mission-table-head"></thead>
+                                <tbody id="mission-table-body"></tbody>
+                            </table>
+                        </div>
+                        <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                            <div style="flex-shrink: 0; color: #facc15; font-size: 1.3vw; font-weight: bold; margin-bottom: 8px; border-bottom: 1px dashed #4a5568; padding-bottom: 5px; text-align: right;">NOTAM</div>
+                            <div id="mission-notam-text" style="flex: 1; overflow-y: auto; color: #e2e8f0; font-size: 1.1vw; white-space: pre-wrap; line-height: 1.6; font-family: 'Consolas', monospace; padding-right: 5px;"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Viewport Windy (Hidden by default) -->
-            <div class="radar-viewport hide" id="windy-viewport" style="cursor: crosshair; overflow: hidden; position: relative;">
-                <iframe id="uwFrame" style="position: absolute; top: 0; left: 0; width: 100%; height: calc(100% + 55px); border: none;" src="about:blank" loading="lazy"></iframe>
-                <button onclick="openWindyFullscreen()" style="position: absolute; bottom: 15px; right: 15px; background: rgba(11, 19, 30, 0.85); color: #00ffcc; border: 2px solid #00ffcc; border-radius: 8px; padding: 8px 15px; font-weight: bold; cursor: pointer; z-index: 100; font-family: 'Consolas', monospace; font-size: 1.2vw; box-shadow: 0 0 10px rgba(0,255,204,0.3);">🔍 FULLSCREEN</button>
-            </div>
-
-            <!-- Viewport Mission & NOTAM -->
-            <div class="radar-viewport" id="mission-viewport" style="cursor: default; padding: 15px; box-sizing: border-box; background-color: #0b131e; display: flex; flex-direction: column;">
-                <div id="mission-loading" style="color: #00ffcc; font-size: 1.5vw; text-align: center; margin-top: 20px;">กำลังดึงข้อมูลภารกิจ... ⏳</div>
-                <div id="mission-content" class="hide" style="display: flex; flex-direction: column; gap: 15px; height: 100%;">
-                    <div style="flex-shrink: 0; display: flex; justify-content: flex-end; align-items: flex-end;">
-                        <div style="color: #a0aec0; font-size: 1.2vw; font-weight: bold; letter-spacing: 1px;" id="mission-date-label">--</div>
-                    </div>
-                    <div style="flex-shrink: 0; overflow-x: hidden;">
-                        <table style="width: 100%; border-collapse: collapse; color: #ffffff; text-align: center; border: 2px solid #ffffff; table-layout: fixed;">
-                            <thead id="mission-table-head"></thead>
-                            <tbody id="mission-table-body"></tbody>
-                        </table>
-                    </div>
-                    <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
-                        <div style="flex-shrink: 0; color: #facc15; font-size: 1.3vw; font-weight: bold; margin-bottom: 8px; border-bottom: 1px dashed #4a5568; padding-bottom: 5px; text-align: right;">NOTAM</div>
-                        <div id="mission-notam-text" style="flex: 1; overflow-y: auto; color: #e2e8f0; font-size: 1.1vw; white-space: pre-wrap; line-height: 1.6; font-family: 'Consolas', monospace; padding-right: 5px;"></div>
-                    </div>
+            <!-- TAF View (Detailed AI Report) -->
+            <div id="box3-taf" class="hide" style="width:100%; height:100%; display:flex; flex-direction:column; padding: 35px 15px 15px 15px; box-sizing: border-box; overflow-y:auto; background: #080d14;">
+                <div id="ai-report-content" style="color:#a0aec0; font-size:1.2vw; text-align:center; margin-top:40px;">
+                    กรุณาเลือกพื้นที่และเวลาจากแผงควบคุม (ตรงกลาง) <br>แล้วกด <span style="color:var(--data-color); font-weight:bold;">🔍 วิเคราะห์สภาพอากาศ</span>
                 </div>
             </div>
         </div>
@@ -646,14 +677,36 @@
             const tafView = document.getElementById('taf-view-content');
             const titleEl = document.getElementById('box1-title');
 
+            const box2Title = document.getElementById('box2-title');
+            const box2Metar = document.getElementById('box2-metar');
+            const box2Taf = document.getElementById('box2-taf');
+
+            const box3Title = document.getElementById('box3-title');
+            const box3Metar = document.getElementById('box3-metar');
+            const box3Taf = document.getElementById('box3-taf');
+
             if(mode === 'METAR') {
-                metarView.classList.remove('hide');
-                tafView.classList.add('hide');
+                metarView.classList.remove('hide'); tafView.classList.add('hide');
                 titleEl.innerHTML = `CONDITIONS <span style="margin-left: 15px; color: #a0aec0;">TIME</span> <span id="val-time" style="color: #ffffff; margin-left: 5px;">${currentParsedData ? currentParsedData.time : '----'}</span>`;
+                
+                box2Title.innerText = "WIND INDICATOR";
+                box2Metar.style.display = 'flex'; box2Taf.classList.add('hide');
+                
+                box3Title.classList.add('hide');
+                box3Metar.classList.remove('hide'); box3Taf.classList.add('hide');
+                
             } else {
-                metarView.classList.add('hide');
-                tafView.classList.remove('hide');
+                metarView.classList.add('hide'); tafView.classList.remove('hide');
                 titleEl.innerHTML = `<span style="color: #f39c12;">FORECAST TIMELINE (TAF)</span>`;
+
+                box2Title.innerHTML = `<span style="color: #00ffcc;">SMART AREA PREDICTOR</span>`;
+                box2Metar.style.display = 'none'; box2Taf.classList.remove('hide');
+
+                box3Title.classList.remove('hide');
+                box3Metar.classList.add('hide'); box3Taf.classList.remove('hide');
+
+                // กำหนดขนาดและโหลดแผนที่ Leaflet ในกล่อง 2
+                setTimeout(() => initTafMap(), 100);
             }
             renderDashboard(); 
         }
@@ -1018,18 +1071,170 @@
             checkAIPrediction(selectedStation); // เรียกใช้ AI Predictor
         }
 
-        // --- Phase 3: AI Area Predictor ---
+        // --- TAF Interactive Mode & ECMWF AI Predictor ---
+        let tafMap = null; let tafMarker = null; 
+        let currentTargetLoc = {lat: 15.036, lon: 100.912, name: 'สนามบินปัจจุบัน'};
+
+        function initTafMap() {
+            if (tafMap) { tafMap.invalidateSize(); return; }
+            const stn = document.getElementById('station-select').value;
+            if(typeof UW_COORDS !== 'undefined' && UW_COORDS[stn]) {
+                currentTargetLoc = {lat: UW_COORDS[stn].lat, lon: UW_COORDS[stn].lon, name: stn};
+            }
+            
+            tafMap = L.map('taf-leaflet-map', {zoomControl: false}).setView([currentTargetLoc.lat, currentTargetLoc.lon], 8);
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: ''
+            }).addTo(tafMap);
+
+            tafMarker = L.marker([currentTargetLoc.lat, currentTargetLoc.lon]).addTo(tafMap);
+
+            tafMap.on('click', function(e) {
+                currentTargetLoc = {lat: e.latlng.lat, lon: e.latlng.lng, name: 'พิกัดระบุบนแผนที่'};
+                tafMarker.setLatLng(e.latlng);
+                document.getElementById('taf-sel-loc').innerText = `📍 พิกัด: ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
+            });
+
+            // Set default time (Next 2 hours)
+            let d = new Date();
+            document.getElementById('taf-time-start').value = String(d.getHours()).padStart(2,'0') + ":00";
+            d.setHours(d.getHours() + 2);
+            document.getElementById('taf-time-end').value = String(d.getHours()).padStart(2,'0') + ":00";
+        }
+
+        document.getElementById('station-select').addEventListener('change', (e) => {
+            const stn = e.target.value;
+            if(typeof UW_COORDS !== 'undefined' && UW_COORDS[stn]) {
+                currentTargetLoc = {lat: UW_COORDS[stn].lat, lon: UW_COORDS[stn].lon, name: stn};
+                document.getElementById('taf-sel-loc').innerText = `📍 พิกัด: ${stn}`;
+                if(tafMap) {
+                    tafMap.setView([currentTargetLoc.lat, currentTargetLoc.lon], 8);
+                    tafMarker.setLatLng([currentTargetLoc.lat, currentTargetLoc.lon]);
+                }
+            }
+        });
+
+        function triggerManualAIAnalysis() {
+            let tStart = document.getElementById('taf-time-start').value;
+            let tEnd = document.getElementById('taf-time-end').value;
+            if(!tStart || !tEnd) { alert("กรุณาระบุเวลาให้ครบถ้วน"); return; }
+            analyzeAreaWeather(currentTargetLoc.lat, currentTargetLoc.lon, currentTargetLoc.name, tStart, tEnd);
+        }
+
+        // --- ECMWF Advanced Logic ---
+        async function analyzeAreaWeather(lat, lon, locName, timeStart, timeEnd) {
+            const reportEl = document.getElementById('ai-report-content');
+            reportEl.innerHTML = `<div style="text-align:center; color:#00ffcc; font-size:1.5vw; margin-top:50px;">กำลังวิเคราะห์โมเดล ECMWF... ⏳</div>`;
+
+            try {
+                // ดึงพารามิเตอร์เชิงลึก ECMWF (ใช้ระยะ 5NM อัตโนมัติจากขนาด Grid โมเดล)
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,dewpoint_2m,precipitation_probability,precipitation,windspeed_10m,winddirection_10m,windgusts_10m,visibility,cape&models=ecmwf_ifs025&timezone=auto&forecast_days=2`;
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if(!data || !data.hourly) throw new Error("ไม่พบข้อมูล");
+
+                let maxProb = 0; let maxRain = 0; let totalRain = 0;
+                let maxCape = 0; let minVis = 99999;
+                let maxWind = 0; let maxGust = 0; let wDir = 0;
+                let minCbBase = 99999;
+                let hasData = false;
+
+                let hStart = parseInt(timeStart.split(':')[0], 10);
+                let hEnd = parseInt(timeEnd.split(':')[0], 10);
+                if (hEnd < hStart) hEnd += 24; 
+
+                for(let i=0; i<data.hourly.time.length; i++) {
+                    let dt = new Date(data.hourly.time[i]);
+                    let checkH = dt.getHours();
+                    if(dt.getDate() > new Date(data.hourly.time[0]).getDate()) checkH += 24;
+
+                    if(checkH >= hStart && checkH <= hEnd) {
+                        hasData = true;
+                        if(data.hourly.precipitation_probability[i] > maxProb) maxProb = data.hourly.precipitation_probability[i];
+                        if(data.hourly.precipitation[i] > maxRain) maxRain = data.hourly.precipitation[i];
+                        totalRain += data.hourly.precipitation[i];
+                        if(data.hourly.cape[i] > maxCape) maxCape = data.hourly.cape[i];
+                        if(data.hourly.visibility[i] < minVis) minVis = data.hourly.visibility[i];
+                        if(data.hourly.windspeed_10m[i] > maxWind) {
+                            maxWind = data.hourly.windspeed_10m[i];
+                            wDir = data.hourly.winddirection_10m[i];
+                        }
+                        if(data.hourly.windgusts_10m[i] > maxGust) maxGust = data.hourly.windgusts_10m[i];
+
+                        // LCL Formula: (Temp - Dew) * 400
+                        let lcl = Math.round((data.hourly.temperature_2m[i] - data.hourly.dewpoint_2m[i]) * 400);
+                        if(lcl < minCbBase) minCbBase = lcl;
+                    }
+                }
+
+                if(!hasData) {
+                    reportEl.innerHTML = `<div style="text-align:center; color:#ff3333; margin-top:50px;">ไม่อยู่ในห้วงเวลา (วิเคราะห์ล่วงหน้าได้ 48 ชม.)</div>`;
+                    return;
+                }
+
+                // วิเคราะห์ระดับความอันตราย
+                let rainStatus = `<span style="color:#00cc66;">ไม่มีฝน (Clear)</span>`;
+                let alertColor = '#00cc66';
+                if(maxProb >= 60) {
+                    alertColor = '#ff3333';
+                    if(maxRain > 10) rainStatus = `<span style="color:#ff3333; font-weight:bold;">ฝนตกหนัก (Heavy Rain - ${maxRain} mm/h)</span>`;
+                    else if(maxRain > 2.5) rainStatus = `<span style="color:#f39c12; font-weight:bold;">ฝนปานกลาง (Moderate Rain - ${maxRain} mm/h)</span>`;
+                    else rainStatus = `<span style="color:#3498db; font-weight:bold;">ฝนปรอย (Light Rain)</span>`;
+                } else if(maxProb >= 30) {
+                    alertColor = '#f39c12';
+                    rainStatus = `<span style="color:#f39c12;">อาจมีฝนตกรอบๆ พื้นที่ในรัศมี 5 NM (VCSH)</span>`;
+                }
+
+                let stormRisk = `<span style="color:#00cc66;">ปกติ</span>`;
+                if(maxProb >= 50 && maxCape > 1000) stormRisk = `<span style="color:#ff3333; font-weight:bold; text-shadow:0 0 5px #ff0000;">⚠️ เสี่ยงเกิดพายุฟ้าคะนองรุนแรง (Thunderstorm)</span>`;
+                else if(maxProb >= 40 && maxCape > 500) stormRisk = `<span style="color:#f39c12;">โอกาสเกิดเมฆฝนฟ้าคะนองปานกลาง</span>`;
+
+                let wSpdKt = Math.round(maxWind / 1.852);
+                let wGustKt = Math.round(maxGust / 1.852);
+                let windStr = `${wDir}° / ${wSpdKt} KT ${wGustKt > wSpdKt + 5 ? `(กระโชกสูงสุด <span style="color:#ff3333;">${wGustKt} KT</span>)` : ''}`;
+                let visStr = (minVis < 5000) ? `<span style="color:#ff3333;">ลดลงเหลือ ${Math.round(minVis/1000)} km ในกลุ่มฝน</span>` : `> 10 km`;
+
+                let html = `
+                <div style="background: rgba(20, 30, 48, 0.8); border: 2px solid ${alertColor}; border-radius: 8px; padding: 15px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8);">
+                    <div style="color:${alertColor}; font-size:1.6vw; font-weight:bold; border-bottom: 2px solid ${alertColor}; padding-bottom: 8px; margin-bottom: 12px; text-align:center;">
+                        ${alertColor === '#ff3333' ? '🔴 AI WEATHER ALERT' : (alertColor === '#f39c12' ? '🟡 AI WEATHER ADVISORY' : '🟢 AI WEATHER CLEAR')}
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:15px; background:#000; padding:10px; border-radius:6px;">
+                        <div>
+                            <div style="color:#a0aec0; font-size:1vw;">📍 พื้นที่เป้าหมาย:</div>
+                            <div style="color:#fff; font-size:1.2vw; font-weight:bold;">${locName}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="color:#a0aec0; font-size:1vw;">🕒 ห้วงเวลาวิเคราะห์:</div>
+                            <div style="color:#fff; font-size:1.2vw; font-weight:bold;">${timeStart} - ${timeEnd} น.</div>
+                        </div>
+                    </div>
+                    <table style="width:100%; text-align:left; font-size:1.3vw; color:#e2e8f0; line-height:2.2;">
+                        <tr><td style="width:40%; color:#a0aec0;">🌧️ โอกาสเกิดฝนสูงสุด:</td><td style="font-weight:bold;">${maxProb}%</td></tr>
+                        <tr><td style="color:#a0aec0;">💧 ปริมาณ/ความรุนแรง:</td><td>${rainStatus}</td></tr>
+                        <tr><td style="color:#a0aec0;">⚠️ อันตรายที่อาจเกิด:</td><td>${stormRisk}</td></tr>
+                        <tr><td style="color:#a0aec0;">🌬️ ลมผิวดิน (เฉลี่ย):</td><td style="font-weight:bold;">${windStr}</td></tr>
+                        <tr><td style="color:#a0aec0;">☁️ ฐานเมฆประเมิน (LCL):</td><td style="font-weight:bold; color:#00ffcc;">${minCbBase} FT</td></tr>
+                        <tr><td style="color:#a0aec0;">👁️ ทัศนวิสัย (ต่ำสุด):</td><td style="font-weight:bold;">${visStr}</td></tr>
+                    </table>
+                </div>`;
+                reportEl.innerHTML = html;
+
+            } catch(e) {
+                console.error(e);
+                reportEl.innerHTML = `<div style="text-align:center; color:#ff3333; margin-top:50px;">❌ เกิดข้อผิดพลาดในการดึงข้อมูลแบบจำลอง</div>`;
+            }
+        }
+
+        // --- Auto-check AI สำหรับแบนเนอร์ (ใช้ความแม่นยำ ECMWF) ---
         async function checkAIPrediction(icao) {
             const banner = document.getElementById('ai-alert-banner');
-            // ใช้พิกัดจากระบบลมชั้นบน (UW_COORDS)
-            if (typeof UW_COORDS === 'undefined' || !UW_COORDS[icao]) { 
-                banner.classList.add('hide'); return; 
-            }
+            if (typeof UW_COORDS === 'undefined' || !UW_COORDS[icao]) { banner.classList.add('hide'); return; }
             const stn = UW_COORDS[icao];
 
             try {
-                // ดึงข้อมูล Open-Meteo ล่วงหน้า 12 ชั่วโมง
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${stn.lat}&longitude=${stn.lon}&hourly=precipitation_probability,precipitation&timezone=auto&forecast_hours=12`;
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${stn.lat}&longitude=${stn.lon}&hourly=precipitation_probability,precipitation&models=ecmwf_ifs025&timezone=auto&forecast_hours=12`;
                 const res = await fetch(url);
                 const data = await res.json();
                 
@@ -1038,9 +1243,8 @@
                     for(let i=0; i < data.hourly.time.length; i++) {
                         let prob = data.hourly.precipitation_probability[i];
                         let rain = data.hourly.precipitation[i];
-                        // เงื่อนไขแจ้งเตือน: โอกาสเกิดฝน >= 50% หรือ ปริมาณฝน > 0.5 มม.
-                        if(prob >= 50 || rain > 0.5) {
-                            let timeStr = data.hourly.time[i].substring(11, 16); // ดึงเฉพาะเวลา HH:MM
+                        if(prob >= 60) {
+                            let timeStr = data.hourly.time[i].substring(11, 16); 
                             rainPeriods.push({time: timeStr, prob: prob, rain: rain});
                         }
                     }
@@ -1049,19 +1253,25 @@
                         let start = rainPeriods[0].time;
                         let end = rainPeriods[rainPeriods.length-1].time;
                         let maxProb = Math.max(...rainPeriods.map(p => p.prob));
-                        
                         let timeDisplay = (start === end) ? `เวลา ${start} น.` : `ช่วงเวลา ${start} - ${end} น.`;
                         
-                        banner.innerHTML = `⚠️ AI FORECAST ALERT: คาดการณ์กลุ่มฝนเข้าพื้นที่เป้าหมาย ${timeDisplay} (โอกาส ${maxProb}%)`;
+                        banner.innerHTML = `⚠️ AI FORECAST ALERT: คาดการณ์มีกลุ่มฝนเข้าพื้นที่เป้าหมาย ${timeDisplay} (โอกาส ${maxProb}%)`;
                         banner.classList.remove('hide');
+                        banner.style.animation = 'blink 2s infinite';
+                        banner.style.opacity = '1';
+                        
+                        // Auto-trigger detailed report
+                        currentTargetLoc = {lat: stn.lat, lon: stn.lon, name: icao};
+                        analyzeAreaWeather(stn.lat, stn.lon, icao, start, end);
+                        if(tafMap) {
+                            tafMap.setView([stn.lat, stn.lon], 8);
+                            tafMarker.setLatLng([stn.lat, stn.lon]);
+                        }
                     } else {
-                        banner.classList.add('hide'); // ไม่มีฝน ซ่อนแบนเนอร์
+                        banner.classList.add('hide'); 
                     }
                 }
-            } catch(e) {
-                console.error("AI Predictor Error:", e);
-                banner.classList.add('hide');
-            }
+            } catch(e) { banner.classList.add('hide'); }
         }
         
         function fetchWeatherData() { 
