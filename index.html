@@ -47,7 +47,11 @@
         .clock-box { display: flex; flex-direction: column; align-items: center; font-size: 1.1vw; color: var(--data-color); font-weight: bold; background: #111; padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border-color); cursor: pointer; transition: all 0.2s; }
         .clock-box:hover { background: #1a2a40; box-shadow: 0 0 15px rgba(0,255,204,0.3); transform: scale(1.05); }
 
-        .raw-metar-box { padding: 6px 15px; font-size: 1.3vw; color: #f1c40f; background-color: #111; border-bottom: 2px solid var(--border-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .raw-wx-container { display: flex; align-items: center; background-color: #111; border-bottom: 2px solid var(--border-color); padding: 4px 15px; }
+        .wx-mode-toggle { display: flex; background: #0b131e; border-radius: 6px; border: 2px solid var(--border-color); overflow: hidden; margin-right: 15px; flex-shrink: 0; }
+        .wx-mode-btn { background: transparent; color: #6f879b; border: none; padding: 4px 15px; font-size: 1.1vw; font-weight: bold; font-family: 'Consolas', monospace; cursor: pointer; transition: all 0.2s; }
+        .wx-mode-btn.active { background: var(--data-color); color: #000; box-shadow: 0 0 10px rgba(0,255,204,0.4); }
+        .raw-metar-box { flex: 1; font-size: 1.3vw; color: #f1c40f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* --- DASHBOARD --- */
         .dashboard-container { display: flex; flex: 1; padding: 15px; gap: 15px; box-sizing: border-box; }
@@ -412,7 +416,13 @@
     </div>
     <!-- ======================================================= -->
 
-    <div class="raw-metar-box" id="raw-metar">AWAITING DATA...</div>
+    <div class="raw-wx-container">
+        <div class="wx-mode-toggle no-capture" data-html2canvas-ignore="true">
+            <button id="btn-mode-metar" class="wx-mode-btn active" onclick="setWxMode('METAR')">METAR</button>
+            <button id="btn-mode-taf" class="wx-mode-btn" onclick="setWxMode('TAF')">TAF</button>
+        </div>
+        <div class="raw-metar-box" id="raw-metar">AWAITING DATA...</div>
+    </div>
 
     <div class="dashboard-container">
         
@@ -611,8 +621,31 @@
         }
 
         const apiUrl = 'https://weather.rtaf.mi.th/api/v1/metar/desktop/getMetarAllStationJSON';
-        let cachedDatabaseText = ""; let currentParsedData = null;
+        const tafApiUrl = 'https://weather.rtaf.mi.th/api/v1/taf/desktop/getTafJSON';
+        let cachedDatabaseText = ""; let cachedTafText = ""; 
+        let currentParsedData = null; let currentWxMode = 'METAR';
+
         const wxDictionary = { 'HZ': 'หมอกแดด', 'BR': 'ในหมอก', 'FG': 'หมอกหนา', 'RA': 'มีฝน', '-RA': 'ฝนเบา', '+RA': 'ฝนหนัก', 'TS': 'ฝนฟ้าคะนอง', 'VCSH': 'ฝนระยะไกล', 'VCTS': 'ฝนฟ้าคะนองระยะไกล', 'DZ': 'ฝนละออง', 'SHRA': 'ฝนซู่' };
+
+        function setWxMode(mode) {
+            currentWxMode = mode;
+            document.getElementById('btn-mode-metar').classList.toggle('active', mode === 'METAR');
+            document.getElementById('btn-mode-taf').classList.toggle('active', mode === 'TAF');
+            renderDashboard();
+        }
+
+        function updateRawTextDisplay(station, rawMetarStr) {
+            const rawEl = document.getElementById('raw-metar');
+            if (currentWxMode === 'METAR') {
+                if (!rawMetarStr) { rawEl.innerHTML = `<span style="color:red;">NO METAR DATA AVAILABLE FOR ${station}</span>`; } 
+                else { rawEl.innerText = rawMetarStr; }
+            } else {
+                if (!cachedTafText) { rawEl.innerHTML = `<span style="color:red;">AWAITING TAF DATA...</span>`; return; }
+                const regex = new RegExp(station + '[^"\\\\]+'); const match = cachedTafText.match(regex);
+                if (!match) { rawEl.innerHTML = `<span style="color:red;">NO TAF DATA AVAILABLE FOR ${station}</span>`; } 
+                else { rawEl.innerText = match[0].replace(/\s+/g, ' ').trim(); }
+            }
+        }
         
         function parseMetar(metar) { 
             let parsed = { raw: metar, time: '----', vis: '----', visVal: '', wxDesc: '', few: '----', sct: '----', bkn: '----', ovc: '----', qnh: '----', tempDew: '----', windDir: '000', windSpd: '00', gust: null, isVrb: false, flightRule: 'VMC', caution: [] }; 
@@ -732,7 +765,7 @@
             const regex = new RegExp(selectedStation + '[^"\\\\]+'); const match = cachedDatabaseText.match(regex); 
             
             if (!match) { 
-                document.getElementById('raw-metar').innerHTML = `<span style="color:red;">NO DATA AVAILABLE FOR ${selectedStation}</span>`; 
+                updateRawTextDisplay(selectedStation, null);
                 document.getElementById('val-time').innerText = '----'; 
                 document.getElementById('val-vis').innerText = '----'; 
                 document.getElementById('val-wx').innerText = ''; 
@@ -758,7 +791,9 @@
                 return; 
             } 
             
-            const rawMetar = match[0].trim(); document.getElementById('raw-metar').innerText = rawMetar; 
+            const rawMetar = match[0].trim(); 
+            updateRawTextDisplay(selectedStation, rawMetar); 
+            
             try { 
                 const pData = parseMetar(rawMetar); currentParsedData = pData; 
                 
@@ -803,10 +838,16 @@
         
         function fetchWeatherData() { 
             const overlay = document.getElementById('overlay'); if(!cachedDatabaseText) overlay.classList.remove('hide'); 
-            fetch(apiUrl, { method: 'POST', headers: { 'Accept': '*/*' } }).then(response => { 
-                if (!response.ok) throw new Error('HTTP STATUS: ' + response.status); return response.text(); 
-            }).then(text => { 
-                cachedDatabaseText = text; renderDashboard(); overlay.classList.add('hide'); resetProgressBar();
+            
+            Promise.all([
+                fetch(apiUrl, { method: 'POST', headers: { 'Accept': '*/*' } }).then(r => { if (!r.ok) throw new Error('METAR HTTP ' + r.status); return r.text(); }),
+                fetch(tafApiUrl, { method: 'POST', headers: { 'Accept': '*/*' } }).then(r => r.text()).catch(e => "")
+            ]).then(([metarText, tafText]) => {
+                cachedDatabaseText = metarText;
+                cachedTafText = tafText;
+                renderDashboard(); 
+                overlay.classList.add('hide'); 
+                resetProgressBar();
             }).catch(error => { 
                 overlay.classList.remove('hide'); overlay.innerHTML = `<span style="color:red; font-weight:bold;">❌ SYSTEM ERROR<br><br>${error.message}<br><br><span style="font-size:1.5vw; color:#fff;">RETRYING IN 10 MINS...</span></span>`; 
             }); 
