@@ -986,6 +986,13 @@
             return parsed; 
         }
         
+        function setTextIfExists(id, value, useHTML) {
+            const element = document.getElementById(id);
+            if (!element) return;
+            if (useHTML) element.innerHTML = value;
+            else element.innerText = value;
+        }
+
         function renderDashboard() { 
             if (!cachedDatabaseText) return; 
             const selectedStation = document.getElementById('station-select').value; 
@@ -993,26 +1000,34 @@
             
             if (!match) { 
                 updateRawTextDisplay(selectedStation, null);
-                document.getElementById('val-time').innerText = '----'; 
-                document.getElementById('val-vis').innerText = '----'; 
-                document.getElementById('val-wx').innerText = ''; 
-                document.getElementById('val-wx').style.display = 'none';
-                document.getElementById('val-few').innerText = '----'; 
-                document.getElementById('val-sct').innerText = '----'; 
-                document.getElementById('val-bkn').innerText = '----'; 
-                document.getElementById('val-ovc').innerText = '----'; 
-                document.getElementById('val-qnh').innerText = '----'; 
-                document.getElementById('val-temp').innerText = '----';
+                setTextIfExists('val-time', '----');
+                setTextIfExists('val-vis', '----');
+                const wxEl = document.getElementById('val-wx');
+                if (wxEl) {
+                    wxEl.innerText = '';
+                    wxEl.style.display = 'none';
+                }
+                setTextIfExists('val-few', '----');
+                setTextIfExists('val-sct', '----');
+                setTextIfExists('val-bkn', '----');
+                setTextIfExists('val-ovc', '----');
+                setTextIfExists('val-qnh', '----');
+                setTextIfExists('val-temp', '----');
                 
-                document.getElementById('wind-spd').innerText = '--'; 
-                document.getElementById('wind-dir-text').innerText = '---°'; 
-                document.getElementById('wind-needle-box').style.opacity = '0';
-                document.getElementById('gust-alert').innerText = '';
-                document.getElementById('caution-box').classList.add('hide');
+                setTextIfExists('wind-spd', '--');
+                setTextIfExists('wind-dir-text', '---°');
+                const needleBox = document.getElementById('wind-needle-box');
+                if (needleBox) needleBox.style.opacity = '0';
+                const gustAlert = document.getElementById('gust-alert');
+                if (gustAlert) gustAlert.innerText = '';
+                const cautionBox = document.getElementById('caution-box');
+                if (cautionBox) cautionBox.classList.add('hide');
                 
                 const badge = document.getElementById('flight-rule-badge');
-                badge.innerText = 'N/A';
-                badge.className = 'flight-rule-badge na-steady';
+                if (badge) {
+                    badge.innerText = 'N/A';
+                    badge.className = 'flight-rule-badge na-steady';
+                }
 
                 currentParsedData = null; 
                 return; 
@@ -1031,41 +1046,57 @@
             try { 
                 const pData = parseMetar(rawMetar); currentParsedData = pData; 
                 
-                document.getElementById('val-time').innerText = pData.time; 
-                document.getElementById('val-vis').innerText = pData.vis; 
+                setTextIfExists('val-time', pData.time);
+                setTextIfExists('val-vis', pData.vis);
                 
-                document.getElementById('val-wx').innerText = pData.wxDesc; 
-                document.getElementById('val-wx').style.display = pData.wxDesc ? 'inline-block' : 'none';
+                const wxEl = document.getElementById('val-wx');
+                if (wxEl) {
+                    wxEl.innerText = pData.wxDesc;
+                    wxEl.style.display = pData.wxDesc ? 'inline-block' : 'none';
+                }
                 
-                document.getElementById('val-few').innerHTML = pData.few; 
-                document.getElementById('val-sct').innerHTML = pData.sct; 
-                document.getElementById('val-bkn').innerHTML = pData.bkn; 
-                document.getElementById('val-ovc').innerHTML = pData.ovc; 
-                document.getElementById('val-qnh').innerText = pData.qnh; 
-                document.getElementById('val-temp').innerText = pData.tempDew;
+                setTextIfExists('val-few', pData.few, true);
+                setTextIfExists('val-sct', pData.sct, true);
+                setTextIfExists('val-bkn', pData.bkn, true);
+                setTextIfExists('val-ovc', pData.ovc, true);
+                setTextIfExists('val-qnh', pData.qnh);
+                setTextIfExists('val-temp', pData.tempDew);
                 
-                const badge = document.getElementById('flight-rule-badge'); badge.innerText = pData.flightRule;
-                if(pData.flightRule === 'IMC') { 
-                    badge.className = 'flight-rule-badge imc-flashing'; 
-                } else { 
-                    badge.className = 'flight-rule-badge vmc-steady'; 
+                const badge = document.getElementById('flight-rule-badge');
+                if (badge) {
+                    badge.innerText = pData.flightRule;
+                    if(pData.flightRule === 'IMC') { 
+                        badge.className = 'flight-rule-badge imc-flashing'; 
+                    } else { 
+                        badge.className = 'flight-rule-badge vmc-steady'; 
+                    }
                 }
 
-                document.getElementById('wind-spd').innerText = pData.windSpd; const needleBox = document.getElementById('wind-needle-box'); const gustAlert = document.getElementById('gust-alert');
+                const windSpd = document.getElementById('wind-spd');
+                if (windSpd) windSpd.innerText = pData.windSpd;
+                const needleBox = document.getElementById('wind-needle-box');
+                const gustAlert = document.getElementById('gust-alert');
                 if(pData.gust) {
-                    gustAlert.innerText = `GUST ${pData.gust} KT`; let gustNum = parseInt(pData.gust, 10);
-                    if (gustNum >= 25) { gustAlert.style.color = '#ff3333'; gustAlert.style.textShadow = '0 0 10px #ff3333'; } 
-                    else if (gustNum >= 15) { gustAlert.style.color = '#ff9900'; gustAlert.style.textShadow = '0 0 10px #ff9900'; } 
-                    else { gustAlert.style.color = '#f1c40f'; gustAlert.style.textShadow = '0 0 10px #f1c40f'; }
-                } else { gustAlert.innerText = ''; }
+                    if (gustAlert) {
+                        gustAlert.innerText = `GUST ${pData.gust} KT`; let gustNum = parseInt(pData.gust, 10);
+                        if (gustNum >= 25) { gustAlert.style.color = '#ff3333'; gustAlert.style.textShadow = '0 0 10px #ff3333'; } 
+                        else if (gustNum >= 15) { gustAlert.style.color = '#ff9900'; gustAlert.style.textShadow = '0 0 10px #ff9900'; } 
+                        else { gustAlert.style.color = '#f1c40f'; gustAlert.style.textShadow = '0 0 10px #f1c40f'; }
+                    }
+                } else if (gustAlert) { gustAlert.innerText = ''; }
 
-                if (pData.isVrb) { document.getElementById('wind-dir-text').innerText = 'VAR'; needleBox.style.opacity = '0'; } 
-                else if (pData.windSpd === '00' || pData.windSpd === '0') { document.getElementById('wind-dir-text').innerText = 'CALM'; needleBox.style.opacity = '0'; } 
-                else { document.getElementById('wind-dir-text').innerText = pData.windDir + '°'; needleBox.style.opacity = '1'; needleBox.style.transform = `rotate(${pData.windDir}deg)`; } 
+                const windDirText = document.getElementById('wind-dir-text');
+                if (windDirText) {
+                    if (pData.isVrb) { windDirText.innerText = 'VAR'; if (needleBox) needleBox.style.opacity = '0'; } 
+                    else if (pData.windSpd === '00' || pData.windSpd === '0') { windDirText.innerText = 'CALM'; if (needleBox) needleBox.style.opacity = '0'; } 
+                    else { windDirText.innerText = pData.windDir + '°'; if (needleBox) { needleBox.style.opacity = '1'; needleBox.style.transform = `rotate(${pData.windDir}deg)`; } } 
+                }
                 
                 const cautionBox = document.getElementById('caution-box'); 
-                if (pData.caution.length > 0) { cautionBox.innerHTML = `⚠️ WARNING: ${pData.caution.join(', ')}`; cautionBox.classList.remove('hide'); } 
-                else { cautionBox.classList.add('hide'); } 
+                if (cautionBox) {
+                    if (pData.caution.length > 0) { cautionBox.innerHTML = `⚠️ WARNING: ${pData.caution.join(', ')}`; cautionBox.classList.remove('hide'); } 
+                    else { cautionBox.classList.add('hide'); } 
+                }
             } catch (parseError) { console.error(parseError); } 
             loadUpperWind(selectedStation);
             checkAIPrediction(selectedStation); // เรียกใช้ AI Predictor
