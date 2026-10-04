@@ -701,8 +701,10 @@
                     let wM = block.match(/\b(VRB|\d{3})(\d{2,3})(?:G(\d{2,3}))?KT\b/);
                     if(wM) { wDir = wM[1]==='VRB'?'VRB':wM[1]; wSpd = wM[2]; wGust = wM[3]?`G${wM[3]}`:''; }
                     
-                    let vM = block.match(/\b(\d{4})\b/);
-                    if(vM) { vStr = vM[1]==='9999' ? '10 km' : `${parseInt(vM[1],10)} m`; }
+                    // แก้บั๊ก Vis โดยหาเลข 4 หลักที่อยู่หลัง KT หรือ MPS เท่านั้น
+                    let vM = block.match(/(?:KT|MPS)\s+(\d{4})\b/);
+                    let visVal = vM ? vM[1] : (block.includes('9999') ? '9999' : '----');
+                    if(visVal !== '----') { vStr = visVal === '9999' ? '10 km' : `${parseInt(visVal,10)} m`; }
                     
                     let cMatches = block.match(/\b(FEW|SCT|BKN|OVC)(\d{3})(CB|TCU)?\b/g);
                     if(cMatches) {
@@ -724,6 +726,11 @@
                         let mb = Math.round((qNum/100) * 33.86389);
                         qnhStr = `${qM[1]} / ${mb}`;
                     }
+
+                    // ดึงค่าอุณหภูมิสูงสุด (TX) และต่ำสุด (TN)
+                    let txM = block.match(/TX(\d{2})\/\d{4}Z/);
+                    let tnM = block.match(/TN(\d{2})\/\d{4}Z/);
+                    let tempStr = (txM && tnM) ? `MAX ${txM[1]}°C / MIN ${tnM[1]}°C` : '----';
                     
                     html += `
                     <div style="background: rgba(20, 30, 48, 0.6); border: 2px solid #2a3f5f; border-radius: 6px; padding: 10px; margin-bottom: 15px;">
@@ -735,7 +742,7 @@
                         <div class="data-row"><div class="data-label" style="font-size:1.5vw;">BKN.</div><div class="data-value" style="font-size:1.8vw;">${cBKN}</div></div>
                         <div class="data-row"><div class="data-label" style="font-size:1.5vw;">OVC.</div><div class="data-value" style="font-size:1.8vw;">${cOVC}</div></div>
                         <div class="data-row"><div class="data-label" style="font-size:1.5vw;">QNH</div><div class="data-value qnh-value" style="font-size:2vw !important;">${qnhStr}</div></div>
-                        <div class="data-row" style="border:none;"><div class="data-label" style="font-size:1.5vw;">TMP/DP</div><div class="data-value" style="color:#3498db; font-size:1.8vw;">----</div></div>
+                        <div class="data-row" style="border:none;"><div class="data-label" style="font-size:1.5vw;">TX/TN</div><div class="data-value" style="color:#f39c12; font-size:1.6vw;">${tempStr}</div></div>
                     </div>`;
                     
                     return; // already processed
@@ -885,6 +892,9 @@
                 rmkStr = rmkStr.split(/\b(SLP\d+|[0-9]{5}|[1-9][A-Z]{2}\d{3}|QFE|NOSIG)\b/)[0].trim();
                 
                 if(rmkStr.length > 0) {
+                    // สลับตำแหน่ง OCNL/FRQ ให้อยู่หลัง LTG เพื่อหลักไวยากรณ์ไทย
+                    rmkStr = rmkStr.replace(/\b(OCNL|FRQ)\s+(LTG(?:ICCC|IC|CG|))\b/g, "$2 $1");
+
                     // แปลเฉพาะคำพยากรณ์ ทับศัพท์ทิศทางและ MOV ไว้เพื่อประหยัดพื้นที่
                     let thaiRmk = rmkStr
                         .replace(/\bLTGICCC\b/g, 'ฟ้าแลบในเมฆ/ระหว่างเมฆ')
@@ -1039,7 +1049,10 @@
                         let start = rainPeriods[0].time;
                         let end = rainPeriods[rainPeriods.length-1].time;
                         let maxProb = Math.max(...rainPeriods.map(p => p.prob));
-                        banner.innerHTML = `⚠️ AI FORECAST ALERT: คาดการณ์มีกลุ่มฝนเข้าพื้นที่เป้าหมาย ช่วงเวลา ${start} - ${end} น. (โอกาส ${maxProb}%)`;
+                        
+                        let timeDisplay = (start === end) ? `เวลา ${start} น.` : `ช่วงเวลา ${start} - ${end} น.`;
+                        
+                        banner.innerHTML = `⚠️ AI FORECAST ALERT: คาดการณ์กลุ่มฝนเข้าพื้นที่เป้าหมาย ${timeDisplay} (โอกาส ${maxProb}%)`;
                         banner.classList.remove('hide');
                     } else {
                         banner.classList.add('hide'); // ไม่มีฝน ซ่อนแบนเนอร์
