@@ -729,11 +729,10 @@
             return `วันที่ ${d} เวลา ${String(localH).padStart(2, '0')}:00 น.`;
         }
 
-        function renderTafTimeline(tafRaw) {
+function renderTafTimeline(tafRaw) {
             const container = document.getElementById('taf-timeline-container');
             if(!tafRaw) { container.innerHTML = '<div style="color:red; text-align:center; margin-top:20px;">NO TAF DATA</div>'; return; }
 
-            // แบ่งกลุ่มคำด้วย BECMG, TEMPO และ FM
             const blocks = tafRaw.split(/(BECMG\s+\d{4}\/\d{4}|TEMPO\s+\d{4}\/\d{4}|FM\d{6})/g);
             let html = '';
 
@@ -746,7 +745,6 @@
                 let bgColor = 'rgba(20, 30, 48, 0.6)'; 
                 let borderColor = '#2a3f5f';
 
-                // จัดการหัวข้อและสี (Header & Colors)
                 if (isBase) {
                     let timeMatch = block.match(/\b(\d{4})\/(\d{4})\b/);
                     let validStr = timeMatch ? `${formatTafTime(timeMatch[1])} - ${formatTafTime(timeMatch[2])}` : 'ตลอดช่วงพยากรณ์';
@@ -767,16 +765,12 @@
                         title = `<div style="color:${borderColor}; font-weight:bold; font-size:1.1vw; border-bottom:1px dashed ${borderColor}; padding-bottom:5px; margin-bottom:8px;">${typeDesc} <span style="color:#fff; font-size:1vw; margin-left:10px;">${validStr}</span></div>`;
                     }
                     
-                    // ดึงข้อความของบล็อกถัดไปมาวิเคราะห์
                     block = blocks[idx+1] || '';
-                    blocks[idx+1] = ''; // ลบเพื่อไม่ให้วิเคราะห์ซ้ำ
+                    blocks[idx+1] = ''; 
                 } else {
-                    return; // ถ้าเป็นเนื้อหาธรรมดาที่ถูกวิเคราะห์ไปแล้ว ให้ข้าม
+                    return; 
                 }
 
-                // ----------------------------------------------------
-                // วิเคราะห์พารามิเตอร์ต่างๆ ภายใน Block
-                // ----------------------------------------------------
                 let noChangeStr = `<span style="color:#5a6b82; font-size:1.2vw; font-weight:normal; font-style:italic;">(คงเดิม)</span>`;
                 
                 let wDir = noChangeStr, wSpd = "", wGust = "", vStr = noChangeStr, qnhStr = noChangeStr;
@@ -788,7 +782,6 @@
                     cFEW="----"; cSCT="----"; cBKN="----"; cOVC="----";
                 }
 
-                // 1. WIND
                 let wM = block.match(/\b(VRB|\d{3})(\d{2,3})(?:G(\d{2,3}))?KT\b/);
                 if(wM) { 
                     wDir = `<span style="color:#39ff14;">${wM[1]==='VRB'?'VRB':wM[1]}°</span>`; 
@@ -797,12 +790,10 @@
                     wDir += ` ${wSpd}${wGust} KT`;
                 }
                 
-                // 2. VISIBILITY
                 let vM = block.match(/(?:KT|MPS)\s+(\d{4})\b/);
                 let visVal = vM ? vM[1] : (block.includes('9999') ? '9999' : null);
                 if(visVal) { vStr = visVal === '9999' ? '10 km' : `${parseInt(visVal,10)} m`; }
                 
-                // 3. CLOUDS
                 let cMatches = block.match(/\b(FEW|SCT|BKN|OVC)(\d{3})(CB|TCU)?\b/g);
                 if(cMatches) {
                     cFEW=""; cSCT=""; cBKN=""; cOVC="";
@@ -819,20 +810,19 @@
                     wxStr = `<span style="color:#00cc66;">ไม่มีเหตุการณ์สำคัญ (NSW)</span>`;
                 }
 
-                // 4. WEATHER PHENOMENA
-                let wxMatches = block.match(/\b(-|\+|V)?(TS|SH|DZ|RA|BR|FG|HZ|VCTS|VCSH)[A-Z]*\b/g);
+                // FIXED: Replace without word boundaries to catch attached strings like BRHZ
+                let wxMatches = block.match(/(-|\+|V)?(TSRA|TS|VCTS|RA|-RA|\+RA|SHRA|DZ|BR|FG|HZ|VCSH)/g);
                 if(wxMatches && !block.includes('NSW') && !block.includes('CAVOK')) {
                     wxStr = wxMatches.map(w => {
-                        // นำ \b ออกเพื่อให้จับคำที่เขียนติดกันได้ เช่น BRHZ
-                        let translated = w.replace(/(TSRA|TS|VCTS)/g, '<span style="background:rgba(255,85,85,0.2); padding:0 4px; border-radius:3px;">ฝนฟ้าคะนอง($1)</span> ')
-                                          .replace(/(RA|-RA|\+RA|SHRA)/g, '<span style="color:#3498db;">มีฝน($1)</span> ')
-                                          .replace(/(BR|FG|HZ)/g, '<span style="color:#f1c40f;">ทัศนวิสัยต่ำ($1)</span> ')
-                                          .replace(/(VCSH)/g, '<span style="color:#a0aec0;">ฝนใกล้เคียง($1)</span> ');
-                        return `<span style="color:#ff5555; font-weight:bold;">${translated.trim()}</span>`;
-                    }).join(', ');
+                        let text = w; let color = '#a0aec0'; let bg = 'transparent';
+                        if(w.includes('TS')) { text = `ฝนฟ้าคะนอง(${w})`; color = '#ff5555'; bg = 'rgba(255,85,85,0.2)'; }
+                        else if(w.includes('RA') || w.includes('SH') || w.includes('DZ')) { text = `มีฝน(${w})`; color = '#3498db'; }
+                        else if(w.includes('BR') || w.includes('FG') || w.includes('HZ')) { text = `ทัศนวิสัยต่ำ(${w})`; color = '#f1c40f'; }
+                        else if(w.includes('VCSH')) { text = `ฝนใกล้เคียง(${w})`; color = '#a0aec0'; }
+                        return `<span style="color:${color}; background:${bg}; padding:0 4px; border-radius:3px; font-weight:bold;">${text}</span>`;
+                    }).join(' ');
                 }
 
-                // 5. QNH & TEMP (Usually only in BASE or FM)
                 let qM = block.match(/QNH(\d{4})INS/);
                 if(qM) {
                     let qNum = parseInt(qM[1], 10);
@@ -844,9 +834,6 @@
                 let tnM = block.match(/TN(\d{2})\/\d{4}Z/);
                 let tempStr = (txM && tnM) ? `MAX ${txM[1]}°C / MIN ${tnM[1]}°C` : (isBase ? '----' : noChangeStr);
                 
-                // ----------------------------------------------------
-                // ประกอบ HTML สำหรับ 1 Block
-                // ----------------------------------------------------
                 html += `
                 <div style="background: ${bgColor}; border: 2px solid ${borderColor}; border-radius: 6px; padding: 10px; margin-bottom: 15px;">
                     ${title}
@@ -877,32 +864,6 @@
             });
 
             container.innerHTML = html;
-        }
-
-        // --- ฟังก์ชันดึงข้อมูล METAR/TAF จาก JSON อย่างถูกต้อง ---
-        function extractWxData(rawJsonStr, station, mode) {
-            if (!rawJsonStr) return null;
-            try {
-                const data = JSON.parse(rawJsonStr);
-                // API ของ ทอ. มักจะคืนค่าเป็น Array
-                if (Array.isArray(data)) {
-                    const stnData = data.find(item => item.StationId === station || item.Station === station || item.station === station);
-                    if (stnData) {
-                        let rawStr = (mode === 'TAF') ? (stnData.Taf || stnData.taf || stnData.TAF) : (stnData.Metar || stnData.metar || stnData.METAR);
-                        if (rawStr) return rawStr.replace(/\\r\\n|\r\n|\n|\r/g, ' ').replace(/\s+/g, ' ').trim();
-                    }
-                }
-            } catch (e) {
-                console.warn("JSON Parse fallback to Regex");
-            }
-            
-            // กรณีระบบ API เปลี่ยนรูปแบบ (Fallback) ดึงเฉพาะข้อความที่ขึ้นด้วย รหัสสถานี และ ลงท้ายด้วย = หรือสถานีถัดไป
-            const regex = new RegExp(`"${station}\\s+\\d{6}Z[\\s\\S]*?"`, 'g');
-            const matches = rawJsonStr.match(regex);
-            if (matches) {
-                return matches[0].replace(/^"|"$/g, '').replace(/\\r\\n|\r\n|\n|\r/g, ' ').replace(/\\/g, '').replace(/\s+/g, ' ').trim();
-            }
-            return null;
         }
 
         function updateRawTextDisplay(station, rawMetarStr) {
