@@ -428,7 +428,60 @@
 #taf-date::-webkit-datetime-edit-second-field,
 #taf-time-start::-webkit-datetime-edit-second-field,
 #taf-time-end::-webkit-datetime-edit-second-field { display: none; }
-</style>
+/* ===== BOX3 AI REPORT SCROLL (ชุดเดียวกับ box1) ===== */
+#ai-report-content > * { flex: 0 0 auto; }
+#ai-report-content {
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-gold, #d4af37) rgba(255,255,255,0.04);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 28px), transparent 100%);
+            mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 28px), transparent 100%);
+}
+#ai-report-content::-webkit-scrollbar { width: 8px; }
+#ai-report-content::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 4px; }
+#ai-report-content::-webkit-scrollbar-thumb { background: var(--accent-gold, #d4af37); border-radius: 4px; }
+#ai-report-content::-webkit-scrollbar-thumb:hover { background: #ffd966; }
+#ai-report-content > *:last-child { margin-bottom: 20px; }
+
+/* ===== BOX2 : กันปุ่มตกขอบ + แผนที่เต็มพื้นที่ ===== */
+#box2-taf > * { flex-shrink: 0; }
+#box2-taf > #taf-leaflet-map { flex-shrink: 1; }
+#box2-taf button { white-space: nowrap; }
+
+/* ===== TITLE ให้เตี้ยลง เพื่อคืนพื้นที่ให้เนื้อหา ===== */
+.panel-title { font-size: clamp(13px, 1.55vw, 22px); top: 6px; }
+
+@media (max-height: 760px) {
+    #box2-taf { padding-top: 32px; gap: 6px; }
+    #box3-taf { padding-top: 32px; }
+    #box2-taf button { font-size: clamp(11px, 1vw, 15px); padding: 7px 6px; }
+    #taf-leaflet-map { min-height: 100px; }
+}
+    /* ===== TITLE / MAP FLUSH ALIGNMENT ===== */
+    .panel-title {
+        top: 5px;
+        line-height: 1.15;
+        padding: 0 8px;
+    }
+    #box2-taf > #taf-leaflet-map:first-child,
+    #box2-taf > #taf-leaflet-map {
+        margin-top: 0;
+        border-top-left-radius: 4px;
+        border-top-right-radius: 4px;
+    }
+    #panel-box-2:has(> #box2-taf:not(.hide)) { padding-top: 0; }
+    @media (max-height: 760px) {
+        #box2-taf { padding-top: 25px !important; }
+        #box3-taf { padding-top: 27px !important; }
+        #box1     { padding-top: 32px; }
+    }
+    @media (max-height: 640px) {
+        #box2-taf { padding-top: 22px !important; }
+        #box3-taf { padding-top: 24px !important; }
+    }
+    </style>
 </head>
 <body>
 
@@ -549,10 +602,10 @@
                 <div id="caution-box" class="caution-box hide">WARNING: NIL</div>
             </div>
             <!-- TAF View (Smart Query) -->
-            <div id="box2-taf" class="hide" style="width:100%; height:100%; display:flex; flex-direction:column; gap:10px; padding-top:45px; min-height:0; overflow:hidden;">
-                <div id="taf-leaflet-map" style="width:100%; flex:1; min-height:150px; border:2px solid var(--border-color); border-radius:6px; background:#000; z-index: 1;"></div>
+            <div id="box2-taf" class="hide" style="width:100%; flex:1 1 auto; display:flex; flex-direction:column; gap:8px; padding-top:29px; padding-bottom:4px; min-height:0; overflow:hidden; box-sizing:border-box;">
+                <div id="taf-leaflet-map" style="width:100%; flex:1 1 auto; min-height:120px; margin:0; border:2px solid var(--border-color); border-radius:6px; background:#000; z-index:1;"></div>
                 
-                <div style="display:flex; align-items:center; gap:5px; margin-bottom:5px;">
+                <div style="display:flex; align-items:center; gap:5px; margin-bottom:0; flex:0 0 auto;">
                     <span style="font-size:1vw; color:#00ffcc; font-weight:bold; white-space:nowrap;">📍 พิกัด:</span>
                     <input type="text" id="taf-coord-input" placeholder="เช่น 15°04'19.49&quot;N 100°47'40.60&quot;E หรือ 15.07, 100.79" style="flex:1; background:#152233; color:#fff; border:1px solid var(--data-color); border-radius:4px; padding:4px 8px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;" onchange="handleCoordInput(this.value)">
                 </div>
@@ -571,7 +624,7 @@
                         <input type="time" id="taf-time-end" lang="en-GB" step="60" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
                     </div>
                 </div>
-                <button onclick="triggerManualAIAnalysis()" style="background:var(--data-color); color:#000; font-weight:bold; font-size:1.1vw; padding:8px; border:none; border-radius:6px; cursor:pointer; box-shadow:0 0 10px rgba(0,255,204,0.4); margin-top:5px; transition:all 0.2s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">🔍 วิเคราะห์สภาพอากาศโดยละเอียด</button>
+                <button onclick="triggerManualAIAnalysis()" style="flex:0 0 auto; width:100%; background:var(--data-color); color:#000; font-weight:bold; font-size:clamp(12px,1.1vw,17px); padding:9px 8px; border:none; border-radius:6px; cursor:pointer; box-shadow:0 0 10px rgba(0,255,204,0.4); margin-top:2px; transition:all 0.2s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">🔍 วิเคราะห์สภาพอากาศโดยละเอียด</button>
             </div>
         </div>
 
@@ -642,8 +695,8 @@
             </div>
 
             <!-- TAF View (Detailed AI Report) -->
-            <div id="box3-taf" class="hide" style="width:100%; flex: 1; min-height: 0; display:flex; flex-direction:column; padding: 35px 15px 15px 15px; box-sizing: border-box; overflow-y:hidden; background: #080d14;">
-                <div id="ai-report-content" style="height: 100%; display: flex; flex-direction: column; color:#a0aec0; font-size:1.2vw; text-align:center; margin-top:0;">
+            <div id="box3-taf" class="hide" style="width:100%; flex:1 1 auto; min-height:0; display:flex; flex-direction:column; padding:36px 8px 10px 15px; box-sizing:border-box; overflow:hidden; background:#080d14;">
+                <div id="ai-report-content" style="flex:1 1 auto; min-height:0; height:auto; display:flex; flex-direction:column; overflow-y:auto; overflow-x:hidden; color:#a0aec0; font-size:clamp(12px,1.2vw,18px); text-align:center; margin-top:0; padding-right:8px; padding-bottom:48px; box-sizing:border-box;">
                     กรุณาเลือกพื้นที่และเวลาจากแผงควบคุม (ตรงกลาง) <br>แล้วกด <span style="color:var(--data-color); font-weight:bold;">🔍 วิเคราะห์สภาพอากาศ</span>
                 </div>
             </div>
