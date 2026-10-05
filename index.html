@@ -425,6 +425,40 @@
 }
 #taf-time-start::-webkit-datetime-edit-ampm-field,
 #taf-time-end::-webkit-datetime-edit-ampm-field { display: none; }
+/* ===== ใบ #5 [A] กล่อง 3: กันลูกของ flex column ถูกบีบจนหาย ===== */
+#ai-report-content > * { flex: 0 0 auto !important; }
+
+/* หัวข้อ sticky "รายละเอียดแยกตามช่วงเวลา:" */
+#ai-report-content div[style*="sticky"] {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 25 !important;
+    background: #0b1220 !important;
+    color: var(--accent-gold, #d4af37) !important;
+    font-size: clamp(12px, 1vw, 17px) !important;
+    font-weight: bold !important;
+    text-align: left !important;
+    padding: 6px 0 5px 0 !important;
+    margin: 0 0 8px 0 !important;
+    border-bottom: 1px dashed #4a5568 !important;
+    box-shadow: 0 6px 10px -8px rgba(0,0,0,0.9) !important;
+}
+
+/* ===== ใบ #5 [B] เก็บกวาด span ว่างที่เหลือหลังลบไอคอน ▲▼ ===== */
+#ai-report-content span:empty,
+#ai-report-content i:empty,
+#ai-report-content b:empty { display: none !important; }
+
+/* ===== ใบ #5 [C] ช่องเวลา 24H (text input) ===== */
+input.atc-time24 {
+    font-size: clamp(11px, 0.9vw, 15px) !important;
+    text-align: center;
+    letter-spacing: 1.5px;
+    color-scheme: dark;
+}
+input.atc-time24::placeholder { color: #4a5568; letter-spacing: 1.5px; }
+input.atc-time24:focus { border-color: var(--accent-gold, #d4af37) !important; }
+input.atc-time24.invalid { border-color: #e53e3e !important; }
 #taf-date::-webkit-datetime-edit-second-field,
 #taf-time-start::-webkit-datetime-edit-second-field,
 #taf-time-end::-webkit-datetime-edit-second-field { display: none; }
@@ -617,11 +651,11 @@
                     </div>
                     <div style="flex:1; display:flex; flex-direction:column; min-width:70px;">
                         <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">⏰ เริ่ม (L):</span>
-                        <input type="time" id="taf-time-start" lang="en-GB" step="60" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
+                        <input type="text" id="taf-time-start" class="atc-time24" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
                     </div>
                     <div style="flex:1; display:flex; flex-direction:column; min-width:70px;">
                         <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">⏰ ถึง (L):</span>
-                        <input type="time" id="taf-time-end" lang="en-GB" step="60" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
+                        <input type="text" id="taf-time-end" class="atc-time24" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
                     </div>
                 </div>
                 <button onclick="triggerManualAIAnalysis()" style="flex:0 0 auto; width:100%; background:var(--data-color); color:#000; font-weight:bold; font-size:clamp(12px,1.1vw,17px); padding:9px 8px; border:none; border-radius:6px; cursor:pointer; box-shadow:0 0 10px rgba(0,255,204,0.4); margin-top:2px; transition:all 0.2s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">🔍 วิเคราะห์สภาพอากาศโดยละเอียด</button>
@@ -2644,5 +2678,70 @@ document.addEventListener('DOMContentLoaded', function(){
 /* =============== END UPPER WIND MODULE (JS) =============== */
 </script>
 
+<script>
+/* ===== ใบสั่งงาน #5 : ATC 24H TIME MASK + AI REPORT ARROW CLEANUP =====
+   สคริปต์อิสระ ไม่เรียก/ไม่แก้ฟังก์ชันต้องห้ามใด ๆ ทั้งสิ้น */
+(function () {
+  'use strict';
+  var IDS = ['taf-time-start', 'taf-time-end'];
+
+  function digits(v) { return String(v || '').replace(/[^0-9]/g, '').slice(0, 4); }
+
+  /* ใส่ : อัตโนมัติระหว่างพิมพ์ */
+  function mask(el) {
+    var d = digits(el.value);
+    el.value = (d.length > 2) ? d.slice(0, 2) + ':' + d.slice(2) : d;
+  }
+
+  /* บังคับรูปแบบสุดท้ายเป็น HH:mm (00-23 / 00-59) */
+  function normalize(el) {
+    var d = digits(el.value);
+    if (!d) { el.value = ''; el.classList.remove('invalid'); return; }
+    if (d.length === 1) d = '0' + d + '00';
+    else if (d.length === 2) d = d + '00';
+    else if (d.length === 3) d = '0' + d;
+    var h = parseInt(d.slice(0, 2), 10), m = parseInt(d.slice(2, 4), 10);
+    if (isNaN(h) || isNaN(m) || h > 23 || m > 59) { el.classList.add('invalid'); return; }
+    el.classList.remove('invalid');
+    el.value = ('0' + h).slice(-2) + ':' + ('0' + m).slice(-2);
+  }
+
+  function normalizeAll() {
+    IDS.forEach(function (id) { var el = document.getElementById(id); if (el) normalize(el); });
+  }
+
+  IDS.forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', function () { mask(el); });
+    el.addEventListener('blur', function () { normalize(el); });
+    el.addEventListener('keydown', function (e) { if (e.key === 'Enter') normalize(el); });
+  });
+
+  /* capture phase: ค่าถูกแปลงเป็น HH:mm ก่อน handler ปุ่มวิเคราะห์ทำงานเสมอ */
+  document.addEventListener('click', normalizeAll, true);
+  document.addEventListener('change', normalizeAll, true);
+
+  /* ลบไอคอนสามเหลี่ยมขึ้น-ลงในรายงาน AI (ไม่แตะ ◀ ▶ ของ Upper Wind) */
+  var ARROW = /[\u25B2\u25BC\u25B3\u25BD\u25B4\u25BE\u2191\u2193\u2B06\u2B07]|\uD83D\uDD3A|\uD83D\uDD3B/g;
+  var box = document.getElementById('ai-report-content');
+  if (box && window.MutationObserver) {
+    var strip = function (root) {
+      var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false), n;
+      while ((n = w.nextNode())) {
+        ARROW.lastIndex = 0;
+        if (ARROW.test(n.nodeValue)) {
+          ARROW.lastIndex = 0;
+          n.nodeValue = n.nodeValue.replace(ARROW, '').replace(/\s{2,}/g, ' ');
+        }
+      }
+      ARROW.lastIndex = 0;
+    };
+    new MutationObserver(function () { strip(box); })
+      .observe(box, { childList: true, subtree: true, characterData: true });
+    strip(box);
+  }
+})();
+</script>
 </body>
 </html>
