@@ -733,116 +733,148 @@
             const container = document.getElementById('taf-timeline-container');
             if(!tafRaw) { container.innerHTML = '<div style="color:red; text-align:center; margin-top:20px;">NO TAF DATA</div>'; return; }
 
+            // แบ่งกลุ่มคำด้วย BECMG, TEMPO และ FM
             const blocks = tafRaw.split(/(BECMG\s+\d{4}\/\d{4}|TEMPO\s+\d{4}\/\d{4}|FM\d{6})/g);
             let html = '';
 
             blocks.forEach((block, idx) => {
                 if(block.trim() === '') return;
 
-                if (idx === 0) {
-                    // --- แปลง TAF Base Period ให้เป็นหน้าตาเหมือน METAR ---
+                let isBase = (idx === 0);
+                let blockType = isBase ? 'BASE' : '';
+                let title = ''; 
+                let bgColor = 'rgba(20, 30, 48, 0.6)'; 
+                let borderColor = '#2a3f5f';
+
+                // จัดการหัวข้อและสี (Header & Colors)
+                if (isBase) {
                     let timeMatch = block.match(/\b(\d{4})\/(\d{4})\b/);
                     let validStr = timeMatch ? `${formatTafTime(timeMatch[1])} - ${formatTafTime(timeMatch[2])}` : 'ตลอดช่วงพยากรณ์';
+                    title = `<div style="color:#00ffcc; font-weight:bold; font-size:1.1vw; border-bottom:1px dashed #2a3f5f; padding-bottom:5px; margin-bottom:8px;">🕒 สภาพอากาศหลัก (Base) <span style="color:#fff; font-size:1vw; margin-left:10px;">${validStr}</span></div>`;
+                } else if(block.startsWith('BECMG') || block.startsWith('TEMPO') || block.startsWith('FM')) {
+                    if(block.startsWith('TEMPO')) { blockType = 'TEMPO'; bgColor = 'rgba(243, 156, 18, 0.15)'; borderColor = '#f39c12'; }
+                    else if(block.startsWith('BECMG')) { blockType = 'BECMG'; bgColor = 'rgba(57, 255, 20, 0.1)'; borderColor = '#39ff14'; }
+                    else if(block.startsWith('FM')) { blockType = 'FM'; bgColor = 'rgba(155, 89, 182, 0.15)'; borderColor = '#9b59b6'; }
                     
-                    let wDir="---", wSpd="--", wGust="", vStr="----", qnhStr="----";
-                    let cFEW="----", cSCT="----", cBKN="----", cOVC="----";
-                    
-                    let wM = block.match(/\b(VRB|\d{3})(\d{2,3})(?:G(\d{2,3}))?KT\b/);
-                    if(wM) { wDir = wM[1]==='VRB'?'VRB':wM[1]; wSpd = wM[2]; wGust = wM[3]?`G${wM[3]}`:''; }
-                    
-                    let vM = block.match(/(?:KT|MPS)\s+(\d{4})\b/);
-                    let visVal = vM ? vM[1] : (block.includes('9999') ? '9999' : '----');
-                    if(visVal !== '----') { vStr = visVal === '9999' ? '10 km' : `${parseInt(visVal,10)} m`; }
-                    
-                    let cMatches = block.match(/\b(FEW|SCT|BKN|OVC)(\d{3})(CB|TCU)?\b/g);
-                    if(cMatches) {
-                        cFEW=""; cSCT=""; cBKN=""; cOVC="";
-                        cMatches.forEach(c => {
-                            let type = c.substring(0,3); let hgt = parseInt(c.substring(3,6),10)*100;
-                            let cb = c.substring(6) ? `<span style="color:#ff5555; text-shadow:0 0 5px #ff3333;">${c.substring(6)}</span> ` : "";
-                            let str = `${cb}${hgt} FT`;
-                            if(type==='FEW') cFEW += (cFEW?`, ${str}`:str); else if(type==='SCT') cSCT += (cSCT?`, ${str}`:str); else if(type==='BKN') cBKN += (cBKN?`, ${str}`:str); else if(type==='OVC') cOVC += (cOVC?`, ${str}`:str);
-                        });
-                        if(!cFEW) cFEW="----"; if(!cSCT) cSCT="----"; if(!cBKN) cBKN="----"; if(!cOVC) cOVC="----";
-                    } else if (block.includes('CAVOK')) {
-                        cFEW="CAVOK"; cSCT="CAVOK"; cBKN="CAVOK"; cOVC="CAVOK"; vStr="CAVOK";
+                    if (blockType === 'FM') {
+                        let fmMatch = block.match(/FM(\d{2})(\d{2})(\d{2})/);
+                        let validStr = fmMatch ? `ตั้งแต่ วันที่ ${fmMatch[1]} เวลา ${String((parseInt(fmMatch[2],10)+7)%24).padStart(2,'0')}:00 น.` : block;
+                        title = `<div style="color:${borderColor}; font-weight:bold; font-size:1.1vw; border-bottom:1px dashed ${borderColor}; padding-bottom:5px; margin-bottom:8px;">🔄 เปลี่ยนสภาพอากาศใหม่ทั้งหมด (FM) <span style="color:#fff; font-size:1vw; margin-left:10px;">${validStr}</span></div>`;
+                    } else {
+                        let timeMatch = block.match(/(\d{4})\/(\d{4})/);
+                        let validStr = timeMatch ? `${formatTafTime(timeMatch[1])} - ${formatTafTime(timeMatch[2])}` : '';
+                        let typeDesc = blockType === 'TEMPO' ? '⚠️ เปลี่ยนแปลงชั่วคราว (TEMPO)' : '➡️ แนวโน้มเปลี่ยนแปลง (BECMG)';
+                        title = `<div style="color:${borderColor}; font-weight:bold; font-size:1.1vw; border-bottom:1px dashed ${borderColor}; padding-bottom:5px; margin-bottom:8px;">${typeDesc} <span style="color:#fff; font-size:1vw; margin-left:10px;">${validStr}</span></div>`;
                     }
-
-                    let qM = block.match(/QNH(\d{4})INS/);
-                    if(qM) {
-                        let qNum = parseInt(qM[1], 10);
-                        let mb = Math.round((qNum/100) * 33.86389);
-                        qnhStr = `${qM[1]} / ${mb}`;
-                    }
-
-                    let txM = block.match(/TX(\d{2})\/\d{4}Z/);
-                    let tnM = block.match(/TN(\d{2})\/\d{4}Z/);
-                    let tempStr = (txM && tnM) ? `MAX ${txM[1]}°C / MIN ${tnM[1]}°C` : '----';
                     
-                    html += `
-                    <div style="background: rgba(20, 30, 48, 0.6); border: 2px solid #2a3f5f; border-radius: 6px; padding: 10px; margin-bottom: 15px;">
-                        <div style="color:#00ffcc; font-weight:bold; font-size:1.1vw; border-bottom:1px dashed #2a3f5f; padding-bottom:5px; margin-bottom:8px;">🕒 สภาพอากาศหลัก (Base) <span style="color:#fff; font-size:1vw; margin-left:10px;">${validStr}</span></div>
-                        <div class="data-row"><div class="data-label" style="font-size:1.5vw;">WIND</div><div class="data-value" style="color:#39ff14; font-size:1.8vw;">${wDir}° / ${wSpd}${wGust} KT</div></div>
-                        <div class="data-row"><div class="data-label" style="font-size:1.5vw;">VIS.</div><div class="data-value" style="font-size:1.8vw;">${vStr}</div></div>
-                        <div class="data-row"><div class="data-label" style="font-size:1.5vw;">FEW.</div><div class="data-value" style="font-size:1.8vw;">${cFEW}</div></div>
-                        <div class="data-row"><div class="data-label" style="font-size:1.5vw;">SCT.</div><div class="data-value" style="font-size:1.8vw;">${cSCT}</div></div>
-                        <div class="data-row"><div class="data-label" style="font-size:1.5vw;">BKN.</div><div class="data-value" style="font-size:1.8vw;">${cBKN}</div></div>
-                        <div class="data-row"><div class="data-label" style="font-size:1.5vw;">OVC.</div><div class="data-value" style="font-size:1.8vw;">${cOVC}</div></div>
-                        <div class="data-row"><div class="data-label" style="font-size:1.5vw;">QNH</div><div class="data-value qnh-value" style="font-size:2vw !important;">${qnhStr}</div></div>
-                        <div class="data-row" style="border:none;"><div class="data-label" style="font-size:1.5vw;">TX/TN</div><div class="data-value" style="color:#f39c12; font-size:1.6vw;">${tempStr}</div></div>
-                    </div>`;
-                    return; // Base period จบตรงนี้
+                    // ดึงข้อความของบล็อกถัดไปมาวิเคราะห์
+                    block = blocks[idx+1] || '';
+                    blocks[idx+1] = ''; // ลบเพื่อไม่ให้วิเคราะห์ซ้ำ
+                } else {
+                    return; // ถ้าเป็นเนื้อหาธรรมดาที่ถูกวิเคราะห์ไปแล้ว ให้ข้าม
                 }
 
-                // สำหรับบล็อก BECMG หรือ TEMPO
-                if(block.startsWith('BECMG') || block.startsWith('TEMPO') || block.startsWith('FM')) {
-                    const isTempo = block.startsWith('TEMPO');
-                    let bgColor = isTempo ? 'rgba(243, 156, 18, 0.15)' : 'rgba(57, 255, 20, 0.1)';
-                    let borderColor = isTempo ? '#f39c12' : '#39ff14';
-                    
-                    let title = '';
-                    let timeMatch = block.match(/(\d{4})\/(\d{4})/);
-                    if(timeMatch) {
-                        title = `<div style="color:${borderColor}; font-weight:bold; font-size:1.1vw; margin-bottom:4px;">${isTempo ? '⚠️ เปลี่ยนแปลงชั่วคราว (TEMPO)' : '➡️ แนวโน้มเปลี่ยนแปลง (BECMG)'} <span style="color:#fff;">${formatTafTime(timeMatch[1])} - ${formatTafTime(timeMatch[2])}</span></div>`;
-                    } else {
-                        title = `<div style="color:${borderColor}; font-weight:bold; font-size:1.1vw; margin-bottom:4px;">${block}</div>`;
-                    }
-                    
-                    let content = blocks[idx+1] || '';
-                    blocks[idx+1] = ''; // ลบ block ถัดไปเพื่อไม่ให้วนซ้ำ
-                    
-                    // แปลงเนื้อหา TAF เป็นรูปแบบอ่านง่าย
-                    let parsedLine = content.trim();
-                    
-                    parsedLine = parsedLine.replace(/\b(VRB|\d{3})(\d{2,3})(?:G(\d{2,3}))?KT\b/g, (match, dir, spd, gust) => {
-                        let dirStr = dir === 'VRB' ? 'แปรปรวน' : `${dir}°`;
-                        let gustStr = gust ? ` กระโชก ${gust}KT` : '';
-                        return `<span style="color:#39ff14; font-weight:bold;">ลม: ${dirStr} ${spd}KT${gustStr}</span>`;
-                    });
-                    
-                    parsedLine = parsedLine.replace(/\b(\d{4})\b/g, (match, vis) => {
-                        if (vis === '9999') return `<span style="color:#00ffcc; font-weight:bold;">Vis: 10km</span>`;
-                        let visNum = parseInt(vis, 10);
-                        if (visNum < 5000) return `<span style="color:#ff3333; font-weight:bold;">Vis: ${visNum}m</span>`;
-                        return `<span style="color:#f39c12; font-weight:bold;">Vis: ${visNum}m</span>`;
-                    });
+                // ----------------------------------------------------
+                // วิเคราะห์พารามิเตอร์ต่างๆ ภายใน Block
+                // ----------------------------------------------------
+                let noChangeStr = `<span style="color:#5a6b82; font-size:1.2vw; font-weight:normal; font-style:italic;">(คงเดิม)</span>`;
+                
+                let wDir = noChangeStr, wSpd = "", wGust = "", vStr = noChangeStr, qnhStr = noChangeStr;
+                let cFEW = noChangeStr, cSCT = noChangeStr, cBKN = noChangeStr, cOVC = noChangeStr;
+                let wxStr = noChangeStr;
 
-                    parsedLine = parsedLine.replace(/\b(FEW|SCT|BKN|OVC)(\d{3})(CB|TCU)?\b/g, (match, amt, hgt, type) => {
-                        let heightFt = parseInt(hgt, 10) * 100;
-                        let typeStr = type ? `<span style="color:#ff5555; font-weight:bold;">${type}</span>` : '';
-                        return `<span style="color:#a0aec0; font-weight:bold;">${amt} ${heightFt}FT ${typeStr}</span>`;
+                if (isBase) {
+                    wDir="---"; wSpd="--"; vStr="----"; qnhStr="----"; wxStr="ไม่มีเหตุการณ์สำคัญ";
+                    cFEW="----"; cSCT="----"; cBKN="----"; cOVC="----";
+                }
+
+                // 1. WIND
+                let wM = block.match(/\b(VRB|\d{3})(\d{2,3})(?:G(\d{2,3}))?KT\b/);
+                if(wM) { 
+                    wDir = `<span style="color:#39ff14;">${wM[1]==='VRB'?'VRB':wM[1]}°</span>`; 
+                    wSpd = `<span style="color:#39ff14;">/ ${wM[2]}</span>`; 
+                    wGust = wM[3]?`<span style="color:#ff3333; text-shadow:0 0 5px #ff0000;"> G${wM[3]}</span>`:''; 
+                    wDir += ` ${wSpd}${wGust} KT`;
+                }
+                
+                // 2. VISIBILITY
+                let vM = block.match(/(?:KT|MPS)\s+(\d{4})\b/);
+                let visVal = vM ? vM[1] : (block.includes('9999') ? '9999' : null);
+                if(visVal) { vStr = visVal === '9999' ? '10 km' : `${parseInt(visVal,10)} m`; }
+                
+                // 3. CLOUDS
+                let cMatches = block.match(/\b(FEW|SCT|BKN|OVC)(\d{3})(CB|TCU)?\b/g);
+                if(cMatches) {
+                    cFEW=""; cSCT=""; cBKN=""; cOVC="";
+                    cMatches.forEach(c => {
+                        let type = c.substring(0,3); let hgt = parseInt(c.substring(3,6),10)*100;
+                        let cb = c.substring(6) ? `<span style="color:#ff5555; text-shadow:0 0 5px #ff3333;">${c.substring(6)}</span> ` : "";
+                        let str = `${cb}${hgt} FT`;
+                        if(type==='FEW') cFEW += (cFEW?`, ${str}`:str); else if(type==='SCT') cSCT += (cSCT?`, ${str}`:str); else if(type==='BKN') cBKN += (cBKN?`, ${str}`:str); else if(type==='OVC') cOVC += (cOVC?`, ${str}`:str);
                     });
+                    if(!cFEW) cFEW="----"; if(!cSCT) cSCT="----"; if(!cBKN) cBKN="----"; if(!cOVC) cOVC="----";
+                } else if (block.includes('CAVOK')) {
+                    cFEW="CAVOK"; cSCT="CAVOK"; cBKN="CAVOK"; cOVC="CAVOK"; vStr="CAVOK"; wxStr="CAVOK";
+                } else if (block.includes('NSW')) {
+                    wxStr = `<span style="color:#00cc66;">ไม่มีเหตุการณ์สำคัญ (NSW)</span>`;
+                }
 
-                    parsedLine = parsedLine.replace(/\b(TSRA|TS|VCTS)\b/g, '<span style="color:#ff5555; font-weight:bold; background:rgba(255,85,85,0.2); padding:0 4px; border-radius:3px;">ฝนฟ้าคะนอง ($1)</span>')
-                                           .replace(/\b(RA|-RA|\+RA|SHRA)\b/g, '<span style="color:#3498db; font-weight:bold;">มีฝน ($1)</span>')
-                                           .replace(/\b(BR|FG|HZ)\b/g, '<span style="color:#f1c40f; font-weight:bold;">มีหมอก/ทัศนวิสัยต่ำ ($1)</span>');
+                // 4. WEATHER PHENOMENA
+                let wxMatches = block.match(/\b(-|\+|V)?(TS|SH|DZ|RA|BR|FG|HZ|VCTS|VCSH)[A-Z]*\b/g);
+                if(wxMatches && !block.includes('NSW') && !block.includes('CAVOK')) {
+                    wxStr = wxMatches.map(w => {
+                        let translated = w.replace(/\b(TSRA|TS|VCTS)\b/g, '<span style="background:rgba(255,85,85,0.2); padding:0 4px; border-radius:3px;">ฝนฟ้าคะนอง ($1)</span>')
+                                          .replace(/\b(RA|-RA|\+RA|SHRA)\b/g, '<span style="color:#3498db;">มีฝน ($1)</span>')
+                                          .replace(/\b(BR|FG|HZ)\b/g, '<span style="color:#f1c40f;">มีหมอก/ทัศนวิสัยต่ำ ($1)</span>')
+                                          .replace(/\b(VCSH)\b/g, '<span style="color:#a0aec0;">ฝนบริเวณใกล้เคียง ($1)</span>');
+                        return `<span style="color:#ff5555; font-weight:bold;">${translated}</span>`;
+                    }).join(', ');
+                }
 
-                    html += `<div style="background: ${bgColor}; border-left: 4px solid ${borderColor}; padding: 10px; border-radius: 4px; margin-bottom: 8px;">
-                                ${title}
-                                <div style="font-family:'Consolas', monospace; font-size: 1.1vw; color:#e2e8f0; line-height: 1.6; word-spacing: 4px;">${parsedLine}</div>
+                // 5. QNH & TEMP (Usually only in BASE or FM)
+                let qM = block.match(/QNH(\d{4})INS/);
+                if(qM) {
+                    let qNum = parseInt(qM[1], 10);
+                    let mb = Math.round((qNum/100) * 33.86389);
+                    qnhStr = `${qM[1]} / ${mb}`;
+                }
+
+                let txM = block.match(/TX(\d{2})\/\d{4}Z/);
+                let tnM = block.match(/TN(\d{2})\/\d{4}Z/);
+                let tempStr = (txM && tnM) ? `MAX ${txM[1]}°C / MIN ${tnM[1]}°C` : (isBase ? '----' : noChangeStr);
+                
+                // ----------------------------------------------------
+                // ประกอบ HTML สำหรับ 1 Block
+                // ----------------------------------------------------
+                html += `
+                <div style="background: ${bgColor}; border: 2px solid ${borderColor}; border-radius: 6px; padding: 10px; margin-bottom: 15px;">
+                    ${title}
+                    <div class="data-row"><div class="data-label" style="font-size:1.4vw;">WIND</div><div class="data-value" style="font-size:1.6vw;">${wDir}</div></div>
+                    <div class="data-row"><div class="data-label" style="font-size:1.4vw;">VIS.</div><div class="data-value" style="font-size:1.6vw;">${vStr}</div></div>
+                    <div class="data-row" style="padding-top:4px;"><div class="data-label" style="font-size:1.4vw; color:#facc15;">WX.</div><div class="data-value" style="font-size:1.4vw;">${wxStr}</div></div>
+                    
+                    <div style="display:flex; margin-top:8px; border-top:1px dashed #2a3f5f; padding-top:8px;">
+                        <div style="flex:1;">
+                            <div class="data-row"><div class="data-label" style="font-size:1.2vw;">FEW.</div><div class="data-value" style="font-size:1.4vw;">${cFEW}</div></div>
+                            <div class="data-row"><div class="data-label" style="font-size:1.2vw;">SCT.</div><div class="data-value" style="font-size:1.4vw;">${cSCT}</div></div>
+                        </div>
+                        <div style="flex:1;">
+                            <div class="data-row"><div class="data-label" style="font-size:1.2vw;">BKN.</div><div class="data-value" style="font-size:1.4vw;">${cBKN}</div></div>
+                            <div class="data-row"><div class="data-label" style="font-size:1.2vw;">OVC.</div><div class="data-value" style="font-size:1.4vw;">${cOVC}</div></div>
+                        </div>
+                    </div>
+                `;
+
+                if(isBase || blockType === 'FM' || qnhStr !== noChangeStr) {
+                    html += `<div style="display:flex; margin-top:5px;">
+                                <div class="data-row" style="flex:1; border:none;"><div class="data-label" style="font-size:1.2vw;">QNH</div><div class="data-value qnh-value" style="font-size:1.5vw !important;">${qnhStr}</div></div>
+                                <div class="data-row" style="flex:1; border:none;"><div class="data-label" style="font-size:1.2vw;">TX/TN</div><div class="data-value" style="color:#f39c12; font-size:1.2vw;">${tempStr}</div></div>
                              </div>`;
                 }
+                
+                html += `</div>`;
             });
+
             container.innerHTML = html;
         }
 
