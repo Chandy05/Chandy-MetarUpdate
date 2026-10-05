@@ -54,12 +54,21 @@
         .raw-metar-box { flex: 1; font-size: 1.3vw; color: #f1c40f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* --- DASHBOARD --- */
-        .dashboard-container { display: flex; flex: 1; padding: 15px; gap: 15px; box-sizing: border-box; }
-        .panel { background-color: var(--panel-bg); border: 2px solid var(--border-color); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; position: relative; }
+        .dashboard-container { display: flex; flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 15px; gap: 15px; box-sizing: border-box; }
+        .panel { background-color: var(--panel-bg); border: 2px solid var(--border-color); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; position: relative; min-height: 0; min-width: 0; overflow: hidden; }
         .panel-title { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 1.8vw; font-weight: bold; color: #a0aec0; z-index: 10; background: var(--panel-bg); padding: 0 10px; white-space: nowrap;}
 
         /* --- COL 1: CONDITIONS --- */
-        .conditions-panel { flex: 0.8; justify-content: space-evenly; padding-top: 45px; padding-left: 1.5vw; }
+        .conditions-panel {
+            flex: 0.8 1 0%;
+            justify-content: flex-start;
+            align-items: stretch;
+            min-height: 0;
+            padding-top: 45px;
+            padding-bottom: 10px;
+            padding-left: 1.5vw;
+            overflow: hidden;
+        }
         .data-row { display: flex; align-items: center; border-bottom: 1px dashed var(--border-color); padding-bottom: 5px; }
         .data-label { min-width: 60px; width: 4.5vw; font-size: 1.9vw; font-weight: bold; color: #a0aec0; margin-right: 5px; }
         
@@ -350,6 +359,75 @@
 .panel-tab:hover { color: #fff; }
 .panel-tab.active { background: #06251f; color: #00ffcc; border-color: #00ffcc; font-weight: bold; }
 /* =============== END NEW UPPER WIND BAR =============== */
+/* ===== TAF VIEWPORT GUARD ===== */
+#taf-view-content {
+  flex: 1 1 auto !important;
+  min-height: 0;
+  height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding-right: 8px !important;
+  padding-bottom: 20px !important;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-gold, #d4af37) rgba(255,255,255,0.04);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 28px), transparent 100%);
+          mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 28px), transparent 100%);
+}
+#taf-view-content::-webkit-scrollbar { width: 8px; }
+#taf-view-content::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 4px; }
+#taf-view-content::-webkit-scrollbar-thumb { background: var(--accent-gold, #d4af37); border-radius: 4px; }
+#taf-view-content::-webkit-scrollbar-thumb:hover { background: #ffd966; }
+#taf-timeline-container {
+  color: #e2e8f0;
+  font-size: clamp(12px, 1.2vw, 18px) !important;
+  line-height: 1.5;
+  padding-bottom: 56px !important;
+}
+#taf-timeline-container > *:last-child { margin-bottom: 24px; }
+@media (max-width: 900px) {
+  .dashboard-container { flex-direction: column; overflow-y: auto; min-height: 0; }
+  .conditions-panel { flex: 0 0 auto; min-height: 55vh; padding-bottom: 15px; }
+  #taf-view-content { max-height: 48vh; }
+}
+@media (max-height: 700px) {
+  .conditions-panel { padding-top: 38px !important; }
+  .panel-title { font-size: clamp(13px, 1.5vw, 20px); }
+  #taf-timeline-container { font-size: clamp(11px, 1.05vw, 15px) !important; padding-bottom: 48px !important; }
+}
+/* ===== DATE/TIME INPUT : 24H + DD/MM/YYYY ===== */
+#taf-leaflet-map { box-sizing: border-box; min-width: 0; }
+#taf-date, #taf-time-start, #taf-time-end {
+    color-scheme: dark;
+    letter-spacing: 0.5px;
+}
+#taf-date::-webkit-datetime-edit,
+#taf-time-start::-webkit-datetime-edit,
+#taf-time-end::-webkit-datetime-edit {
+    color: #ffffff;
+    font-family: 'Consolas', monospace;
+}
+#taf-date::-webkit-datetime-edit-fields-wrapper,
+#taf-time-start::-webkit-datetime-edit-fields-wrapper,
+#taf-time-end::-webkit-datetime-edit-fields-wrapper { padding: 0; }
+#taf-date::-webkit-datetime-edit-text,
+#taf-time-start::-webkit-datetime-edit-text,
+#taf-time-end::-webkit-datetime-edit-text { color: #a0aec0; padding: 0 1px; }
+#taf-date::-webkit-calendar-picker-indicator,
+#taf-time-start::-webkit-calendar-picker-indicator,
+#taf-time-end::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(1.4);
+    cursor: pointer;
+    opacity: 0.8;
+}
+#taf-time-start::-webkit-datetime-edit-ampm-field,
+#taf-time-end::-webkit-datetime-edit-ampm-field { display: none; }
+#taf-date::-webkit-datetime-edit-second-field,
+#taf-time-start::-webkit-datetime-edit-second-field,
+#taf-time-end::-webkit-datetime-edit-second-field { display: none; }
 </style>
 </head>
 <body>
@@ -471,8 +549,7 @@
                 <div id="caution-box" class="caution-box hide">WARNING: NIL</div>
             </div>
             <!-- TAF View (Smart Query) -->
-            <div id="box2-taf" class="hide" style="width:100%; height:100%; display:flex; flex-direction:column; gap:10px; padding-top:20px;">
-                <div style="font-size:1.1vw; color:#a0aec0; font-weight:bold;">1. กำหนดพิกัด (คลิกแผนที่ หรือ พิมพ์)</div>
+            <div id="box2-taf" class="hide" style="width:100%; height:100%; display:flex; flex-direction:column; gap:10px; padding-top:45px; min-height:0; overflow:hidden;">
                 <div id="taf-leaflet-map" style="width:100%; flex:1; min-height:150px; border:2px solid var(--border-color); border-radius:6px; background:#000; z-index: 1;"></div>
                 
                 <div style="display:flex; align-items:center; gap:5px; margin-bottom:5px;">
@@ -483,15 +560,15 @@
                 <div style="display:flex; gap:5px; align-items:center; flex-wrap:wrap;">
                     <div style="flex:1.5; display:flex; flex-direction:column; min-width:110px;">
                         <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">📅 วันที่:</span>
-                        <input type="date" id="taf-date" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
+                        <input type="date" id="taf-date" lang="en-GB" data-format="dd/mm/yyyy" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
                     </div>
                     <div style="flex:1; display:flex; flex-direction:column; min-width:70px;">
                         <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">⏰ เริ่ม (L):</span>
-                        <input type="time" id="taf-time-start" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
+                        <input type="time" id="taf-time-start" lang="en-GB" step="60" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
                     </div>
                     <div style="flex:1; display:flex; flex-direction:column; min-width:70px;">
                         <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">⏰ ถึง (L):</span>
-                        <input type="time" id="taf-time-end" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
+                        <input type="time" id="taf-time-end" lang="en-GB" step="60" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
                     </div>
                 </div>
                 <button onclick="triggerManualAIAnalysis()" style="background:var(--data-color); color:#000; font-weight:bold; font-size:1.1vw; padding:8px; border:none; border-radius:6px; cursor:pointer; box-shadow:0 0 10px rgba(0,255,204,0.4); margin-top:5px; transition:all 0.2s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">🔍 วิเคราะห์สภาพอากาศโดยละเอียด</button>
