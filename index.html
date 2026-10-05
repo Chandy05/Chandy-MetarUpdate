@@ -846,21 +846,30 @@
             container.innerHTML = html;
         }
 
-        // ฟังก์ชันอัจฉริยะสำหรับสกัดข้อความ TAF/METAR ทะลุโครงสร้าง JSON
-        function extractWxData(rawJsonStr, station) {
+        // --- ฟังก์ชันดึงข้อมูล METAR/TAF จาก JSON อย่างถูกต้อง ---
+        function extractWxData(rawJsonStr, station, mode) {
             if (!rawJsonStr) return null;
-            const regex = new RegExp(station + '\\b[\\s\\S]*?(?=\\bVT[A-Z]{2}\\b|$)');
-            const match = rawJsonStr.match(regex);
-            if (!match) return null;
-            let cleanText = match[0]
-                .replace(/\\r\\n|\\n|\\r/g, ' ') 
-                .replace(/["{}\[\]]/g, ' ')      
-                .replace(/\b(StationId|Metar|Taf|taf|raw)\b/gi, ' ') 
-                .replace(/:\s/g, ' ')            
-                .replace(/\s+/g, ' ')            
-                .trim();
-            const startIndex = cleanText.indexOf(station);
-            return startIndex !== -1 ? cleanText.substring(startIndex) : cleanText;
+            try {
+                const data = JSON.parse(rawJsonStr);
+                // API ของ ทอ. มักจะคืนค่าเป็น Array
+                if (Array.isArray(data)) {
+                    const stnData = data.find(item => item.StationId === station || item.Station === station || item.station === station);
+                    if (stnData) {
+                        let rawStr = (mode === 'TAF') ? (stnData.Taf || stnData.taf || stnData.TAF) : (stnData.Metar || stnData.metar || stnData.METAR);
+                        if (rawStr) return rawStr.replace(/\\r\\n|\r\n|\n|\r/g, ' ').replace(/\s+/g, ' ').trim();
+                    }
+                }
+            } catch (e) {
+                console.warn("JSON Parse fallback to Regex");
+            }
+            
+            // กรณีระบบ API เปลี่ยนรูปแบบ (Fallback) ดึงเฉพาะข้อความที่ขึ้นด้วย รหัสสถานี และ ลงท้ายด้วย = หรือสถานีถัดไป
+            const regex = new RegExp(`"${station}\\s+\\d{6}Z[\\s\\S]*?"`, 'g');
+            const matches = rawJsonStr.match(regex);
+            if (matches) {
+                return matches[0].replace(/^"|"$/g, '').replace(/\\r\\n|\r\n|\n|\r/g, ' ').replace(/\\/g, '').replace(/\s+/g, ' ').trim();
+            }
+            return null;
         }
 
         function updateRawTextDisplay(station, rawMetarStr) {
@@ -870,7 +879,7 @@
                 else { rawEl.innerText = rawMetarStr; }
             } else {
                 if (!cachedTafText) { rawEl.innerHTML = `<span style="color:red;">AWAITING TAF DATA...</span>`; return; }
-                const cleanTaf = extractWxData(cachedTafText, station);
+                const cleanTaf = extractWxData(cachedTafText, station, 'TAF');
                 if (!cleanTaf) { rawEl.innerHTML = `<span style="color:red;">NO TAF DATA AVAILABLE FOR ${station}</span>`; } 
                 else { rawEl.innerText = cleanTaf; }
             }
@@ -1018,7 +1027,8 @@
         function renderDashboard() { 
             if (!cachedDatabaseText) return; 
             const selectedStation = document.getElementById('station-select').value; 
-            const rawMetar = extractWxData(cachedDatabaseText, selectedStation);
+            // ระบุโหมดเป็น METAR
+            const rawMetar = extractWxData(cachedDatabaseText, selectedStation, 'METAR');
             
             if (!rawMetar) { 
                 updateRawTextDisplay(selectedStation, null);
