@@ -1685,6 +1685,7 @@ function renderTafTimeline(tafRaw) {
 
         // --- Auto-check AI สำหรับแบนเนอร์ (ใช้ความแม่นยำ ECMWF) ---
         async function checkAIPrediction(icao) {
+            return; // [ใบ #11] ยกเลิกฟังก์ชันเดิม เพื่อไม่ให้แย่งแบนเนอร์กับ 5-Pillar Engine
             const banner = document.getElementById('ai-alert-banner');
             if (typeof UW_COORDS === 'undefined' || !UW_COORDS[icao]) { banner.classList.add('hide'); return; }
             const stn = UW_COORDS[icao];
@@ -3144,10 +3145,48 @@ function mark(ok,label){
   var sym=(ok===true)?'OK':(ok==='UNK'?'--':'X');
   return '<span class="'+cls+'">'+label+':'+sym+'</span>';
 }
+
+/* --- [ใบ #11] วาด Dashboard 5 เสาถาวรในกล่อง 2 --- */
+function renderPillarDash(res) {
+  var box2 = $('box2-taf');
+  if(!box2) return;
+  var dash = $('atc-pillar-dash');
+  if(!dash) {
+    dash = document.createElement('div');
+    dash.id = 'atc-pillar-dash';
+    dash.style.cssText = 'flex:0 0 auto; display:flex; gap:4px; margin-bottom:5px; padding:6px; background:rgba(0,0,0,0.6); border:1px solid #2a3f5f; border-radius:6px;';
+    var mapEl = $('taf-leaflet-map');
+    if(mapEl) box2.insertBefore(dash, mapEl); else box2.appendChild(dash);
+  }
+
+  function box(label, ok, desc) {
+    var bg = (ok===true)?'#1e7a3c':(ok==='UNK'?'#7a4b00':'#8b0000');
+    var col = (ok===true)?'#9BFFB0':(ok==='UNK'?'#ffe08a':'#ffd9d9');
+    return '<div style="flex:1; background:'+bg+'; border:1px solid '+col+'; border-radius:4px; text-align:center; padding:2px; display:flex; flex-direction:column; justify-content:center; box-shadow:inset 0 0 10px rgba(0,0,0,0.5);" title="'+desc+'">' +
+           '<div style="font-size:clamp(9px, 0.75vw, 12px); color:#fff; font-weight:bold; letter-spacing:0.5px;">'+label+'</div>' +
+           '<div style="font-size:clamp(10px, 0.9vw, 14px); color:'+col+'; font-weight:bold;">'+(ok===true?'PASS':(ok==='UNK'?'WAIT':'FAIL'))+'</div>' +
+           '</div>';
+  }
+
+  var p1 = res.hour ? res.hour.p1 : false;
+  var p2 = res.hour ? res.hour.p2 : false;
+  var p3 = res.hour ? res.hour.p3 : false;
+  var p4 = res.taf;
+  var p5 = res.radar.state==='PASS'?true:(res.radar.state==='UNKNOWN'?'UNK':false);
+
+  dash.innerHTML =
+    box('P1:MDL', p1, 'โมเดล 4 ตัวเห็นตรงกัน') +
+    box('P2:RAIN', p2, 'ปริมาณฝนวิกฤต') +
+    box('P3:SVR', p3, 'อากาศแปรปรวน (CAPE)') +
+    box('P4:TAF', p4, 'มนุษย์เตือนใน TAF') +
+    box('P5:RDR', p5, 'เรดาร์พบฝนเข้าประชิด');
+}
+
 function paint(res){
   var b=$('ai-alert-banner'); if(!b) return;
   if(obs) obs.disconnect();
   b.classList.remove('atc-lv-red','atc-lv-amber','atc-lv-green');
+  
   if(res.lvl==='GREEN'&&!CFG.SHOW_GREEN){
     b.classList.add('hide');
     b.setAttribute('data-atc-eng',res.id);
@@ -3155,16 +3194,22 @@ function paint(res){
     var head = res.lvl==='RED'
       ? 'CONFIRMED WX ALERT: ยืนยันกลุ่มฝนเข้าพื้นที่'
       : (res.lvl==='AMBER'
-        ? 'WX ADVISORY: เฝ้าระวัง หลักฐานยังไม่ครบ'
+        ? 'WX ADVISORY: เฝ้าระวัง องค์ประกอบยังไม่ครบ'
         : 'NO SIGNIFICANT WX: ตรวจครบแล้ว ไม่เข้าเกณฑ์');
-    var when = res.hour
-      ? (' | ช่วง '+res.hour.t.replace('T',' ')+' (อีก '+res.hour.lead.toFixed(1)+' ชม.)')
-      : '';
+        
+    var when = '';
+    if(res.hour) {
+      var leadMins = Math.round(res.hour.lead * 60);
+      var timeStr = leadMins < 60 ? (leadMins + ' นาที') : (res.hour.lead.toFixed(1) + ' ชม.');
+      when = ' | ช่วง '+res.hour.t.replace('T',' ')+' (อีก '+timeStr+')';
+    }
+
     var det = res.hour
-      ? (' | โมเดลเห็นตรงกัน '+res.hour.agree+'/'+CFG.MODELS.length+
-         ' | ฝน '+res.hour.rain.toFixed(1)+' มม.'+
+      ? (' | โอกาสเกิดฝน '+res.hour.maxPop+'% | โมเดลตรงกัน '+res.hour.agree+'/'+CFG.MODELS.length+
+         ' | ฝนสูงสุด '+res.hour.rain.toFixed(1)+' มม.'+
          (res.radar.cov!=null?(' | เรดาร์ '+res.radar.cov+'%'):''))
       : '';
+      
     b.classList.add(res.lvl==='RED'?'atc-lv-red':(res.lvl==='AMBER'?'atc-lv-amber':'atc-lv-green'));
     b.classList.remove('hide');
     b.innerHTML = head + when + det +
@@ -3177,6 +3222,8 @@ function paint(res){
       '</span>';
     b.setAttribute('data-atc-eng',res.id);
   }
+  
+  renderPillarDash(res); // อัปเดต Dashboard ถาวรเสมอ (แม้แบนเนอร์จะซ่อนอยู่)
   if(obs) watch();
 }
 
