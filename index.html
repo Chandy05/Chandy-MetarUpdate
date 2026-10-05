@@ -588,6 +588,25 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
         #box3-taf { padding-top: 24px !important; }
     }
     </style>
+<style>
+/* ===== ใบสั่งงาน #10 : AI FORECAST ALERT 5-PILLAR ===== */
+#ai-alert-banner{ font-size:clamp(11px,1.05vw,16px) !important;
+  line-height:1.35 !important; padding:5px 10px !important; }
+#ai-alert-banner.atc-lv-red{
+  background:linear-gradient(90deg,#8b0000 0%,#ff3333 50%,#8b0000 100%) !important;
+  animation:blink 2s infinite !important; color:#fff !important; }
+#ai-alert-banner.atc-lv-amber{
+  background:linear-gradient(90deg,#7a4b00 0%,#f0a81e 50%,#7a4b00 100%) !important;
+  animation:none !important; color:#1a1a1a !important; text-shadow:none !important; }
+#ai-alert-banner.atc-lv-green{
+  background:linear-gradient(90deg,#123a20 0%,#1e7a3c 50%,#123a20 100%) !important;
+  animation:none !important; color:#fff !important; }
+.atc-pillars{ display:inline-block; margin-left:12px; white-space:nowrap;
+  font-family:Tahoma,Arial,sans-serif; letter-spacing:.6px;
+  font-size:clamp(10px,0.8vw,13px); opacity:.95; }
+.atc-p-ok{ color:#9BFFB0; } .atc-p-no{ color:#ffd9d9; opacity:.7; }
+.atc-p-unk{ color:#ffe08a; }
+</style>
 </head>
 <body>
 
@@ -2938,6 +2957,290 @@ document.addEventListener('DOMContentLoaded', function(){
     window.addEventListener('resize', kickSoon);
     if (!b2t.classList.contains('hide')) kickSoon();
   }
+})();
+</script>
+<script>
+/* ============================================================
+   ใบสั่งงาน #10 : ATC 5-PILLAR CONFIRMED ALERT ENGINE
+   อ่าน DOM หลังเรนเดอร์ + ยิง API ของตัวเอง
+   ไม่เรียก ไม่แก้ ไม่ override ฟังก์ชันต้องห้ามใด ๆ ทั้งสิ้น
+   ============================================================ */
+(function(){
+'use strict';
+if(window.ATC_ALERT_ENGINE) return;
+
+var CFG = {
+  POP_MIN:60,            /* % โอกาสฝนขั้นต่ำต่อโมเดล */
+  RAIN_MIN:1.0,          /* มม./ชม. ขั้นต่ำ */
+  RADAR_NM:20,           /* รัศมีเรดาร์ (ไมล์ทะเล) */
+  MODELS:['ecmwf_ifs025','gfs_seamless','icon_seamless','jma_seamless'],
+  AGREE:3,               /* ต้องเห็นตรงกันกี่โมเดล */
+  CAPE_MIN:1000,         /* J/kg */
+  SPREAD_MAX:3,          /* T-Td องศา */
+  RADAR_GRAY:70,         /* ความสว่างขั้นต่ำบนภาพเรดาร์ BW (ปรับจูนได้) */
+  RADAR_COVER:0.8,       /* % พื้นที่ในวงที่มี echo */
+  RADAR_Z:8,
+  HORIZON:12,            /* ชั่วโมงล่วงหน้าที่พิจารณา */
+  REFRESH:300000,        /* 5 นาที */
+  SHOW_GREEN:false       /* true = โชว์แถบเขียวเมื่อยืนยันว่าไม่เข้าเกณฑ์ */
+};
+window.ATC_CFG = CFG;
+
+var NM2KM=1.852, busy=false, last=null, tmr=null, obs=null;
+function $(i){ return document.getElementById(i); }
+function bodyTxt(){ try{ return document.body.innerText||''; }catch(e){ return ''; } }
+function target(){
+  var t=window.currentTargetLoc;
+  if(t&&isFinite(t.lat)&&isFinite(t.lon))
+    return {lat:+t.lat, lon:+t.lon, name:t.name||'TARGET'};
+  return {lat:13.9,lon:100.6,name:'DEFAULT'};
+}
+
+/* ---------- เสา 1-3 : โมเดลหลายตัว ---------- */
+function pick(H,base,m,i){
+  var a=H[base+'_'+m]||H[base];
+  return (a&&a[i]!=null)?a[i]:null;
+}
+function modelUrl(lat,lon){
+  return 'https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+
+    '&hourly=precipitation_probability,precipitation,cape,temperature_2m,dewpoint_2m'+
+    '&models='+CFG.MODELS.join(',')+'&timezone=auto&forecast_days=2';
+}
+function evalModels(d){
+  var H=(d&&d.hourly)||{}, T=H.time||[], rows=[], now=Date.now(), i,j;
+  for(i=0;i<T.length;i++){
+    var ts=new Date(T[i]).getTime(), lead=(ts-now)/3600000;
+    if(lead<-0.6||lead>CFG.HORIZON) continue;
+    var pops=[],rains=[],capes=[],spd=[];
+    for(j=0;j<CFG.MODELS.length;j++){
+      var m=CFG.MODELS[j];
+      var p=pick(H,'precipitation_probability',m,i);
+      var r=pick(H,'precipitation',m,i);
+      var c=pick(H,'cape',m,i);
+      var t1=pick(H,'temperature_2m',m,i), td=pick(H,'dewpoint_2m',m,i);
+      if(p!=null) pops.push(p);
+      if(r!=null) rains.push(r);
+      if(c!=null) capes.push(c);
+      if(t1!=null&&td!=null) spd.push(t1-td);
+    }
+    if(!pops.length) continue;
+    var agree=pops.filter(function(v){return v>=CFG.POP_MIN;}).length;
+    var maxRain=rains.length?Math.max.apply(null,rains):0;
+    var maxCape=capes.length?Math.max.apply(null,capes):null;
+    var minSpd=spd.length?Math.min.apply(null,spd):null;
+    rows.push({ t:T[i], lead:lead, agree:agree,
+      maxPop:Math.max.apply(null,pops), rain:maxRain, cape:maxCape, spread:minSpd,
+      p1:agree>=CFG.AGREE, p2:maxRain>=CFG.RAIN_MIN,
+      p3:((maxCape!=null&&maxCape>=CFG.CAPE_MIN)||(minSpd!=null&&minSpd<=CFG.SPREAD_MAX)) });
+  }
+  return rows;
+}
+
+/* ---------- เสา 4 : TAF ที่เจ้าหน้าที่อุตุฯ ออกจริง ---------- */
+function tafPillar(){
+  var s=bodyTxt().replace(/\s+/g,' ');
+  var m=s.match(/TAF[\s\S]{0,900}/);
+  if(m) s=m[0];
+  return /(TEMPO|BECMG|PROB30|PROB40|FM\d{6})[\s\S]{0,70}?(TSRA|\+SHRA|SHRA|TS|RA)/.test(s);
+}
+
+/* ---------- เสา 5 : เรดาร์จริง (RainViewer) ---------- */
+function toPx(lat,lon,z){
+  var s=256*Math.pow(2,z), sy=Math.sin(lat*Math.PI/180);
+  return { x:(lon+180)/360*s,
+           y:(0.5-Math.log((1+sy)/(1-sy))/(4*Math.PI))*s };
+}
+function mpp(lat,z){ return 156543.03392*Math.cos(lat*Math.PI/180)/Math.pow(2,z); }
+function loadImg(src){
+  return new Promise(function(ok,no){
+    var im=new Image(); im.crossOrigin='anonymous';
+    im.onload=function(){ ok(im); }; im.onerror=function(){ no(new Error('tile')); };
+    im.src=src;
+  });
+}
+function frameScan(host,path,lat,lon){
+  var z=CFG.RADAR_Z, c=toPx(lat,lon,z);
+  var r=Math.max(8,Math.round(CFG.RADAR_NM*NM2KM*1000/mpp(lat,z)));
+  var size=r*2, cv=document.createElement('canvas');
+  cv.width=size; cv.height=size;
+  var ctx=cv.getContext('2d',{willReadFrequently:true});
+  var x0=c.x-r, y0=c.y-r, jobs=[], tx, ty;
+  for(tx=Math.floor(x0/256); tx<=Math.floor((c.x+r)/256); tx++){
+    for(ty=Math.floor(y0/256); ty<=Math.floor((c.y+r)/256); ty++){
+      (function(a,b){
+        jobs.push(loadImg(host+path+'/256/'+z+'/'+a+'/'+b+'/0/0_0.png')
+          .then(function(im){ ctx.drawImage(im,a*256-x0,b*256-y0); })
+          .catch(function(){}));
+      })(tx,ty);
+    }
+  }
+  return Promise.all(jobs).then(function(){
+    var d;
+    try{ d=ctx.getImageData(0,0,size,size).data; }catch(e){ return null; }
+    var hit=0,tot=0,sx=0,sy=0,px,py,dx,dy,o,g;
+    for(py=0;py<size;py++) for(px=0;px<size;px++){
+      dx=px-r; dy=py-r;
+      if(dx*dx+dy*dy>r*r) continue;
+      tot++; o=(py*size+px)*4;
+      if(d[o+3]<40) continue;
+      g=(d[o]+d[o+1]+d[o+2])/3;
+      if(g>=CFG.RADAR_GRAY){ hit++; sx+=dx; sy+=dy; }
+    }
+    if(!tot) return null;
+    var kmpp=mpp(lat,z)/1000;
+    return { cov:hit/tot*100,
+             dist: hit?Math.sqrt(Math.pow(sx/hit,2)+Math.pow(sy/hit,2))*kmpp:null };
+  });
+}
+function radarPillar(lat,lon){
+  return fetch('https://api.rainviewer.com/public/weather-maps.json')
+  .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+  .then(function(j){
+    var host=j.host, past=(j.radar&&j.radar.past)||[], nc=(j.radar&&j.radar.nowcast)||[];
+    if(!past.length) return {state:'UNKNOWN',why:'ไม่มีเฟรมเรดาร์'};
+    var fN=past[past.length-1],
+        fP=past[Math.max(0,past.length-4)],
+        fF=nc.length?nc[Math.min(1,nc.length-1)]:null;
+    return frameScan(host,fP.path,lat,lon).then(function(a){
+      return frameScan(host,fN.path,lat,lon).then(function(b){
+        var nx=fF?frameScan(host,fF.path,lat,lon):Promise.resolve(null);
+        return nx.then(function(c){
+          if(!b) return {state:'UNKNOWN',why:'อ่านพิกเซลเรดาร์ไม่ได้ (CORS)'};
+          var closing=!!(a&&a.dist!=null&&b.dist!=null&&b.dist<a.dist-1);
+          var holding=!!(c&&c.cov>=b.cov*0.9);
+          var app=closing||holding;
+          return { state:(b.cov>=CFG.RADAR_COVER&&app)?'PASS':'FAIL',
+                   cov:+b.cov.toFixed(2),
+                   prev:a?+a.cov.toFixed(2):null,
+                   next:c?+c.cov.toFixed(2):null,
+                   dist:b.dist!=null?+b.dist.toFixed(1):null,
+                   closing:closing, holding:holding };
+        });
+      });
+    });
+  }).catch(function(){ return {state:'UNKNOWN',why:'เรดาร์ออนไลน์ไม่ตอบ'}; });
+}
+
+/* ---------- ตัดสินระดับการเตือน ---------- */
+function decide(h,p4,p5){
+  var n=[h.p1,h.p2,h.p3,p4].filter(Boolean).length;
+  var r5=(p5.state==='PASS'), unk=(p5.state==='UNKNOWN'), lead=h.lead, lvl='GREEN';
+  if(lead<=2){
+    if(r5&&n>=2) lvl='RED';
+    else if(r5||n>=3||(unk&&n>=3)) lvl='AMBER';
+    else if(n>=2) lvl='AMBER';
+  } else if(lead<=6){
+    var tot=n+(r5?1:0);
+    if(tot>=4) lvl='RED'; else if(tot>=2) lvl='AMBER';
+  } else {
+    if(n===4) lvl='RED'; else if(n>=2) lvl='AMBER';
+  }
+  return {lvl:lvl,n:n,r5:r5};
+}
+
+/* ---------- วาดแบนเนอร์ (มี sentinel กันวนลูปตาม R5) ---------- */
+function mark(ok,label){
+  var cls=(ok===true)?'atc-p-ok':(ok==='UNK'?'atc-p-unk':'atc-p-no');
+  var sym=(ok===true)?'OK':(ok==='UNK'?'--':'X');
+  return '<span class="'+cls+'">'+label+':'+sym+'</span>';
+}
+function paint(res){
+  var b=$('ai-alert-banner'); if(!b) return;
+  if(obs) obs.disconnect();
+  b.classList.remove('atc-lv-red','atc-lv-amber','atc-lv-green');
+  if(res.lvl==='GREEN'&&!CFG.SHOW_GREEN){
+    b.classList.add('hide');
+    b.setAttribute('data-atc-eng',res.id);
+  } else {
+    var head = res.lvl==='RED'
+      ? 'CONFIRMED WX ALERT: ยืนยันกลุ่มฝนเข้าพื้นที่'
+      : (res.lvl==='AMBER'
+        ? 'WX ADVISORY: เฝ้าระวัง หลักฐานยังไม่ครบ'
+        : 'NO SIGNIFICANT WX: ตรวจครบแล้ว ไม่เข้าเกณฑ์');
+    var when = res.hour
+      ? (' | ช่วง '+res.hour.t.replace('T',' ')+' (อีก '+res.hour.lead.toFixed(1)+' ชม.)')
+      : '';
+    var det = res.hour
+      ? (' | โมเดลเห็นตรงกัน '+res.hour.agree+'/'+CFG.MODELS.length+
+         ' | ฝน '+res.hour.rain.toFixed(1)+' มม.'+
+         (res.radar.cov!=null?(' | เรดาร์ '+res.radar.cov+'%'):''))
+      : '';
+    b.classList.add(res.lvl==='RED'?'atc-lv-red':(res.lvl==='AMBER'?'atc-lv-amber':'atc-lv-green'));
+    b.classList.remove('hide');
+    b.innerHTML = head + when + det +
+      '<span class="atc-pillars">'+
+        mark(res.hour?res.hour.p1:false,'P1')+' '+
+        mark(res.hour?res.hour.p2:false,'P2')+' '+
+        mark(res.hour?res.hour.p3:false,'P3')+' '+
+        mark(res.taf,'P4')+' '+
+        mark(res.radar.state==='PASS'?true:(res.radar.state==='UNKNOWN'?'UNK':false),'P5')+
+      '</span>';
+    b.setAttribute('data-atc-eng',res.id);
+  }
+  if(obs) watch();
+}
+
+/* ---------- บันทึกผลลง localStorage (ต่อยอด P9) ---------- */
+function logIt(res){
+  try{
+    var k='atc_alert_log', a=JSON.parse(localStorage.getItem(k)||'[]');
+    a.push({ ts:new Date().toISOString(), lvl:res.lvl, n:res.n,
+             radar:res.radar.state, pop:res.hour?res.hour.maxPop:null,
+             rain:res.hour?+res.hour.rain.toFixed(1):null, loc:res.loc });
+    if(a.length>200) a=a.slice(-200);
+    localStorage.setItem(k,JSON.stringify(a));
+  }catch(e){}
+}
+
+/* ---------- รอบการทำงานหลัก ---------- */
+function run(){
+  if(busy) return Promise.resolve(last);
+  busy=true;
+  var T=target();
+  return fetch(modelUrl(T.lat,T.lon))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var rows=evalModels(d);
+      return radarPillar(T.lat,T.lon).then(function(p5){
+        var p4=tafPillar(), best=null, i, sc;
+        for(i=0;i<rows.length;i++){
+          sc=(rows[i].p1?4:0)+(rows[i].p2?2:0)+(rows[i].p3?1:0);
+          rows[i]._sc=sc;
+          if(!best||sc>best._sc) best=rows[i];
+        }
+        var dec = best?decide(best,p4,p5):{lvl:'GREEN',n:0,r5:false};
+        var res = { id:Date.now(), lvl:dec.lvl, n:dec.n, hour:best, taf:p4,
+                    radar:p5, rows:rows, loc:T.name, at:new Date().toISOString() };
+        last=res; window.ATC_ALERT_ENGINE.last=res;
+        paint(res); logIt(res);
+        return res;
+      });
+    })
+    .catch(function(e){ console.warn('[ATC ENGINE]',e); return last; })
+    .then(function(r){ busy=false; return r; });
+}
+
+/* ---------- เฝ้าแบนเนอร์ + ตั้งเวลา ---------- */
+function watch(){
+  var b=$('ai-alert-banner'); if(!b||!window.MutationObserver) return;
+  obs=new MutationObserver(function(){
+    if(busy) return;
+    if(b.getAttribute('data-atc-eng')===String(last&&last.id)) return;
+    clearTimeout(tmr); tmr=setTimeout(run,700);
+  });
+  obs.observe(b,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['class']});
+}
+
+window.ATC_ALERT_ENGINE = {
+  run:run, last:null, cfg:CFG,
+  radarDebug:function(){ var T=target(); return radarPillar(T.lat,T.lon).then(function(r){ console.table(r); return r; }); },
+  log:function(){ try{ return JSON.parse(localStorage.getItem('atc_alert_log')||'[]'); }catch(e){ return []; } },
+  clearLog:function(){ try{ localStorage.removeItem('atc_alert_log'); }catch(e){} }
+};
+
+function boot(){ watch(); setTimeout(run,2500); setInterval(run,CFG.REFRESH); }
+if(document.readyState==='complete'||document.readyState==='interactive') setTimeout(boot,800);
+else document.addEventListener('DOMContentLoaded',function(){ setTimeout(boot,800); });
 })();
 </script>
 </body>
