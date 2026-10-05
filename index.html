@@ -1042,10 +1042,15 @@
             updateRawTextDisplay(selectedStation, rawMetar); 
             
             if(cachedTafText) {
-                const tafRegex = new RegExp(selectedStation + '[^"\\\\]+'); 
+                // แก้ Regex ไม่ให้ตัดข้อความเมื่อเจอขึ้นบรรทัดใหม่ใน JSON
+                const tafRegex = new RegExp(selectedStation + '[^"]+'); 
                 const tafMatch = cachedTafText.match(tafRegex);
-                if(tafMatch) renderTafTimeline(tafMatch[0].trim());
-                else document.getElementById('taf-timeline-container').innerHTML = '<div style="color:red; text-align:center;">NO TAF DATA FOR THIS STATION</div>';
+                if(tafMatch) {
+                    let cleanTaf = tafMatch[0].replace(/\\r\\n|\\n/g, ' ').trim();
+                    renderTafTimeline(cleanTaf);
+                } else {
+                    document.getElementById('taf-timeline-container').innerHTML = '<div style="color:red; text-align:center;">NO TAF DATA FOR THIS STATION</div>';
+                }
             }
             
             try { 
