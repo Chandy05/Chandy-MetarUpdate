@@ -959,10 +959,24 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
 
         function formatTafTime(dayHourStr) {
             if(!dayHourStr || dayHourStr.length < 4) return dayHourStr;
-            let d = dayHourStr.substring(0, 2);
+            let d = parseInt(dayHourStr.substring(0, 2), 10);
             let h = parseInt(dayHourStr.substring(2, 4), 10);
-            let localH = (h + 7) % 24;
-            return `วันที่ ${d} เวลา ${String(localH).padStart(2, '0')}:00 น.`;
+
+            let now = new Date();
+            let refYear = now.getUTCFullYear();
+            let refMonth = now.getUTCMonth();
+
+            if (d < now.getUTCDate() - 7) {
+                refMonth += 1;
+            }
+
+            let utcDate = new Date(Date.UTC(refYear, refMonth, d, h, 0, 0));
+            let localDate = new Date(utcDate.getTime() + 7 * 60 * 60 * 1000);
+
+            let localD = String(localDate.getUTCDate()).padStart(2, '0');
+            let localH = String(localDate.getUTCHours()).padStart(2, '0');
+
+            return `วันที่ ${localD} เวลา ${localH}:00 น.`;
         }
 
 function renderTafTimeline(tafRaw) {
@@ -992,7 +1006,7 @@ function renderTafTimeline(tafRaw) {
                     
                     if (blockType === 'FM') {
                         let fmMatch = block.match(/FM(\d{2})(\d{2})(\d{2})/);
-                        let validStr = fmMatch ? `ตั้งแต่ วันที่ ${fmMatch[1]} เวลา ${String((parseInt(fmMatch[2],10)+7)%24).padStart(2,'0')}:00 น.` : block;
+                        let validStr = fmMatch ? `ตั้งแต่ ${formatTafTime(fmMatch[1] + fmMatch[2])}` : block;
                         title = `<div style="color:${borderColor}; font-weight:bold; font-size:1.1vw; border-bottom:1px dashed ${borderColor}; padding-bottom:5px; margin-bottom:8px;">🔄 เปลี่ยนสภาพอากาศใหม่ทั้งหมด (FM) <span style="color:#fff; font-size:1vw; margin-left:10px;">${validStr}</span></div>`;
                     } else {
                         let timeMatch = block.match(/(\d{4})\/(\d{4})/);
