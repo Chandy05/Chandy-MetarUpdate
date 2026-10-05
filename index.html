@@ -425,23 +425,58 @@
 }
 #taf-time-start::-webkit-datetime-edit-ampm-field,
 #taf-time-end::-webkit-datetime-edit-ampm-field { display: none; }
-/* ===== ใบ #5 [A] กล่อง 3: กันลูกของ flex column ถูกบีบจนหาย ===== */
+/* ===== ใบ #6 [A] กล่อง 3: สกรอลเดียวทั้งกล่อง ===== */
+#box3-taf {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+}
+
+/* ตัวเดียวที่ได้สิทธิ์สกรอล */
+#ai-report-content {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-bottom: 52px !important;
+}
+
+/* ปิดสกรอลซ้อนทุกชั้นภายในกล่อง 3 */
+#ai-report-content * {
+    overflow: visible !important;
+    max-height: none !important;
+}
+#ai-report-content *::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
+#ai-report-content * { scrollbar-width: none !important; }
 #ai-report-content > * { flex: 0 0 auto !important; }
 
-/* หัวข้อ sticky "รายละเอียดแยกตามช่วงเวลา:" */
-#ai-report-content div[style*="sticky"] {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 25 !important;
-    background: #0b1220 !important;
+/* หัวข้อย่อย "รายละเอียดแยกตามช่วงเวลา:" (ติด class โดยสคริปต์ข้อ [2]) */
+#ai-report-content .atc-sec-head {
+    position: static !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    float: none !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 1.6em !important;
+    max-height: none !important;
+    overflow: visible !important;
+    flex: 0 0 auto !important;
+    clip-path: none !important;
+    transform: none !important;
+    background: transparent !important;
     color: var(--accent-gold, #d4af37) !important;
     font-size: clamp(12px, 1vw, 17px) !important;
     font-weight: bold !important;
+    line-height: 1.5 !important;
     text-align: left !important;
-    padding: 6px 0 5px 0 !important;
-    margin: 0 0 8px 0 !important;
+    padding: 4px 0 5px 0 !important;
+    margin: 10px 0 8px 0 !important;
     border-bottom: 1px dashed #4a5568 !important;
-    box-shadow: 0 6px 10px -8px rgba(0,0,0,0.9) !important;
+    box-shadow: none !important;
 }
 
 /* ===== ใบ #5 [B] เก็บกวาด span ว่างที่เหลือหลังลบไอคอน ▲▼ ===== */
@@ -469,13 +504,13 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
     overscroll-behavior: contain;
     scroll-behavior: smooth;
     scrollbar-width: thin;
-    scrollbar-color: var(--accent-gold, #d4af37) rgba(255,255,255,0.04);
+    scrollbar-color: #d4af37 rgba(255,255,255,0.04);
     -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 28px), transparent 100%);
             mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 28px), transparent 100%);
 }
 #ai-report-content::-webkit-scrollbar { width: 8px; }
 #ai-report-content::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 4px; }
-#ai-report-content::-webkit-scrollbar-thumb { background: var(--accent-gold, #d4af37); border-radius: 4px; }
+#ai-report-content::-webkit-scrollbar-thumb { background: #d4af37; border-radius: 4px; }
 #ai-report-content::-webkit-scrollbar-thumb:hover { background: #ffd966; }
 #ai-report-content > *:last-child { margin-bottom: 20px; }
 
@@ -2737,9 +2772,38 @@ document.addEventListener('DOMContentLoaded', function(){
       }
       ARROW.lastIndex = 0;
     };
-    new MutationObserver(function () { strip(box); })
+    /* ใบ #6 : ค้นหาหัวข้อย่อยจากข้อความ แล้วติด class ให้ CSS เล็งได้ */
+    var HEAD_TXT = 'รายละเอียดแยกตามช่วงเวลา';
+    var tagHead = function (root) {
+      var all = root.querySelectorAll('div, p, h1, h2, h3, h4, h5, h6, span, b, strong');
+      for (var i = 0; i < all.length; i++) {
+        var el = all[i];
+        if (el.textContent.indexOf(HEAD_TXT) === -1) continue;
+        if (el.querySelector && el.querySelector('*') &&
+            el.textContent.replace(/\s/g, '').length > HEAD_TXT.length + 12) continue;
+        el.classList.add('atc-sec-head');
+        el.style.removeProperty('position');
+        el.style.removeProperty('top');
+        el.style.removeProperty('max-height');
+        el.style.removeProperty('overflow');
+        /* ปลดสกรอลของ wrapper ชั้นในที่ครอบหัวข้อนี้อยู่ */
+        var p = el.parentElement, guard = 0;
+        while (p && p !== box && guard++ < 6) {
+          p.style.setProperty('overflow', 'visible', 'important');
+          p.style.setProperty('max-height', 'none', 'important');
+          p.style.setProperty('height', 'auto', 'important');
+          p.style.setProperty('flex', '0 0 auto', 'important');
+          p = p.parentElement;
+        }
+      }
+    };
+
+    var sweep = function () { strip(box); tagHead(box); };
+    new MutationObserver(sweep)
       .observe(box, { childList: true, subtree: true, characterData: true });
-    strip(box);
+    sweep();
+    setTimeout(sweep, 400);
+    setTimeout(sweep, 1500);
   }
 })();
 </script>
