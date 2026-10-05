@@ -439,6 +439,37 @@
     overflow: hidden !important;
 }
 
+/* ===== ใบ #8 [A] กล่อง 1 (TAF): ปลดการตัดคำ / ให้ไหลลงบรรทัดใหม่ ===== */
+#taf-view-content { overflow-wrap: anywhere !important; }
+
+/* ลูกทุกตัวในกล่อง 1 ห้ามมีความสูงตายตัว ห้ามซ่อนส่วนเกิน */
+#taf-view-content *:not(.atc-period-head) {
+    white-space: normal !important;
+    min-width: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+}
+#taf-view-content div { flex-wrap: wrap !important; }
+
+/* บรรทัดช่วงเวลา: หัวข้อ / เริ่ม / ถึง แยก 3 บรรทัด */
+#taf-view-content .atc-period-head {
+    display: block !important;
+    white-space: pre-line !important;
+    line-height: 1.55 !important;
+    text-align: left !important;
+    margin: 0 0 6px 0 !important;
+    padding-bottom: 4px !important;
+    overflow-wrap: break-word !important;
+}
+
+/* ===== ใบ #8 [B] แผนที่กล่อง 2 ต้องเต็มพื้นที่เสมอ ===== */
+#box2-taf:not(.hide) .leaflet-container {
+    width: 100% !important;
+    height: 100% !important;
+}
+
 /* ตัวเดียวที่ได้สิทธิ์สกรอล */
 #ai-report-content {
     flex: 1 1 auto !important;
@@ -2835,6 +2866,63 @@ document.addEventListener('DOMContentLoaded', function(){
     }
     document.addEventListener('click', function () { setTimeout(sync, 0); }, true);
     sync();
+  }
+
+  /* ===== ใบ #8 [A] กล่อง 1 (TAF): ตัดช่วงเวลาเป็น 2 บรรทัด ===== */
+  var tl = document.getElementById('taf-view-content');
+  if (tl && window.MutationObserver) {
+    var RANGE = /(วันที่\s*\d{1,2}\s*เวลา\s*\d{1,2}[:.]\d{2}\s*น\.)\s*[-\u2013\u2014]\s*(วันที่\s*\d{1,2}\s*เวลา\s*\d{1,2}[:.]\d{2}\s*น\.)/;
+    var splitPeriod = function (root) {
+      var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false), n, hits = [];
+      while ((n = w.nextNode())) {
+        if (n.nodeValue.indexOf('\u2192') === -1 && RANGE.test(n.nodeValue)) hits.push(n);
+      }
+      for (var i = 0; i < hits.length; i++) {
+        var t = hits[i];
+        t.nodeValue = t.nodeValue.replace(/\s+/g, ' ')
+                                 .replace(RANGE, '$1\n\u2192 $2');
+        var p = t.parentElement;
+        if (p) {
+          p.classList.add('atc-period-head');
+          p.style.removeProperty('white-space');
+          p.style.removeProperty('height');
+          p.style.removeProperty('max-height');
+          p.style.removeProperty('overflow');
+        }
+      }
+    };
+    var sweepTl = function () { splitPeriod(tl); };
+    new MutationObserver(sweepTl)
+      .observe(tl, { childList: true, subtree: true, characterData: true });
+    sweepTl();
+    setTimeout(sweepTl, 400);
+    setTimeout(sweepTl, 1500);
+  }
+
+  /* ===== ใบ #8 [B] P2 : invalidateSize เมื่อแผนที่ถูกแสดงอีกครั้ง ===== */
+  var b2t = document.getElementById('box2-taf');
+  var mapEl = document.getElementById('taf-leaflet-map');
+  if (b2t && mapEl) {
+    var kickMap = function () {
+      if (b2t.classList.contains('hide') || !mapEl.clientWidth || !mapEl.clientHeight) return;
+      if (typeof tafMap !== 'undefined' && tafMap) tafMap.invalidateSize({ pan: false });
+    };
+    var kickSoon = function () {
+      requestAnimationFrame(kickMap);
+      setTimeout(kickMap, 120);
+      setTimeout(kickMap, 400);
+      setTimeout(kickMap, 900);
+    };
+    if (window.MutationObserver) {
+      new MutationObserver(function () {
+        if (!b2t.classList.contains('hide')) kickSoon();
+      }).observe(b2t, { attributes: true, attributeFilter: ['class', 'style'] });
+    }
+    if (window.ResizeObserver) {
+      new ResizeObserver(function () { requestAnimationFrame(kickMap); }).observe(mapEl);
+    }
+    window.addEventListener('resize', kickSoon);
+    if (!b2t.classList.contains('hide')) kickSoon();
   }
 })();
 </script>
