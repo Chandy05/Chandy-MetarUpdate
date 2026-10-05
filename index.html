@@ -457,8 +457,8 @@
             </div>
 
             <!-- TAF View (Timeline) -->
-            <div id="taf-view-content" class="hide" style="height: 100%; overflow-y: auto; padding-right: 5px; display: flex; flex-direction: column; gap: 10px;">
-                <div id="taf-timeline-container" style="color: #e2e8f0; font-size: 1.2vw; line-height: 1.5;"></div>
+            <div id="taf-view-content" class="hide" style="flex: 1; min-height: 0; overflow-y: auto; padding-right: 5px; padding-bottom: 20px;">
+                <div id="taf-timeline-container" style="color: #e2e8f0; font-size: 1.2vw; line-height: 1.5; padding-bottom: 20px;"></div>
             </div>
         </div>
 
@@ -565,8 +565,8 @@
             </div>
 
             <!-- TAF View (Detailed AI Report) -->
-            <div id="box3-taf" class="hide" style="width:100%; height:100%; display:flex; flex-direction:column; padding: 35px 15px 15px 15px; box-sizing: border-box; overflow-y:auto; background: #080d14;">
-                <div id="ai-report-content" style="color:#a0aec0; font-size:1.2vw; text-align:center; margin-top:40px;">
+            <div id="box3-taf" class="hide" style="width:100%; flex: 1; min-height: 0; display:flex; flex-direction:column; padding: 35px 15px 15px 15px; box-sizing: border-box; overflow-y:hidden; background: #080d14;">
+                <div id="ai-report-content" style="height: 100%; display: flex; flex-direction: column; color:#a0aec0; font-size:1.2vw; text-align:center; margin-top:0;">
                     กรุณาเลือกพื้นที่และเวลาจากแผงควบคุม (ตรงกลาง) <br>แล้วกด <span style="color:var(--data-color); font-weight:bold;">🔍 วิเคราะห์สภาพอากาศ</span>
                 </div>
             </div>
@@ -823,11 +823,12 @@
                 let wxMatches = block.match(/\b(-|\+|V)?(TS|SH|DZ|RA|BR|FG|HZ|VCTS|VCSH)[A-Z]*\b/g);
                 if(wxMatches && !block.includes('NSW') && !block.includes('CAVOK')) {
                     wxStr = wxMatches.map(w => {
-                        let translated = w.replace(/\b(TSRA|TS|VCTS)\b/g, '<span style="background:rgba(255,85,85,0.2); padding:0 4px; border-radius:3px;">ฝนฟ้าคะนอง ($1)</span>')
-                                          .replace(/\b(RA|-RA|\+RA|SHRA)\b/g, '<span style="color:#3498db;">มีฝน ($1)</span>')
-                                          .replace(/\b(BR|FG|HZ)\b/g, '<span style="color:#f1c40f;">มีหมอก/ทัศนวิสัยต่ำ ($1)</span>')
-                                          .replace(/\b(VCSH)\b/g, '<span style="color:#a0aec0;">ฝนบริเวณใกล้เคียง ($1)</span>');
-                        return `<span style="color:#ff5555; font-weight:bold;">${translated}</span>`;
+                        // นำ \b ออกเพื่อให้จับคำที่เขียนติดกันได้ เช่น BRHZ
+                        let translated = w.replace(/(TSRA|TS|VCTS)/g, '<span style="background:rgba(255,85,85,0.2); padding:0 4px; border-radius:3px;">ฝนฟ้าคะนอง($1)</span> ')
+                                          .replace(/(RA|-RA|\+RA|SHRA)/g, '<span style="color:#3498db;">มีฝน($1)</span> ')
+                                          .replace(/(BR|FG|HZ)/g, '<span style="color:#f1c40f;">ทัศนวิสัยต่ำ($1)</span> ')
+                                          .replace(/(VCSH)/g, '<span style="color:#a0aec0;">ฝนใกล้เคียง($1)</span> ');
+                        return `<span style="color:#ff5555; font-weight:bold;">${translated.trim()}</span>`;
                     }).join(', ');
                 }
 
@@ -1414,8 +1415,8 @@
                         ${barHtml}
                     </div>
 
-                    <div style="flex:1; overflow-y:auto; padding-right:5px;">
-                        <div style="color:#a0aec0; font-size:1vw; margin-bottom:8px; border-bottom:1px dashed #4a5568; padding-bottom:4px;">รายละเอียดแยกตามช่วงเวลา:</div>
+                    <div style="flex:1; min-height:0; overflow-y:auto; padding-right:5px; padding-bottom:20px;">
+                        <div style="color:#a0aec0; font-size:1vw; margin-bottom:8px; border-bottom:1px dashed #4a5568; padding-bottom:4px; position:sticky; top:0; background:rgba(20,30,48,0.9); z-index:10;">รายละเอียดแยกตามช่วงเวลา:</div>
                         ${eventHtml}
                     </div>
                 </div>`;
