@@ -846,6 +846,23 @@
             container.innerHTML = html;
         }
 
+        // ฟังก์ชันอัจฉริยะสำหรับสกัดข้อความ TAF/METAR ทะลุโครงสร้าง JSON
+        function extractWxData(rawJsonStr, station) {
+            if (!rawJsonStr) return null;
+            const regex = new RegExp(station + '\\b[\\s\\S]*?(?=\\bVT[A-Z]{2}\\b|$)');
+            const match = rawJsonStr.match(regex);
+            if (!match) return null;
+            let cleanText = match[0]
+                .replace(/\\r\\n|\\n|\\r/g, ' ') 
+                .replace(/["{}\[\]]/g, ' ')      
+                .replace(/\b(StationId|Metar|Taf|taf|raw)\b/gi, ' ') 
+                .replace(/:\s/g, ' ')            
+                .replace(/\s+/g, ' ')            
+                .trim();
+            const startIndex = cleanText.indexOf(station);
+            return startIndex !== -1 ? cleanText.substring(startIndex) : cleanText;
+        }
+
         function updateRawTextDisplay(station, rawMetarStr) {
             const rawEl = document.getElementById('raw-metar');
             if (currentWxMode === 'METAR') {
@@ -853,9 +870,9 @@
                 else { rawEl.innerText = rawMetarStr; }
             } else {
                 if (!cachedTafText) { rawEl.innerHTML = `<span style="color:red;">AWAITING TAF DATA...</span>`; return; }
-                const regex = new RegExp(station + '[^"\\\\]+'); const match = cachedTafText.match(regex);
-                if (!match) { rawEl.innerHTML = `<span style="color:red;">NO TAF DATA AVAILABLE FOR ${station}</span>`; } 
-                else { rawEl.innerText = match[0].replace(/\s+/g, ' ').trim(); }
+                const cleanTaf = extractWxData(cachedTafText, station);
+                if (!cleanTaf) { rawEl.innerHTML = `<span style="color:red;">NO TAF DATA AVAILABLE FOR ${station}</span>`; } 
+                else { rawEl.innerText = cleanTaf; }
             }
         }
         
@@ -1001,9 +1018,9 @@
         function renderDashboard() { 
             if (!cachedDatabaseText) return; 
             const selectedStation = document.getElementById('station-select').value; 
-            const regex = new RegExp(selectedStation + '[^"\\\\]+'); const match = cachedDatabaseText.match(regex); 
+            const rawMetar = extractWxData(cachedDatabaseText, selectedStation);
             
-            if (!match) { 
+            if (!rawMetar) { 
                 updateRawTextDisplay(selectedStation, null);
                 setTextIfExists('val-time', '----');
                 setTextIfExists('val-vis', '----');
@@ -1038,15 +1055,11 @@
                 return; 
             } 
             
-            const rawMetar = match[0].trim(); 
             updateRawTextDisplay(selectedStation, rawMetar); 
             
             if(cachedTafText) {
-                // แก้ Regex ไม่ให้ตัดข้อความเมื่อเจอขึ้นบรรทัดใหม่ใน JSON
-                const tafRegex = new RegExp(selectedStation + '[^"]+'); 
-                const tafMatch = cachedTafText.match(tafRegex);
-                if(tafMatch) {
-                    let cleanTaf = tafMatch[0].replace(/\\r\\n|\\n/g, ' ').trim();
+                const cleanTaf = extractWxData(cachedTafText, selectedStation);
+                if(cleanTaf) {
                     renderTafTimeline(cleanTaf);
                 } else {
                     document.getElementById('taf-timeline-container').innerHTML = '<div style="color:red; text-align:center;">NO TAF DATA FOR THIS STATION</div>';
@@ -1221,6 +1234,10 @@
 
                 if(!hasData) { reportEl.innerHTML = `<div style="text-align:center; color:#ff3333; margin-top:50px;">ไม่อยู่ในห้วงเวลา (วิเคราะห์ล่วงหน้าได้ 72 ชม.)</div>`; return; }
 
+                // คำนวณค่าสูงสุด Global รวมทุกชั่วโมง (สำหรับ Summary องค์รวม)
+                const maxRain = hourlyData.reduce((m, h) => Math.max(m, h.rain ?? 0), 0);
+                const maxCape = hourlyData.reduce((m, h) => Math.max(m, h.cape ?? 0), 0);
+
                 // 1. สร้างกราฟแท่งรายชั่วโมง (Visual Bar)
                 let barHtml = `<div style="display:flex; width:100%; height:25px; border-radius:4px; overflow:hidden; border:1px solid #4a5568; margin-bottom:15px;">`;
                 hourlyData.forEach(h => {
@@ -1291,9 +1308,35 @@
 
                 if(!eventHtml) eventHtml = `<div style="text-align:center; color:#00cc66; font-size:1.2vw; padding:20px;">✅ ไม่มีแนวโน้มฝนตก หรือสภาพอากาศเลวร้ายในห้วงเวลานี้</div>`;
 
+                // === Global Summary Logic (ป้องกันข้อมูลขัดแย้ง ฝนปรอย vs ฟ้าคะนอง) ===
+                let alertColor = '#00cc66';
+                let rainStatus = `<span style="color:#00cc66;">ไม่มีฝน (Clear)</span>`;
+                let stormRisk = `<span style="color:#00cc66;">ปกติ</span>`;
+
+                if(overallMaxProb >= 60) {
+                    alertColor = '#ff3333';
+                    if (maxCape > 1000) {
+                        rainStatus = `<span style="color:#ff3333; font-weight:bold;">พายุฝนฟ้าคะนอง (Thunderstorm)</span>`;
+                        stormRisk = `<span style="color:#ff3333; font-weight:bold; text-shadow:0 0 5px #ff0000;">⚠️ เสี่ยงฟ้าผ่าและลมกระโชกแรง</span>`;
+                    } else if(maxRain > 10) {
+                        rainStatus = `<span style="color:#ff3333; font-weight:bold;">ฝนตกหนัก (Heavy Rain - ${maxRain.toFixed(1)} mm/h)</span>`;
+                        stormRisk = `<span style="color:#f39c12;">ทัศนวิสัยต่ำขณะฝนตกหนัก</span>`;
+                    } else if(maxRain > 2.5) {
+                        rainStatus = `<span style="color:#f39c12; font-weight:bold;">ฝนตกปานกลาง (Moderate Rain)</span>`;
+                        stormRisk = `<span style="color:#00cc66;">ไม่มีความเสี่ยงพายุรุนแรง</span>`;
+                    } else {
+                        rainStatus = `<span style="color:#3498db; font-weight:bold;">ฝนตกปรอย (Light Rain)</span>`;
+                        stormRisk = `<span style="color:#00cc66;">ไม่มีความเสี่ยงพายุรุนแรง</span>`;
+                    }
+                } else if(overallMaxProb >= 30) {
+                    alertColor = '#f39c12';
+                    rainStatus = `<span style="color:#f39c12;">อาจมีกลุ่มฝนรอบๆ พื้นที่ (VCSH)</span>`;
+                }
+
+                let titleColor = alertColor; // สีกรอบ/หัวข้อให้สอดคล้องกับ severity โดยตรง
+                // === /Global Summary Logic ===
+
                 let displayDateStr = `${reqStart.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][reqStart.getMonth()]} ${reqStart.getFullYear()+543}`;
-                
-                let titleColor = overallMaxProb >= 60 ? '#ff3333' : (overallMaxProb >= 30 ? '#f39c12' : '#00cc66');
                 
                 let html = `
                 <div style="background: rgba(20, 30, 48, 0.8); border: 2px solid ${titleColor}; border-radius: 8px; padding: 15px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); height: 100%; display: flex; flex-direction: column;">
@@ -1309,6 +1352,18 @@
                         <div style="text-align:right;">
                             <div style="color:#a0aec0; font-size:0.9vw;">📅 วันที่: <span style="color:#fff; font-weight:bold;">${displayDateStr}</span></div>
                             <div style="color:#a0aec0; font-size:0.9vw;">🕒 เวลา: <span style="color:#fff; font-weight:bold;">${timeStart} - ${timeEnd} น.</span></div>
+                        </div>
+                    </div>
+
+                    <div style="flex-shrink:0; background:#000; border-radius:6px; border: 2px solid ${alertColor}; padding:10px; margin-bottom:10px;">
+                        <div style="color:${alertColor}; font-weight:bold; font-size:1vw; border-bottom:1px dashed #4a5568; padding-bottom:4px; margin-bottom:6px;">📊 สรุปการประเมินสภาพอากาศ (Global Summary)</div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                            <span style="color:#a0aec0; font-size:0.9vw;">🌧️ สภาพฝน:</span>
+                            <span style="font-size:1vw; font-weight:bold;">${rainStatus}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between;">
+                            <span style="color:#a0aec0; font-size:0.9vw;">⚠️ ความเสี่ยงรุนแรง:</span>
+                            <span style="font-size:1vw; font-weight:bold;">${stormRisk}</span>
                         </div>
                     </div>
 
