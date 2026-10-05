@@ -425,8 +425,14 @@
 }
 #taf-time-start::-webkit-datetime-edit-ampm-field,
 #taf-time-end::-webkit-datetime-edit-ampm-field { display: none; }
-/* ===== ใบ #6 [A] กล่อง 3: สกรอลเดียวทั้งกล่อง ===== */
-#box3-taf {
+/* ===== ใบ #7 [A] กล่อง 3: สกรอลเดียวทั้งกล่อง + เคารพ .hide ===== */
+/* ประกาศ hide ให้ชนะ !important ของกฎด้านล่าง */
+#box3-taf.hide,
+#box3-metar.hide,
+#box2-taf.hide,
+#box2-metar.hide { display: none !important; }
+
+#box3-taf:not(.hide) {
     display: flex !important;
     flex-direction: column !important;
     min-height: 0 !important;
@@ -2804,6 +2810,31 @@ document.addEventListener('DOMContentLoaded', function(){
     sweep();
     setTimeout(sweep, 400);
     setTimeout(sweep, 1500);
+  }
+
+  /* ===== ใบ #7 : กันกล่อง TAF โผล่ค้างในโหมด METAR =====
+     อ่านสถานะอย่างเดียว ไม่เรียก/ไม่แก้ setWxMode หรือฟังก์ชันต้องห้าม */
+  var bm = document.getElementById('box3-metar');
+  var bt = document.getElementById('box3-taf');
+  if (bm && bt) {
+    var last = null, lock = false;
+    var sync = function () {
+      if (lock) return;
+      var metarOn = !bm.classList.contains('hide');
+      if (metarOn === last) return;
+      last = metarOn;
+      lock = true;
+      if (metarOn) bt.style.setProperty('display', 'none', 'important');
+      else bt.style.removeProperty('display');
+      setTimeout(function () { lock = false; }, 0);
+    };
+    if (window.MutationObserver) {
+      var mo = new MutationObserver(sync);
+      mo.observe(bm, { attributes: true, attributeFilter: ['class', 'style'] });
+      mo.observe(bt, { attributes: true, attributeFilter: ['class', 'style'] });
+    }
+    document.addEventListener('click', function () { setTimeout(sync, 0); }, true);
+    sync();
   }
 })();
 </script>
