@@ -865,6 +865,31 @@ function renderTafTimeline(tafRaw) {
 
             container.innerHTML = html;
         }
+// --- ฟังก์ชันดึงข้อมูล METAR/TAF จาก JSON อย่างถูกต้อง ---
+        function extractWxData(rawJsonStr, station, mode) {
+            if (!rawJsonStr) return null;
+            try {
+                const data = JSON.parse(rawJsonStr);
+                // API ของ ทอ. มักจะคืนค่าเป็น Array
+                if (Array.isArray(data)) {
+                    const stnData = data.find(item => item.StationId === station || item.Station === station || item.station === station);
+                    if (stnData) {
+                        let rawStr = (mode === 'TAF') ? (stnData.Taf || stnData.taf || stnData.TAF) : (stnData.Metar || stnData.metar || stnData.METAR);
+                        if (rawStr) return rawStr.replace(/\\r\\n|\r\n|\n|\r/g, ' ').replace(/\s+/g, ' ').trim();
+                    }
+                }
+            } catch (e) {
+                console.warn("JSON Parse fallback to Regex");
+            }
+            
+            // กรณีระบบ API เปลี่ยนรูปแบบ (Fallback) ดึงเฉพาะข้อความที่ขึ้นด้วย รหัสสถานี และ ลงท้ายด้วย = หรือสถานีถัดไป
+            const regex = new RegExp(`"${station}\\s+\\d{6}Z[\\s\\S]*?"`, 'g');
+            const matches = rawJsonStr.match(regex);
+            if (matches) {
+                return matches[0].replace(/^"|"$/g, '').replace(/\\r\\n|\r\n|\n|\r/g, ' ').replace(/\\/g, '').replace(/\s+/g, ' ').trim();
+            }
+            return null;
+        }
 
         function updateRawTextDisplay(station, rawMetarStr) {
             const rawEl = document.getElementById('raw-metar');
