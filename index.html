@@ -1614,6 +1614,8 @@ function renderTafTimeline(tafRaw) {
                 const previous = active;
                 active = null;
                 if (previous) previous.controller.abort();
+                const el = document.getElementById('ai-report-content');
+                if (el) el.dataset.waitingForEngine = 'false';
                 showMessage(
                     'pending',
                     message || 'มีการเปลี่ยนตำแหน่งหรือช่วงเวลา กรุณากดวิเคราะห์',
@@ -1901,18 +1903,23 @@ function renderTafTimeline(tafRaw) {
             if(rvInterval) clearInterval(rvInterval);
             rvInterval = setInterval(updateRainViewerLayer, 5 * 60 * 1000);
 
+            setDefaultForecastWindow();
+            
+            triggerManualAIAnalysis();
+        }
+
+        function setDefaultForecastWindow() {
             let d = new Date();
             document.getElementById('taf-date').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
             document.getElementById('taf-time-start').value = String(d.getHours()).padStart(2,'0') + ":00";
-            d.setHours(d.getHours() + 3);
+            d.setHours(d.getHours() + 12);
             document.getElementById('taf-time-end').value = String(d.getHours()).padStart(2,'0') + ":00";
-            
-            triggerManualAIAnalysis();
         }
 
         document.getElementById('station-select').addEventListener('change', (e) => {
             const stn = e.target.value;
             if(typeof UW_COORDS !== 'undefined' && UW_COORDS[stn]) {
+                setDefaultForecastWindow();
                 setTarget({lat: UW_COORDS[stn].lat, lon: UW_COORDS[stn].lon, name: stn, source: 'station', stationCode: stn});
                 document.getElementById('taf-coord-input').value = `${UW_COORDS[stn].lat.toFixed(5)}, ${UW_COORDS[stn].lon.toFixed(5)}`;
                 if(tafMap) {
@@ -2105,6 +2112,29 @@ function renderTafTimeline(tafRaw) {
         // --- ECMWF Advanced Logic (Hourly Breakdown) ---
         async function analyzeAreaWeather(lat, lon, locName, dateStr, timeStart, timeEnd) {
             const requestControl = window.__ATC_REPORT_REQUESTS__;
+            const target = getTarget();
+            const eng = window.ATC_ALERT_ENGINE ? window.ATC_ALERT_ENGINE.last : null;
+            const engineMatchesTarget = !!(
+                target && eng && eng.target &&
+                eng.target.revision === target.revision &&
+                Number(eng.target.lat) === Number(target.lat) &&
+                Number(eng.target.lon) === Number(target.lon)
+            );
+
+            if (!engineMatchesTarget) {
+                lastAiQuery = {
+                    lat, lon, name: locName, dateStr, timeStart, timeEnd
+                };
+                requestControl.invalidate(
+                    'กำลังรอ Alert Engine วิเคราะห์ตำแหน่งเป้าหมายปัจจุบัน...'
+                );
+                const waitingEl = document.getElementById('ai-report-content');
+                if (waitingEl) waitingEl.dataset.waitingForEngine = 'true';
+                return;
+            }
+
+            const reportEl = document.getElementById('ai-report-content');
+            if (reportEl) reportEl.dataset.waitingForEngine = 'false';
             const request = requestControl.begin({
                 lat: lat,
                 lon: lon,
@@ -2119,8 +2149,9 @@ function renderTafTimeline(tafRaw) {
             lastAiQuery = {
                 lat, lon, name: locName, dateStr, timeStart, timeEnd
             };
-            const reportEl = document.getElementById('ai-report-content');
-            reportEl.innerHTML = `<div style="text-align:center; color:var(--data-color); font-size:1.5vw; margin-top:50px;">กำลังวิเคราะห์โมเดล ${request.snapshot.model.toUpperCase()}... ⏳</div>`;
+            if (reportEl) {
+                reportEl.innerHTML = `<div style="text-align:center; color:var(--data-color); font-size:1.5vw; margin-top:50px;">กำลังวิเคราะห์โมเดล ${request.snapshot.model.toUpperCase()}... ⏳</div>`;
+            }
 
             try {
                 // Fetch dynamic model
@@ -2355,14 +2386,30 @@ function renderTafTimeline(tafRaw) {
                     { id: 'icon_seamless', name: 'ICON' },
                     { id: 'jma_seamless', name: 'JMA' }
                 ];
+                let modelStatusOk = Object.create(null);
+                models.forEach(m => { modelStatusOk[m.id] = null; });
+                if(eng && Array.isArray(eng.rows)) {
+                    eng.rows.forEach(r => {
+                        const rowTime = new Date(r.t);
+                        const rowTimestamp = rowTime.getTime();
+                        if(!Number.isFinite(rowTimestamp) ||
+                           rowTimestamp < reqStart.getTime() ||
+                           rowTimestamp > reqEnd.getTime() ||
+                           !r.mDict) return;
+                        models.forEach(m => {
+                            const pop = r.mDict[m.id];
+                            if(!Number.isFinite(pop)) return;
+                            if(pop >= 60) modelStatusOk[m.id] = true;
+                            else if(modelStatusOk[m.id] === null) modelStatusOk[m.id] = false;
+                        });
+                    });
+                }
                 let modelBtns = `<div style="display:flex; gap:5px; margin-bottom:10px;">`;
                 models.forEach(m => {
                     let isAct = m.id === currentAiModel;
-                    let mStatusOk = eng && eng.modelStatus &&
-                        Object.prototype.hasOwnProperty.call(eng.modelStatus,m.id)
-                        ? eng.modelStatus[m.id] : null;
-                    let textColor = mStatusOk===false ? '#ff5555' :
-                        (isAct ? '#00ffcc' : (mStatusOk===true ? '#a0aec0' : '#718096'));
+                    let mStatus = modelStatusOk[m.id];
+                    let textColor = mStatus===false ? '#ff5555' :
+                        (isAct ? '#00ffcc' : (mStatus===true ? '#a0aec0' : '#718096'));
                     modelBtns += `<button onclick="changeAiModel('${m.id}')" style="flex:1; background:${isAct ? '#2a3f5f' : '#0b131e'}; color:${textColor}; border:1px solid ${isAct ? '#00ffcc' : '#4a5568'}; border-radius:4px; padding:4px; cursor:pointer; font-weight:bold; font-size:0.9vw; transition:0.2s;">${m.name}</button>`;
                 });
                 modelBtns += `</div>`;
@@ -3759,7 +3806,7 @@ var CFG = {
 };
 window.ATC_CFG = CFG;
 
-var NM2KM=1.852, busy=false, last=null, tmr=null, obs=null;
+var NM2KM=1.852, busy=false, rerunRequested=false, last=null, tmr=null, obs=null;
 function $(i){ return document.getElementById(i); }
 function bodyTxt(){ try{ return document.body.innerText||''; }catch(e){ return ''; } }
 
@@ -3799,13 +3846,14 @@ function evalModels(d){
   for(i=0;i<T.length;i++){
     var ts=new Date(T[i]).getTime(), lead=(ts-now)/3600000;
     if(lead<-0.6||lead>CFG.HORIZON) continue;
-    var pops=[],rains=[],capes=[],spd=[];
+    var pops=[],rains=[],capes=[],spd=[],mDict={};
     for(j=0;j<CFG.MODELS.length;j++){
       var m=CFG.MODELS[j];
       var p=pick(H,'precipitation_probability',m,i);
       var r=pick(H,'precipitation',m,i);
       var c=pick(H,'cape',m,i);
       var t1=pick(H,'temperature_2m',m,i), td=pick(H,'dewpoint_2m',m,i);
+      mDict[m]=Number.isFinite(p)?p:null;
       if(p!=null) pops.push(p);
       if(r!=null) rains.push(r);
       if(c!=null) capes.push(c);
@@ -3816,7 +3864,7 @@ function evalModels(d){
     var maxRain=rains.length?Math.max.apply(null,rains):0;
     var maxCape=capes.length?Math.max.apply(null,capes):null;
     var minSpd=spd.length?Math.min.apply(null,spd):null;
-    rows.push({ t:T[i], lead:lead, agree:agree,
+    rows.push({ t:T[i], lead:lead, agree:agree, mDict:mDict,
       maxPop:Math.max.apply(null,pops), rain:maxRain, cape:maxCape, spread:minSpd,
       p1:agree>=CFG.AGREE, p2:maxRain>=CFG.RAIN_MIN,
       p3:((maxCape!=null&&maxCape>=CFG.CAPE_MIN)||(minSpd!=null&&minSpd<=CFG.SPREAD_MAX)) });
@@ -4110,7 +4158,30 @@ function mark(ok,label){
   var sym=(ok===true)?'OK':(ok==='UNK'?'--':'X');
   return '<span class="'+cls+'">'+label+':'+sym+'</span>';
 }
-function renderPillarDash(res){}
+function renderPillarDash(res){
+  var reportEl=$('ai-report-content');
+  if(!reportEl || reportEl.dataset.waitingForEngine!=='true' || !lastAiQuery) return;
+
+  var currentTarget=window.__ATC_TARGET__ &&
+    typeof window.__ATC_TARGET__.get==='function'
+    ? window.__ATC_TARGET__.get() : null;
+  if(!currentTarget || !res || !res.target ||
+     currentTarget.revision!==res.target.revision ||
+     Number(currentTarget.lat)!==Number(res.target.lat) ||
+     Number(currentTarget.lon)!==Number(res.target.lon) ||
+     Number(lastAiQuery.lat)!==Number(currentTarget.lat) ||
+     Number(lastAiQuery.lon)!==Number(currentTarget.lon)) return;
+
+  reportEl.dataset.waitingForEngine='false';
+  analyzeAreaWeather(
+    lastAiQuery.lat,
+    lastAiQuery.lon,
+    lastAiQuery.name,
+    lastAiQuery.dateStr,
+    lastAiQuery.timeStart,
+    lastAiQuery.timeEnd
+  );
+}
 
 function paint(res){
   var b=$('ai-alert-banner'); if(!b) return;
@@ -4162,16 +4233,7 @@ function paint(res){
     }
     b.classList.add(lv==='RED'?'atc-lv-red':(lv==='AMBER'?'atc-lv-amber':'atc-lv-green'));
     b.classList.remove('hide');
-    var sP1 = res.hour?res.hour.p1:false;
-    var sP2 = res.hour?res.hour.p2:false;
-    var sP3 = res.hour?res.hour.p3:false;
-    var sP4 = normP(res.taf);
-    var sP5 = normP(res.radar);
-    b.innerHTML = head + ' | ช่วง '+rangeStr+leadText+'<br>'+
-      '<span class="atc-pillars">'+
-        mark(sP1,'P1')+' '+mark(sP2,'P2')+' '+mark(sP3,'P3')+' '+
-        mark(sP4===null?'UNK':sP4,'P4')+' '+
-        mark(sP5===null?'UNK':sP5,'P5')+'</span>';
+    b.innerHTML = head + ' | ช่วง '+rangeStr+leadText;
     b.setAttribute('data-atc-eng',res.id);
   }
   renderPillarDash(res);
@@ -4220,28 +4282,10 @@ function run(){
           rows[i]._sc=sc;
           if(!best||sc>best._sc) best=rows[i];
         }
-        var modelStatus = {};
-        CFG.MODELS.forEach(function(m){
-          var pops = d && d.hourly
-            ? (d.hourly['precipitation_probability_'+m] || d.hourly.precipitation_probability)
-            : null;
-          var maxPop = -Infinity;
-          var hasPop = false;
-          if(pops && typeof pops.length === 'number'){
-            for(var j=0;j<pops.length;j++){
-              if(Number.isFinite(pops[j])){
-                hasPop = true;
-                if(pops[j] > maxPop) maxPop = pops[j];
-              }
-            }
-          }
-          modelStatus[m] = hasPop ? maxPop >= CFG.POP_MIN : null;
-        });
         var dec = best?decide(best,p4,p5):{lvl:'GREEN',n:0,r5:false,passList:[],unkList:['P1','P2','P3','P4','P5'],reason:'ไม่มีข้อมูลโมเดลในช่วง'};
         var res = { id:Date.now(), lvl:dec.lvl, n:dec.n, hour:best, taf:p4,
                     radar:p5, rows:rows, loc:T.name, target:T,
                     decideReason: dec.reason,
-                    modelStatus:modelStatus,
                     at:new Date().toISOString() };
         last=res; window.ATC_ALERT_ENGINE.last=res;
         paint(res); logIt(res);
@@ -4249,7 +4293,15 @@ function run(){
       });
     })
     .catch(function(e){ console.warn('[ATC ENGINE]',e); return last; })
-    .then(function(r){ busy=false; return r; });
+    .then(function(r){
+      busy=false;
+      if(rerunRequested){
+        rerunRequested=false;
+        clearTimeout(tmr);
+        tmr=setTimeout(run,600);
+      }
+      return r;
+    });
 }
 
 /* ---------- เฝ้าแบนเนอร์ ---------- */
@@ -4297,7 +4349,10 @@ function boot(){
   // บังคับรีรัน Engine ทันทีเมื่อผู้ใช้เปลี่ยนพิกัด/สถานีเป้าหมาย
   if(window.__ATC_TARGET__ && typeof window.__ATC_TARGET__.subscribe === 'function') {
     window.__ATC_TARGET__.subscribe(function() {
-      if(busy) return;
+      if(busy) {
+        rerunRequested=true;
+        return;
+      }
       clearTimeout(tmr); 
       tmr = setTimeout(run, 600); // หน่วงเวลาเล็กน้อยเพื่อป้องกันการรัวคลิกแผนที่
     });
