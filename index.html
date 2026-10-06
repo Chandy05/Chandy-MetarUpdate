@@ -367,7 +367,7 @@
   overflow-y: auto !important;
   overflow-x: hidden !important;
   padding-right: 8px !important;
-  padding-bottom: 20px !important;
+  padding-bottom: 40px !important;
   scrollbar-gutter: stable;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -1471,6 +1471,8 @@ function renderTafTimeline(tafRaw) {
             document.getElementById('taf-time-start').value = String(d.getHours()).padStart(2,'0') + ":00";
             d.setHours(d.getHours() + 3);
             document.getElementById('taf-time-end').value = String(d.getHours()).padStart(2,'0') + ":00";
+            
+            triggerManualAIAnalysis();
         }
 
         document.getElementById('station-select').addEventListener('change', (e) => {
@@ -1479,6 +1481,10 @@ function renderTafTimeline(tafRaw) {
                 currentTargetLoc = {lat: UW_COORDS[stn].lat, lon: UW_COORDS[stn].lon, name: stn};
                 document.getElementById('taf-coord-input').value = `${UW_COORDS[stn].lat.toFixed(5)}, ${UW_COORDS[stn].lon.toFixed(5)}`;
                 if(tafMap) { tafMap.setView([currentTargetLoc.lat, currentTargetLoc.lon], 8); tafMarker.setLatLng([currentTargetLoc.lat, currentTargetLoc.lon]); }
+                
+                if (currentWxMode === 'TAF') {
+                    triggerManualAIAnalysis();
+                }
             }
         });
 
@@ -1683,95 +1689,7 @@ function renderTafTimeline(tafRaw) {
             }
         }
 
-        // --- Auto-check AI สำหรับแบนเนอร์ (ใช้ความแม่นยำ ECMWF) ---
-        async function checkAIPrediction(icao) {
-            return; // [ใบ #11] ยกเลิกฟังก์ชันเดิม เพื่อไม่ให้แย่งแบนเนอร์กับ 5-Pillar Engine
-            const banner = document.getElementById('ai-alert-banner');
-            if (typeof UW_COORDS === 'undefined' || !UW_COORDS[icao]) { banner.classList.add('hide'); return; }
-            const stn = UW_COORDS[icao];
-
-            try {
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${stn.lat}&longitude=${stn.lon}&hourly=precipitation_probability,precipitation&models=ecmwf_ifs025&timezone=auto&forecast_hours=12`;
-                const res = await fetch(url);
-                const data = await res.json();
-                
-                if(data && data.hourly) {
-                    const times = data.hourly.time.map(t => new Date(t));
-                    const probs = data.hourly.precipitation_probability;
-                    const rains = data.hourly.precipitation;
-
-                    // --- Group into bursts (merge consecutive hours where prob >= 30) ---
-                    const MIN_PROB = 30;
-                    const MAX_GAP_HR = 1;
-                    let bursts = [];
-                    let curBurst = null;
-                    for(let i=0; i<times.length; i++) {
-                        const prob = probs[i] ?? 0;
-                        const rain = rains[i] ?? 0;
-                        if(prob >= MIN_PROB) {
-                            const hr = { time: times[i], prob: prob, rain: rain };
-                            if(curBurst) {
-                                const gapHr = (hr.time - curBurst.end) / 3600000;
-                                if(gapHr <= MAX_GAP_HR) {
-                                    curBurst.hours.push(hr);
-                                    curBurst.end = hr.time;
-                                    curBurst.maxProb = Math.max(curBurst.maxProb, prob);
-                                    curBurst.maxRain = Math.max(curBurst.maxRain, rain);
-                                } else {
-                                    bursts.push(curBurst);
-                                    curBurst = { start: hr.time, end: hr.time, maxProb: prob, maxRain: rain, hours: [hr] };
-                                }
-                            } else {
-                                curBurst = { start: hr.time, end: hr.time, maxProb: prob, maxRain: rain, hours: [hr] };
-                            }
-                        }
-                    }
-                    if(curBurst) bursts.push(curBurst);
-
-                    // --- Select severe bursts (prob >= 60 for ALERT; prob >= 30 for ADVISORY) ---
-                    const severeBursts = bursts.filter(b => b.maxProb >= 30);
-                    const alertBursts = severeBursts.filter(b => b.maxProb >= 60);
-                    const hasAlert = alertBursts.length > 0;
-                    const displayBursts = hasAlert ? alertBursts : severeBursts;
-
-                    if(displayBursts.length > 0) {
-                        const fmt = (dt) => String(dt.getHours()).padStart(2,'0') + ':00';
-
-                        // Build grouped time display: "08:00-10:00, 14:00-16:00 น."
-                        const timeParts = displayBursts.map(b => {
-                            const s = fmt(b.start);
-                            const e = fmt(b.end);
-                            return (s === e) ? s : `${s}-${e}`;
-                        });
-                        const timeDisplay = 'ช่วงเวลา ' + timeParts.join(', ') + ' น.';
-
-                        const overallMaxProb = Math.max(...displayBursts.map(b => b.maxProb));
-                        const severityLabel = hasAlert
-                            ? '🔴 AI FORECAST ALERT'
-                            : '🟡 AI FORECAST ADVISORY';
-
-                        banner.innerHTML = `${severityLabel}: คาดการณ์มีกลุ่มฝนเข้าพื้นที่เป้าหมาย ${timeDisplay} (โอกาสสูงสุด ${overallMaxProb}%)`;
-                        banner.classList.remove('hide');
-                        banner.style.animation = 'blink 2s infinite';
-                        banner.style.opacity = '1';
-
-                        // Auto-trigger detailed report from first burst start → last burst end
-                        const firstStart = fmt(displayBursts[0].start);
-                        const lastEnd   = fmt(displayBursts[displayBursts.length-1].end);
-                        currentTargetLoc = {lat: stn.lat, lon: stn.lon, name: icao};
-                        let dAuto = new Date();
-                        const autoDateStr = dAuto.getFullYear() + '-' + String(dAuto.getMonth() + 1).padStart(2, '0') + '-' + String(dAuto.getDate()).padStart(2, '0');
-                        analyzeAreaWeather(stn.lat, stn.lon, icao, autoDateStr, firstStart, lastEnd);
-                        if(tafMap) {
-                            tafMap.setView([stn.lat, stn.lon], 8);
-                            tafMarker.setLatLng([stn.lat, stn.lon]);
-                        }
-                    } else {
-                        banner.classList.add('hide');
-                    }
-                }
-            } catch(e) { banner.classList.add('hide'); }
-        }
+        // Removed checkAIPrediction() to clear dead code. 5-Pillar Engine handles this now.
         
         function fetchWeatherData() { 
             const overlay = document.getElementById('overlay'); if(!cachedDatabaseText) overlay.classList.remove('hide'); 
