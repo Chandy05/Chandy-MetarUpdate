@@ -1442,8 +1442,8 @@ function renderTafTimeline(tafRaw) {
                 const tileUrl = `${data.host}${latest.path}/256/{z}/{x}/{y}/2/1_1.png`;
 
                 if (rvLayer) tafMap.removeLayer(rvLayer);
-                // maxNativeZoom: 13 จะทำให้เรดาร์ฝนยังคงอยู่เมื่อผู้ใช้ซูมลึกกว่าระดับ 13
-                rvLayer = L.tileLayer(tileUrl, { opacity: 0.65, maxZoom: 20, maxNativeZoom: 13, zIndex: 10 }).addTo(tafMap);
+                // ปรับ opacity เป็น 0.85 และตั้ง zIndex: 1000 ให้อยู่ชั้นบนสุดเสมอ ไม่ถูกแผนที่ทับ
+                rvLayer = L.tileLayer(tileUrl, { opacity: 0.85, maxZoom: 20, maxNativeZoom: 13, zIndex: 1000 }).addTo(tafMap);
 
                 const date = new Date(latest.time * 1000);
                 const timeStr = String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0') + ' L';
@@ -1485,8 +1485,8 @@ function renderTafTimeline(tafRaw) {
             if(typeof UW_COORDS !== 'undefined' && UW_COORDS[stn]) currentTargetLoc = {lat: UW_COORDS[stn].lat, lon: UW_COORDS[stn].lon, name: stn};
             
             tafMap = L.map('taf-leaflet-map', {zoomControl: false}).setView([currentTargetLoc.lat, currentTargetLoc.lon], 8);
-            // maxNativeZoom: 17 ป้องกันปัญหา "Zoom Level Not Supported" ในพื้นที่ภูเขา
-            L.tileLayer('http://mt0.google.com/vt/lyrs=y&hl=th&x={x}&y={y}&z={z}', { maxZoom: 20, maxNativeZoom: 17, attribution: '' }).addTo(tafMap);
+            // maxNativeZoom: 15 ป้องกันปัญหา "Zoom Level Not Supported" ในเขตภูเขา/ชนบท
+            L.tileLayer('https://mt0.google.com/vt/lyrs=y&hl=th&x={x}&y={y}&z={z}', { maxZoom: 20, maxNativeZoom: 15, attribution: '' }).addTo(tafMap);
             tafMarker = L.marker([currentTargetLoc.lat, currentTargetLoc.lon]).addTo(tafMap);
             document.getElementById('taf-coord-input').value = `${currentTargetLoc.lat.toFixed(5)}, ${currentTargetLoc.lon.toFixed(5)}`;
 
