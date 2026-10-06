@@ -432,9 +432,10 @@
 .ruler-tooltip:before { display: none; }
 .radar-tools-group {
     display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 5px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 4px;
     border: 1px solid rgba(0,255,204,0.55);
     border-radius: 6px;
     background: rgba(11, 19, 30, 0.88);
@@ -445,6 +446,7 @@
 .radar-tools-group .map-ruler-btn {
     margin: 0 !important;
     white-space: nowrap;
+    width: 100%;
 }
 #taf-date, #taf-time-start, #taf-time-end {
     color-scheme: dark;
@@ -1494,6 +1496,8 @@ function renderTafTimeline(tafRaw) {
         function renderDashboard() { 
             if (!cachedDatabaseText) return; 
             const selectedStation = document.getElementById('station-select').value; 
+            loadUpperWind(selectedStation);
+
             // ระบุโหมดเป็น METAR
             const rawMetar = extractWxData(cachedDatabaseText, selectedStation, 'METAR');
             
@@ -1594,7 +1598,6 @@ function renderTafTimeline(tafRaw) {
                     else { cautionBox.classList.add('hide'); } 
                 }
             } catch (parseError) { console.error(parseError); } 
-            loadUpperWind(selectedStation);
         }
 
         // --- TAF Interactive Mode & ECMWF AI Predictor ---
@@ -2230,11 +2233,28 @@ function renderTafTimeline(tafRaw) {
             analyzeAreaWeather(currentTargetLoc.lat, currentTargetLoc.lon, currentTargetLoc.name, dStr, tStart, tEnd);
         }
 
-        function triggerManualAIAnalysis() {
+        async function triggerManualAIAnalysis() {
             let dDate = document.getElementById('taf-date').value;
             let tStart = document.getElementById('taf-time-start').value;
             let tEnd = document.getElementById('taf-time-end').value;
             if(!dDate || !tStart || !tEnd) { alert("กรุณาระบุวันที่และเวลาให้ครบถ้วน"); return; }
+
+            const btn = document.getElementById('btn-analyze-ai');
+            if(btn) {
+                btn.innerHTML = 'กำลังเตรียมข้อมูล... ⏳';
+                btn.style.background = '#f39c12';
+                btn.style.boxShadow = '0 0 15px rgba(243, 156, 18, 0.8)';
+                btn.style.animation = 'blink-warn 1s infinite';
+            }
+
+            if (window.ATC_ALERT_ENGINE && typeof window.ATC_ALERT_ENGINE.run === 'function') {
+                try {
+                    await window.ATC_ALERT_ENGINE.run();
+                } catch(e) {
+                    console.warn('Alert Engine run failed; continuing with AI report:', e);
+                }
+            }
+
             analyzeAreaWeather(currentTargetLoc.lat, currentTargetLoc.lon, currentTargetLoc.name, dDate, tStart, tEnd);
         }
 
@@ -2369,27 +2389,6 @@ function renderTafTimeline(tafRaw) {
         // --- ECMWF Advanced Logic (Hourly Breakdown) ---
         async function analyzeAreaWeather(lat, lon, locName, dateStr, timeStart, timeEnd) {
             const requestControl = window.__ATC_REPORT_REQUESTS__;
-            const target = getTarget();
-            const eng = window.ATC_ALERT_ENGINE ? window.ATC_ALERT_ENGINE.last : null;
-            const engineMatchesTarget = !!(
-                target && eng && eng.target &&
-                eng.target.revision === target.revision &&
-                Number(eng.target.lat) === Number(target.lat) &&
-                Number(eng.target.lon) === Number(target.lon)
-            );
-
-            if (!engineMatchesTarget) {
-                lastAiQuery = {
-                    lat, lon, name: locName, dateStr, timeStart, timeEnd
-                };
-                requestControl.invalidate(
-                    'กำลังรอ Alert Engine วิเคราะห์ตำแหน่งเป้าหมายปัจจุบัน...'
-                );
-                const waitingEl = document.getElementById('ai-report-content');
-                if (waitingEl) waitingEl.dataset.waitingForEngine = 'true';
-                return;
-            }
-
             const reportEl = document.getElementById('ai-report-content');
             if (reportEl) reportEl.dataset.waitingForEngine = 'false';
             const request = requestControl.begin({
@@ -2602,10 +2601,10 @@ function renderTafTimeline(tafRaw) {
                     ? window.__ATC_LATEST_DETAIL__
                     : `POP ${overallMaxProb}% | AGREE N/A | RAIN ${maxRain.toFixed(1)}mm`;
                 let detailsHtml = `<div style="text-align:center; font-size:1vw; color:#e2e8f0; background:rgba(0,0,0,0.5); padding:6px; border-radius:4px; margin-bottom:8px; border:1px solid #2a3f5f; font-family:'Consolas', monospace; letter-spacing:0.5px;">${engineDetText}</div>`;
-                let sP1 = eng && eng.hour ? eng.hour.p1 : false;
-                let sP2 = eng && eng.hour ? eng.hour.p2 : false;
-                let sP3 = eng && eng.hour ? eng.hour.p3 : false;
-                let sP4 = eng ? eng.taf : false;
+                let sP1 = eng && eng.hour ? eng.hour.p1 : 'UNK';
+                let sP2 = eng && eng.hour ? eng.hour.p2 : 'UNK';
+                let sP3 = eng && eng.hour ? eng.hour.p3 : 'UNK';
+                let sP4 = eng ? eng.taf : 'UNK';
                 let sP5 = 'UNK';
                 if(eng && eng.radar){
                   if(typeof eng.radar.meetsCriterion === 'boolean'){
@@ -4581,7 +4580,10 @@ function logIt(res){
 
 /* ---------- รอบการทำงานหลัก (+ revision guard) ---------- */
 function run(){
-  if(busy) return Promise.resolve(last);
+  if(busy){
+    rerunRequested=true;
+    return Promise.resolve(last);
+  }
   busy=true;
   var T=target();
   var startRev = T.revision || 0;
@@ -4600,7 +4602,7 @@ function run(){
         var curRev = (window.__ATC_TARGET__ && window.__ATC_TARGET__.get) ? window.__ATC_TARGET__.get().revision : startRev;
         if(curRev !== startRev){
           console.warn('[ATC ENGINE] Target changed during scan (rev '+startRev+'->'+curRev+'). Discarding stale result.');
-          busy=false; return last;
+          rerunRequested=true; return last;
         }
         var p4=tafPillar(), best=null, i, sc;
         for(i=0;i<rows.length;i++){
