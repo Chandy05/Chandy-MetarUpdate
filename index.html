@@ -554,42 +554,138 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
 #ai-report-content::-webkit-scrollbar-thumb:hover { background: #ffd966; }
 #ai-report-content > *:last-child { margin-bottom: 20px; }
 
-/* ===== BOX2 : กันปุ่มตกขอบ + แผนที่เต็มพื้นที่ ===== */
+/* ===== BOX2 : SMART AREA PREDICTOR - กระจายพื้นที่ให้แผนที่ใหญ่สุด ===== */
 #box2-taf > * { flex-shrink: 0; }
-#box2-taf > #taf-leaflet-map { flex-shrink: 1; }
+#box2-taf > #taf-leaflet-map { flex-shrink: 1; flex-grow: 1; flex-basis: minmax(0, 1fr); min-width: 0; }
 #box2-taf button { white-space: nowrap; }
 
-/* ===== TITLE ให้เตี้ยลง เพื่อคืนพื้นที่ให้เนื้อหา ===== */
-.panel-title { font-size: clamp(13px, 1.55vw, 22px); top: 6px; }
+#taf-controls { width: 100%; box-sizing: border-box; }
+#taf-controls .taf-row-coord { width: 100%; box-sizing: border-box; }
+#taf-controls #taf-coord-input { min-width: 0; box-sizing: border-box; }
 
-@media (max-height: 760px) {
-    #box2-taf { padding-top: 32px; gap: 6px; }
-    #box3-taf { padding-top: 32px; }
-    #box2-taf button { font-size: clamp(11px, 1vw, 15px); padding: 7px 6px; }
-    #taf-leaflet-map { min-height: 100px; }
+/* Desktop: ให้แผนที่กินพื้นที่ส่วนใหญ่ของกล่อง (60-70%) */
+#box2-taf:not(.hide) {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 5px !important;
 }
-    /* ===== TITLE / MAP FLUSH ALIGNMENT ===== */
-    .panel-title {
-        top: 5px;
-        line-height: 1.15;
-        padding: 0 8px;
+#box2-taf:not(.hide) > #taf-leaflet-map {
+    flex: 1 1 minmax(0, 1fr) !important;
+    min-height: 200px;
+    min-width: 0;
+}
+
+/* Status area: ใช้ flex layout ไม่ให้แตกบรรทัดผิดรูป */
+#taf-location-status:empty { display: none; }
+#taf-location-status:not(:empty) {
+    padding: 3px 5px !important;
+    margin: -2px 0 0 0 !important;
+    background: rgba(30, 58, 95, 0.45);
+    border: 1px solid #38bdf8;
+    border-radius: 4px;
+    color: #e0f2fe !important;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+#taf-location-status[data-kind="err"]:not(:empty) {
+    background: rgba(139, 0, 0, 0.45) !important;
+    border-color: #ff6b6b !important;
+    color: #ffe0e0 !important;
+}
+
+/* ==== MOBILE: ความกว้าง ≤ 900px ==== */
+@media (max-width: 900px) {
+    #box2-taf {
+        overflow: visible !important;
+        height: auto !important;
+        flex: 0 0 auto !important;
+        min-height: 0 !important;
+        padding-top: 26px !important;
+        gap: 7px !important;
     }
-    #box2-taf > #taf-leaflet-map:first-child,
     #box2-taf > #taf-leaflet-map {
-        margin-top: 0;
-        border-top-left-radius: 4px;
-        border-top-right-radius: 4px;
+        flex: 0 0 auto !important;
+        width: 100% !important;
+        height: 45vh !important;
+        height: clamp(280px, 45svh, 480px) !important;
+        min-height: 280px !important;
     }
-    #panel-box-2:has(> #box2-taf:not(.hide)) { padding-top: 0; }
-    @media (max-height: 760px) {
-        #box2-taf { padding-top: 25px !important; }
-        #box3-taf { padding-top: 27px !important; }
-        #box1     { padding-top: 32px; }
+    #taf-controls > * { width: 100%; box-sizing: border-box; }
+    #taf-controls input,
+    #taf-controls #taf-current-location-btn,
+    #taf-controls button[onclick*="triggerManualAIAnalysis"] {
+        font-size: 16px !important;
+        min-height: 44px !important;
+        padding-top: 10px !important;
+        padding-bottom: 10px !important;
+        padding-left: 10px !important;
+        padding-right: 10px !important;
     }
-    @media (max-height: 640px) {
-        #box2-taf { padding-top: 22px !important; }
-        #box3-taf { padding-top: 24px !important; }
+    #taf-controls #taf-current-location-btn {
+        font-size: 15px !important;
     }
+    #taf-datetime-row {
+        grid-template-columns: 1fr 1fr !important;
+    }
+    #taf-datetime-row > .taf-dt-date {
+        grid-column: 1 / -1;
+    }
+    #taf-location-status {
+        font-size: 14px !important;
+    }
+    .taf-coord-label {
+        font-size: 15px !important;
+    }
+    #taf-datetime-row .taf-dt-col > span {
+        font-size: 14px !important;
+    }
+    body { overflow-y: auto !important; }
+}
+
+/* จอแคบมาก (≤ 380px) ให้แถวพิกัด + ปุ่ม ตัดเป็น 2 แถว */
+@media (max-width: 380px) {
+    #taf-controls .taf-row-coord { flex-direction: row; flex-wrap: wrap; }
+    #taf-controls .taf-coord-label { flex: 0 0 auto; width: auto; }
+    #taf-controls #taf-coord-input { flex: 1 1 180px; width: 100%; }
+    #taf-controls #taf-current-location-btn { flex: 1 1 100%; width: 100%; min-height: 44px; }
+    #taf-datetime-row {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* ==== จอสูง ≤ 760px (Desktop ต่ำ) ให้คืนพื้นที่แผนที่เพิ่ม ==== */
+@media (max-height: 760px) {
+    #box2-taf { padding-top: 17px !important; gap: 4px !important; }
+    #box2-taf button { font-size: clamp(11px, 1vw, 15px); padding: 6px 6px; }
+    #taf-leaflet-map { min-height: 140px; }
+    #box3-taf { padding-top: 28px; }
+}
+@media (max-height: 640px) {
+    #box2-taf { padding-top: 13px !important; gap: 3px !important; }
+    #box3-taf { padding-top: 22px !important; }
+    #taf-controls input, #taf-controls button { min-height: 34px; padding-top: 4px !important; padding-bottom: 4px !important; }
+}
+/* ===== TITLE / MAP FLUSH ALIGNMENT ===== */
+.panel-title {
+    top: 5px;
+    line-height: 1.15;
+    padding: 0 8px;
+}
+#box2-taf > #taf-leaflet-map:first-child,
+#box2-taf > #taf-leaflet-map {
+    margin-top: 0;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+/* ===== SMART AREA PREDICTOR : ขยายแผนที่เต็มขอบกล่อง ===== */
+#panel-box-2:has(> #box2-taf:not(.hide)) {
+    padding-top: 0;
+    padding-right: 6px;
+    padding-bottom: 6px;
+    padding-left: 6px;
+    align-items: stretch;
+    justify-content: flex-start;
+}
     </style>
 <style>
 /* ===== ใบสั่งงาน #10 : AI FORECAST ALERT 5-PILLAR ===== */
@@ -730,29 +826,38 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
                 <div id="caution-box" class="caution-box hide">WARNING: NIL</div>
             </div>
             <!-- TAF View (Smart Query) -->
-            <div id="box2-taf" class="hide" style="width:100%; flex:1 1 auto; display:flex; flex-direction:column; gap:8px; padding-top:29px; padding-bottom:4px; min-height:0; overflow:hidden; box-sizing:border-box;">
-                <div id="taf-leaflet-map" style="width:100%; flex:1 1 auto; min-height:120px; margin:0; border:2px solid var(--border-color); border-radius:6px; background:#000; z-index:1;"></div>
-                
-                <div style="display:flex; align-items:center; gap:5px; margin-bottom:0; flex:0 0 auto;">
-                    <span style="font-size:1vw; color:#00ffcc; font-weight:bold; white-space:nowrap;">📍 พิกัด:</span>
-                    <input type="text" id="taf-coord-input" placeholder="เช่น 15°04'19.49&quot;N 100°47'40.60&quot;E หรือ 15.07, 100.79" style="flex:1; background:#152233; color:#fff; border:1px solid var(--data-color); border-radius:4px; padding:4px 8px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;" onchange="handleCoordInput(this.value)">
+            <div id="box2-taf" class="hide" style="width:100%; flex:1 1 auto; display:flex; flex-direction:column; gap:5px; padding-top:20px; padding-bottom:2px; padding-left:0; padding-right:0; min-height:0; overflow:hidden; box-sizing:border-box;">
+                <!-- ส่วนแผนที่: ขยายเต็มพื้นที่ที่เหลือ (minmax(0,1fr) ป้องกัน flex เกิน) -->
+                <div id="taf-leaflet-map" style="width:100%; flex:1 1 minmax(0, 1fr); min-height:220px; margin:0; border:2px solid var(--border-color); border-radius:6px; background:#000; z-index:1;"></div>
+
+                <!-- ส่วนควบคุมด้านล่าง: ใช้พื้นที่ตามเนื้อหาเท่านั้น (flex:0 0 auto) -->
+                <div id="taf-controls" style="flex:0 0 auto; display:flex; flex-direction:column; gap:5px; padding:0 1px;">
+                    <!-- แถว 1: พิกัด + ปุ่มตำแหน่งฉัน -->
+                    <div class="taf-row-coord" style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+                        <span class="taf-coord-label" style="font-size:1vw; color:#00ffcc; font-weight:bold; white-space:nowrap;">📍 พิกัด:</span>
+                        <input type="text" id="taf-coord-input" placeholder="เช่น 15°04'19.49&quot;N 100°47'40.60&quot;E หรือ 15.07, 100.79" style="flex:1; min-width:0; background:#152233; color:#fff; border:1px solid var(--data-color); border-radius:4px; padding:3px 7px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;" onchange="handleCoordInput(this.value)">
+                        <button type="button" id="taf-current-location-btn" aria-label="ใช้ตำแหน่งปัจจุบันเป็นพื้นที่เป้าหมาย" style="flex:0 0 auto; white-space:nowrap; background:#1e3a5f; color:#e0f2fe; border:1px solid #38bdf8; border-radius:4px; padding:3px 9px; font-weight:bold; font-size:0.9vw; cursor:pointer; transition:0.2s;" onmousedown="this.style.opacity='0.7'" onmouseup="this.style.opacity='1'" onmouseout="this.style.opacity='1'">ตำแหน่งฉัน</button>
+                    </div>
+                    <!-- สถานะตำแหน่ง: ไม่จองความสูงเมื่อว่าง (min-height:0) -->
+                    <div id="taf-location-status" role="status" aria-live="polite" style="min-height:0; line-height:1.35; font-size:0.85vw; padding:0 2px; color:#a0aec0;"></div>
+                    <!-- แถว 2: วันที่ + เวลาเริ่ม + เวลาสิ้นสุด (Grid) -->
+                    <div id="taf-datetime-row" style="display:grid; grid-template-columns: 1.5fr 1fr 1fr; gap:4px; align-items:end;">
+                        <div class="taf-dt-col taf-dt-date" style="display:flex; flex-direction:column; min-width:0;">
+                            <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">📅 วันที่:</span>
+                            <input type="date" id="taf-date" lang="en-GB" data-format="dd/mm/yyyy" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:3px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
+                        </div>
+                        <div class="taf-dt-col taf-dt-start" style="display:flex; flex-direction:column; min-width:0;">
+                            <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">⏰ เริ่ม (L):</span>
+                            <input type="text" id="taf-time-start" class="atc-time24" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:3px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
+                        </div>
+                        <div class="taf-dt-col taf-dt-end" style="display:flex; flex-direction:column; min-width:0;">
+                            <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">⏰ ถึง (L):</span>
+                            <input type="text" id="taf-time-end" class="atc-time24" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:3px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
+                        </div>
+                    </div>
+                    <!-- แถว 3: ปุ่มวิเคราะห์เต็มความกว้าง -->
+                    <button onclick="triggerManualAIAnalysis()" style="flex:0 0 auto; width:100%; background:var(--data-color); color:#000; font-weight:bold; font-size:clamp(12px,1.1vw,17px); padding:8px 8px; border:none; border-radius:6px; cursor:pointer; box-shadow:0 0 10px rgba(0,255,204,0.4); transition:all 0.2s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">🔍 วิเคราะห์สภาพอากาศโดยละเอียด</button>
                 </div>
-                
-                <div style="display:flex; gap:5px; align-items:center; flex-wrap:wrap;">
-                    <div style="flex:1.5; display:flex; flex-direction:column; min-width:110px;">
-                        <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">📅 วันที่:</span>
-                        <input type="date" id="taf-date" lang="en-GB" data-format="dd/mm/yyyy" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
-                    </div>
-                    <div style="flex:1; display:flex; flex-direction:column; min-width:70px;">
-                        <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">⏰ เริ่ม (L):</span>
-                        <input type="text" id="taf-time-start" class="atc-time24" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
-                    </div>
-                    <div style="flex:1; display:flex; flex-direction:column; min-width:70px;">
-                        <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">⏰ ถึง (L):</span>
-                        <input type="text" id="taf-time-end" class="atc-time24" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:4px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
-                    </div>
-                </div>
-                <button onclick="triggerManualAIAnalysis()" style="flex:0 0 auto; width:100%; background:var(--data-color); color:#000; font-weight:bold; font-size:clamp(12px,1.1vw,17px); padding:9px 8px; border:none; border-radius:6px; cursor:pointer; box-shadow:0 0 10px rgba(0,255,204,0.4); margin-top:2px; transition:all 0.2s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">🔍 วิเคราะห์สภาพอากาศโดยละเอียด</button>
             </div>
         </div>
 
@@ -1480,13 +1585,19 @@ function renderTafTimeline(tafRaw) {
                 currentTargetLoc = {lat: lat, lon: lon, name: 'พิกัดระบุเอง'};
                 tafMap.setView([lat, lon], 10);
                 tafMarker.setLatLng([lat, lon]);
+                clearTafLocationStatus();
             } else {
                 alert("รูปแบบพิกัดไม่ถูกต้อง\nรองรับ: 15°04'19\"N 100°47'40\"E หรือ 15.07, 100.79");
             }
         }
 
         function initTafMap() {
-            if (tafMap) { tafMap.invalidateSize(); return; }
+            if (tafMap) {
+                // invalidateSize ผ่าน rAF เพื่อ layout ถูกต้อง
+                requestAnimationFrame(function(){ try { tafMap.invalidateSize({ pan: false }); } catch(e){} });
+                setTimeout(function(){ try { tafMap.invalidateSize({ pan: false }); } catch(e){} }, 150);
+                return;
+            }
             const stn = document.getElementById('station-select').value;
             if(typeof UW_COORDS !== 'undefined' && UW_COORDS[stn]) currentTargetLoc = {lat: UW_COORDS[stn].lat, lon: UW_COORDS[stn].lon, name: stn};
             
@@ -1500,7 +1611,38 @@ function renderTafTimeline(tafRaw) {
                 currentTargetLoc = {lat: e.latlng.lat, lon: e.latlng.lng, name: 'พิกัดบนแผนที่'};
                 tafMarker.setLatLng(e.latlng);
                 document.getElementById('taf-coord-input').value = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+                // ล้างสถานะตำแหน่งฉันเมื่อผู้ใช้แตะแผนที่เอง
+                clearTafLocationStatus();
             });
+
+            // invalidateSize via ResizeObserver (ติดตั้งครั้งเดียว)
+            (function installTafResizeObserver() {
+                try {
+                    const mapEl = document.getElementById('taf-leaflet-map');
+                    const boxEl = document.getElementById('box2-taf');
+                    if (!mapEl || !boxEl) return;
+                    if (!window.ResizeObserver) return;
+                    if (mapEl.dataset.__tafObs === '1') return;
+                    mapEl.dataset.__tafObs = '1';
+                    let rafId = 0;
+                    const tick = function () {
+                        if (!tafMap) return;
+                        if (boxEl.classList.contains('hide')) return;
+                        if (!mapEl.clientWidth || !mapEl.clientHeight) return;
+                        try { tafMap.invalidateSize({ pan: false }); } catch(e) {}
+                    };
+                    const ro = new ResizeObserver(function () {
+                        if (rafId) cancelAnimationFrame(rafId);
+                        rafId = requestAnimationFrame(tick);
+                    });
+                    ro.observe(mapEl);
+                    ro.observe(boxEl);
+                } catch (e) { /* ignore */ }
+            })();
+            // Kick invalidateSize หลังสร้างแผนที่
+            requestAnimationFrame(function(){ try { tafMap.invalidateSize({ pan: false }); } catch(e){} });
+            setTimeout(function(){ try { tafMap.invalidateSize({ pan: false }); } catch(e){} }, 200);
+            setTimeout(function(){ try { tafMap.invalidateSize({ pan: false }); } catch(e){} }, 600);
 
             // เพิ่มปุ่มควบคุมเวลาเรดาร์
             L.Control.RadarTime = L.Control.extend({
@@ -1538,6 +1680,7 @@ function renderTafTimeline(tafRaw) {
                 currentTargetLoc = {lat: UW_COORDS[stn].lat, lon: UW_COORDS[stn].lon, name: stn};
                 document.getElementById('taf-coord-input').value = `${UW_COORDS[stn].lat.toFixed(5)}, ${UW_COORDS[stn].lon.toFixed(5)}`;
                 if(tafMap) { tafMap.setView([currentTargetLoc.lat, currentTargetLoc.lon], 8); tafMarker.setLatLng([currentTargetLoc.lat, currentTargetLoc.lon]); }
+                clearTafLocationStatus();
                 
                 if (currentWxMode === 'TAF') {
                     triggerManualAIAnalysis();
@@ -1590,6 +1733,133 @@ function renderTafTimeline(tafRaw) {
             if(!dDate || !tStart || !tEnd) { alert("กรุณาระบุวันที่และเวลาให้ครบถ้วน"); return; }
             analyzeAreaWeather(currentTargetLoc.lat, currentTargetLoc.lon, currentTargetLoc.name, dDate, tStart, tEnd);
         }
+
+        /* ======================= ตำแหน่งปัจจุบัน (TAF) ======================= */
+        let __tafGeoSeq = 0;
+        let __tafGeoBusy = false;
+
+        function clearTafLocationStatus() {
+            const st = document.getElementById('taf-location-status');
+            if (st && st.textContent) { st.textContent = ''; st.removeAttribute('data-kind'); }
+        }
+        function setTafLocationStatus(msg, kind) {
+            const st = document.getElementById('taf-location-status');
+            if (!st) return;
+            st.textContent = msg || '';
+            if (kind === 'err') st.setAttribute('data-kind', 'err');
+            else st.removeAttribute('data-kind');
+        }
+        function useTafCurrentLocation() {
+            const btn = document.getElementById('taf-current-location-btn');
+            if (!btn) return;
+
+            // 1. ตรวจ secure context + browser support
+            if (!window.isSecureContext) {
+                setTafLocationStatus('การเรียกตำแหน่งต้องใช้งานผ่าน HTTPS หรือ localhost สำหรับการทดสอบ', 'err');
+                return;
+            }
+            if (!navigator || !navigator.geolocation) {
+                setTafLocationStatus('เบราว์เซอร์นี้ไม่รองรับการเรียกตำแหน่ง กรุณาแตะแผนที่หรือกรอกพิกัด', 'err');
+                return;
+            }
+            if (__tafGeoBusy) return;
+            __tafGeoBusy = true;
+            __tafGeoSeq += 1;
+            const myToken = __tafGeoSeq;
+
+            const origBtnText = btn.textContent || 'ตำแหน่งฉัน';
+            btn.disabled = true;
+            btn.style.opacity = '0.6';
+            btn.textContent = 'กำลังหาตำแหน่ง…';
+            setTafLocationStatus('กำลังเรียกตำแหน่งจากอุปกรณ์ กรุณารอสักครู่…', null);
+
+            try {
+                navigator.geolocation.getCurrentPosition(
+                    function (pos) {
+                        if (!__tafGeoBusy || myToken !== __tafGeoSeq) return;
+                        try {
+                            const lat = pos && pos.coords ? pos.coords.latitude : NaN;
+                            const lon = pos && pos.coords ? pos.coords.longitude : NaN;
+                            const acc = pos && pos.coords ? pos.coords.accuracy : NaN;
+                            if (!isFinite(lat) || !isFinite(lon) ||
+                                lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+                                setTafLocationStatus('ไม่สามารถระบุตำแหน่งได้ โปรดตรวจว่ามือถือเปิดบริการตำแหน่งแล้วลองใหม่', 'err');
+                                return;
+                            }
+                            // 2. Update currentTargetLoc, marker, input, map
+                            currentTargetLoc = { lat: +lat, lon: +lon, name: 'ตำแหน่งปัจจุบัน' };
+                            const coordIn = document.getElementById('taf-coord-input');
+                            if (coordIn) coordIn.value = `${(+lat).toFixed(5)}, ${(+lon).toFixed(5)}`;
+                            if (typeof tafMarker !== 'undefined' && tafMarker) {
+                                tafMarker.setLatLng([lat, lon]);
+                            }
+                            if (typeof tafMap !== 'undefined' && tafMap) {
+                                const targetZoom = Math.min(10, 20);
+                                try { tafMap.flyTo([lat, lon], targetZoom, { duration: 0.45 }); }
+                                catch (ee) { tafMap.setView([lat, lon], targetZoom); }
+                                setTimeout(function () { try { tafMap.invalidateSize({ pan: false }); } catch (ee) {} }, 250);
+                            }
+                            // 3. Status with accuracy
+                            let accText = '';
+                            if (isFinite(acc) && acc >= 0) {
+                                const rounded = Math.round(acc);
+                                accText = ` • ค่าความคลาดเคลื่อนประมาณ ${rounded} ม.`;
+                            }
+                            setTafLocationStatus(`ใช้ตำแหน่งปัจจุบันแล้ว${accText}`, null);
+                        } finally {
+                            __tafGeoBusy = false;
+                            btn.disabled = false;
+                            btn.style.opacity = '';
+                            btn.textContent = origBtnText;
+                        }
+                    },
+                    function (err) {
+                        if (!__tafGeoBusy || myToken !== __tafGeoSeq) return;
+                        let msg = 'ไม่สามารถระบุตำแหน่งได้ โปรดตรวจว่ามือถือเปิดบริการตำแหน่งแล้วลองใหม่';
+                        try {
+                            const code = err && err.code ? err.code : 0;
+                            if (code === 1) {
+                                msg = 'ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง โปรดตรวจสิทธิ์ตำแหน่งของเว็บไซต์ในเบราว์เซอร์';
+                            } else if (code === 2) {
+                                msg = 'ไม่สามารถระบุตำแหน่งได้ โปรดตรวจว่ามือถือเปิดบริการตำแหน่งแล้วลองใหม่';
+                            } else if (code === 3) {
+                                msg = 'ค้นหาตำแหน่งนานเกินไป กรุณาลองอีกครั้ง';
+                            }
+                        } catch (e) { /* ignore */ }
+                        setTafLocationStatus(msg, 'err');
+                        __tafGeoBusy = false;
+                        btn.disabled = false;
+                        btn.style.opacity = '';
+                        btn.textContent = origBtnText;
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 15000,
+                        maximumAge: 60000
+                    }
+                );
+            } catch (e) {
+                setTafLocationStatus('เบราว์เซอร์นี้ไม่รองรับการเรียกตำแหน่ง กรุณาแตะแผนที่หรือกรอกพิกัด', 'err');
+                __tafGeoBusy = false;
+                btn.disabled = false;
+                btn.style.opacity = '';
+                btn.textContent = origBtnText;
+            }
+        }
+        /* ผูกปุ่มตำแหน่งฉัน — เพียงครั้งเดียว */
+        (function bindTafLocationButton() {
+            function doBind() {
+                const btn = document.getElementById('taf-current-location-btn');
+                if (!btn || btn.dataset.bound) return;
+                btn.dataset.bound = '1';
+                btn.addEventListener('click', function (e) { e.preventDefault(); useTafCurrentLocation(); });
+            }
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', doBind, { once: true });
+            } else {
+                doBind();
+            }
+        })();
 
         // --- ECMWF Advanced Logic (Hourly Breakdown) ---
         async function analyzeAreaWeather(lat, lon, locName, dateStr, timeStart, timeEnd) {
