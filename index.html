@@ -1832,15 +1832,16 @@ function renderTafTimeline(tafRaw) {
             // maxNativeZoom: 15 ป้องกันปัญหา "Zoom Level Not Supported" ในเขตภูเขา/ชนบท
             L.tileLayer('https://mt0.google.com/vt/lyrs=y&hl=th&x={x}&y={y}&z={z}', { maxZoom: 20, maxNativeZoom: 15, attribution: '' }).addTo(tafMap);
             tafMarker = L.marker([_t0.lat, _t0.lon]).addTo(tafMap);
-            // ===== 20 NM RADIUS CIRCLE (37040 เมตร) =====
-            tafRadiusCircle = L.circle([_t0.lat, _t0.lon], {
-              radius: 37040,
-              color: '#00ffcc', weight: 2, opacity: 0.85,
-              fillColor: '#00ffcc', fillOpacity: 0.08,
-              interactive: false, zIndex: 500
-            }).addTo(tafMap);
+            // ===== 3-LEVEL RADAR RINGS (5, 10, 20 NM) =====
+            window.ring20NM = L.circle([_t0.lat, _t0.lon], { radius: 37040, color: '#00cc66', weight: 2, fill: false, dashArray: '5,5', interactive: false, zIndex: 500 }).addTo(tafMap);
+            window.ring10NM = L.circle([_t0.lat, _t0.lon], { radius: 18520, color: '#f39c12', weight: 2, fill: false, interactive: false, zIndex: 501 }).addTo(tafMap);
+            window.ring5NM = L.circle([_t0.lat, _t0.lon], { radius: 9260, color: '#ff3333', weight: 2, fillColor: '#ff3333', fillOpacity: 0.1, interactive: false, zIndex: 502 }).addTo(tafMap);
             window.__ATC_TARGET__.subscribe(function(s){
-              if(tafRadiusCircle && isFinite(s.lat) && isFinite(s.lon)) tafRadiusCircle.setLatLng([s.lat, s.lon]);
+              if(isFinite(s.lat) && isFinite(s.lon)) {
+                if(window.ring20NM) window.ring20NM.setLatLng([s.lat, s.lon]);
+                if(window.ring10NM) window.ring10NM.setLatLng([s.lat, s.lon]);
+                if(window.ring5NM) window.ring5NM.setLatLng([s.lat, s.lon]);
+              }
             });
             document.getElementById('taf-coord-input').value = `${_t0.lat.toFixed(5)}, ${_t0.lon.toFixed(5)}`;
 
@@ -2388,20 +2389,12 @@ function renderTafTimeline(tafRaw) {
                 ];
                 let modelStatusOk = Object.create(null);
                 models.forEach(m => { modelStatusOk[m.id] = null; });
-                if(eng && Array.isArray(eng.rows)) {
-                    eng.rows.forEach(r => {
-                        const rowTime = new Date(r.t);
-                        const rowTimestamp = rowTime.getTime();
-                        if(!Number.isFinite(rowTimestamp) ||
-                           rowTimestamp < reqStart.getTime() ||
-                           rowTimestamp > reqEnd.getTime() ||
-                           !r.mDict) return;
-                        models.forEach(m => {
-                            const pop = r.mDict[m.id];
-                            if(!Number.isFinite(pop)) return;
-                            if(pop >= 60) modelStatusOk[m.id] = true;
-                            else if(modelStatusOk[m.id] === null) modelStatusOk[m.id] = false;
-                        });
+                if(eng && eng.hour && eng.hour.mDict) {
+                    models.forEach(m => {
+                        const pop = eng.hour.mDict[m.id];
+                        if(Number.isFinite(pop)) {
+                            modelStatusOk[m.id] = pop >= window.ATC_CFG.POP_MIN;
+                        }
                     });
                 }
                 let modelBtns = `<div style="display:flex; gap:5px; margin-bottom:10px;">`;
@@ -2426,73 +2419,35 @@ function renderTafTimeline(tafRaw) {
                 let rawTafForP4 = extractWxData(cachedTafText, locName, 'TAF') || "NO TAF DATA AVAILABLE FOR THIS STATION";
                 let hlTaf = rawTafForP4.replace(/\b(TSRA|\+SHRA|SHRA|TS|RA|CB|TCU|VCTS|VCSH)\b/g, '<span style="background:#ff3333; color:#fff; padding:0 4px; border-radius:3px; box-shadow:0 0 5px #ff0000;">$1</span>');
 
-                // P5 Radar
+                // P5 Radar UI Update (Sector & Trend)
                 let rData = eng && eng.radar ? eng.radar : null;
                 let rText = (function(){
                   if(!rData) return '<div style="color:#a0aec0;">📡 รอรับข้อมูลจากเซิร์ฟเวอร์เรดาร์...</div>';
-                  var ds = rData.dataStatus || 'UNKNOWN';
-                  var dsBadge = { OK:'🟢', PARTIAL:'🟡', UNKNOWN:'⚪', STALE:'🟠' }[ds] || '⚪';
-                  var dsColor = { OK:'#00cc66', PARTIAL:'#f39c12', UNKNOWN:'#a0aec0', STALE:'#ff6600' }[ds] || '#a0aec0';
+                  if(rData.dataStatus === 'UNKNOWN') return '<div style="color:#f39c12;">คำนวณไม่ได้: '+(rData.why||'ไม่มีข้อมูล')+'</div>';
                   var lines = [];
-                  lines.push('<div style="margin-bottom:8px;"><span style="background:rgba(0,0,0,0.4); padding:3px 8px; border-radius:4px; color:'+dsColor+'; font-weight:bold; border:1px solid '+dsColor+';">'+dsBadge+' Data: '+ds+'</span></div>');
-                  if(ds==='STALE') lines.push('<div style="color:#ff6600; font-weight:bold;">⚠️ ข้อมูลเกิน 20 นาที (STALE)</div>');
-                  if(ds==='PARTIAL' && typeof rData.validDataPct==='number'){
-                    lines.push('<div style="color:#f39c12;">📊 ความครอบคลุมข้อมูล: <b>'+rData.validDataPct.toFixed(0)+'%</b> <span style="font-size:0.85vw; color:#718096;">(ต่ำกว่าเกณฑ์ 60%)</span></div>');
-                  }
-                  if(typeof rData.coveragePct==='number'){
-                    var c = rData.coveragePct;
-                    var cCol = c>=8 ? '#00ffcc' : (c>0 ? '#f39c12' : '#a0aec0');
-                    lines.push('<div>กลุ่มฝนครอบคลุม: <span style="color:'+cCol+'; font-weight:bold;">'+c.toFixed(1)+'%</span> <span style="color:#718096; font-size:0.85vw;">(เกณฑ์ผ่าน ≥8%)</span></div>');
-                  }
-                  if(typeof rData.validDataPct==='number' && rData.validDataPct<100 && ds!=='PARTIAL'){
-                    lines.push('<div style="color:#718096; font-size:0.9vw;">คุณภาพข้อมูล: '+rData.validDataPct.toFixed(0)+'%</div>');
-                  }
-                  if(rData.rainAtTarget===true){
-                    lines.push('<div style="color:#ff3333; font-weight:bold; font-size:1.2vw; margin:6px 0;">⚠️ ฝนทับจุดเป้าหมาย!</div>');
-                  }
-                  if(typeof rData.nearestRainKm==='number'){
-                    if(rData.rainAtTarget){
-                      lines.push('<div>ระยะถึงขอบฝนใกล้สุด: <span style="color:#ff3333; font-weight:bold;">ประมาณ 0 km</span> <span style="color:#718096; font-size:0.85vw;">(ฝนทับจุด)</span></div>');
-                    } else {
-                      lines.push('<div>ระยะถึงขอบฝนใกล้สุด: <span style="color:#f39c12; font-weight:bold;">'+rData.nearestRainKm.toFixed(1)+' km</span></div>');
-                    }
+                  if(rData.threatLevel === 'RED') {
+                     if(typeof rData.nearestRainNM === 'number' && rData.nearestRainNM <= 5) lines.push('<div style="color:#ff3333; font-weight:bold; font-size:1.2vw; margin-bottom:8px;">⚠️ ฝนตกเหนือสนาม (&le; 5 NM)</div>');
+                     else lines.push('<div style="color:#ff3333; font-weight:bold; font-size:1.2vw; margin-bottom:8px;">⚠️ เฝ้าระวังฝนระยะประชิด (5-10 NM)</div>');
+                  } else if(rData.threatLevel === 'AMBER') {
+                     if(typeof rData.nearestRainNM === 'number' && rData.nearestRainNM <= 10) lines.push('<div style="color:#f39c12; font-weight:bold; font-size:1.1vw; margin-bottom:8px;">☁️ ฝนบริเวณใกล้เคียง (VC: 5-10 NM)</div>');
+                     else lines.push('<div style="color:#f39c12; font-weight:bold; font-size:1.1vw; margin-bottom:8px;">☁️ พบกลุ่มฝนระยะไกล (10-20 NM)</div>');
                   } else {
-                    if(typeof rData.coveragePct==='number' && rData.coveragePct===0 && (ds==='OK')){
-                      lines.push('<div style="color:#00cc66; font-weight:bold;">✅ ไม่พบฝนภายใน 20 NM</div>');
-                    } else if(rData.why && (ds==='UNKNOWN')){
-                      lines.push('<div style="color:#f39c12;">คำนวณไม่ได้: '+rData.why+'</div>');
-                    } else if(ds==='NO_TARGET' || rData.why){
-                      lines.push('<div style="color:#f39c12;">คำนวณไม่ได้: '+(rData.why||'ไม่มีข้อมูลเป้าหมาย')+'</div>');
-                    }
+                     lines.push('<div style="color:#00cc66; font-weight:bold; font-size:1.1vw; margin-bottom:8px;">✅ ไม่พบกลุ่มฝนในรัศมี 20 NM</div>');
                   }
-                  if(rData.motionStatus){
-                    var msMap = {
-                      'RAIN_AT_TARGET':'ฝนทับจุด',
-                      'CLOSING':'ฝนเข้าใกล้ (Approaching)',
-                      'HOLDING':'ฝนคงที่ (Holding)',
-                      'EXITING':'ฝนออกห่าง (Exiting)',
-                      'DIVERGING_OR_STATIC':'ไม่เคลื่อนไหว/กำลังกระจาย',
-                      'TREND_UNKNOWN':'ไม่ทราบแนวโน้ม (มี 1 เฟรม)',
-                      'NETWORK_ERROR':'❌ ข้อผิดพลาดเครือข่าย',
-                      'NO_FRAMES':'ไม่พบเฟรมข้อมูลเรดาร์',
-                      'SCAN_FAILED':'สแกนภาพไม่สำเร็จ',
-                      'NO_TARGET':'ไม่มีจุดเป้าหมาย'
-                    };
-                    lines.push('<div style="color:#a0aec0; font-size:0.95vw;">สถานะ: <span style="color:#fff;">'+(msMap[rData.motionStatus]||rData.motionStatus)+'</span></div>');
+                  if(rData.sectorsNM && Object.keys(rData.sectorsNM).length > 0) {
+                     var secList = [];
+                     for(var k in rData.sectorsNM) secList.push('<span style="color:#00ffcc; font-weight:bold;">'+k+' ('+rData.sectorsNM[k]+' NM)</span>');
+                     lines.push('<div style="color:#fff; font-size:1.1vw;">📍 ทิศทางกลุ่มฝน: ' + secList.join(', ') + '</div>');
                   }
-                  if(rData.frameTimeISO){
-                    try{
-                      var d = new Date(rData.frameTimeISO);
-                      if(isFinite(d.getTime())){
-                        var minsAgo = Math.floor((Date.now()-d.getTime())/60000);
-                        lines.push('<div style="color:#718096; font-size:0.85vw; margin-top:4px;">อัพเดตล่าสุด: '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+' น. (อายุ '+Math.max(0,minsAgo)+' นาที)</div>');
-                      }
-                    }catch(e){}
+                  if(rData.motionStatus) {
+                     var mColor = rData.motionStatus.includes('APPROACH') ? '#ff3333' : '#a0aec0';
+                     if(rData.motionStatus.includes('OVERHEAD')) mColor = '#ff3333';
+                     lines.push('<div style="color:#a0aec0; font-size:1vw; margin-top:6px;">🔄 แนวโน้ม: <span style="color:'+mColor+'; font-weight:bold;">' + rData.motionStatus + '</span></div>');
                   }
-                  if(rData.targetRevision){
-                    lines.push('<div style="color:#4a5568; font-size:0.8vw;">Target revision #'+rData.targetRevision+'</div>');
+                  if(rData.ageMin != null) {
+                     lines.push('<div style="color:#718096; font-size:0.8vw; margin-top:8px;">(เรดาร์อัปเดต '+rData.ageMin+' นาทีที่แล้ว)</div>');
                   }
-                  return lines.join('<br>');
+                  return lines.join('');
                 })();
 
                 let html = `
@@ -3943,7 +3898,7 @@ function frameScan(host,path,lat,lon){
     catch(e){
       return { dataStatus:'UNKNOWN', why:'CORS/canvas getImageData ล้มเหลว: '+e.message,
                coveragePct:null, validDataPct:0, rainAtTarget:null,
-               nearestRainKm:null, centroidKm:null, tileInfo:{total:totalTiles,ok:loadedTiles,fail:failedTiles},
+               nearestRainNM:null, sectorsNM:{}, tileInfo:{total:totalTiles,ok:loadedTiles,fail:failedTiles},
                frameRaw:null };
     }
     var rainPx=0, validPx=0, circlePx=0;
@@ -3951,6 +3906,8 @@ function frameScan(host,path,lat,lon){
     var nearestDistPx = Infinity;
     var rtR2 = CFG.RAIN_AT_TARGET_RADIUS_PX * CFG.RAIN_AT_TARGET_RADIUS_PX;
     var rainAtTarget = false;
+    var sectorMapPx = { E:Infinity, SE:Infinity, S:Infinity, SW:Infinity, W:Infinity, NW:Infinity, N:Infinity, NE:Infinity };
+    var secNames = ["E","SE","S","SW","W","NW","N","NE"];
     var px, py, dx, dy, dx2dy2, o, rC, gC, bC, aC, gray;
     for(py=0;py<size;py++){
       for(px=0;px<size;px++){
@@ -3968,20 +3925,28 @@ function frameScan(host,path,lat,lon){
           rainPx++; sx+=dx; sy+=dy;
           if(dx2dy2 <= nearestDistPx) nearestDistPx = dx2dy2;
           if(dx2dy2 <= rtR2) rainAtTarget = true;
+          var ang = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+          var secIdx = Math.round(ang / 45) % 8;
+          var sName = secNames[secIdx];
+          if(dx2dy2 < sectorMapPx[sName]) sectorMapPx[sName] = dx2dy2;
         }
       }
     }
     var kmpp = mpp(lat,z)/1000;
+    var nmpp = kmpp / 1.852;
     var cov = validPx>0 ? (rainPx/validPx*100) : 0;
     var validPct = circlePx>0 ? (validPx/circlePx) : 0;
-    var centroidKm = rainPx>0 ? Math.sqrt(Math.pow(sx/rainPx,2)+Math.pow(sy/rainPx,2))*kmpp : null;
-    var nearestKm = isFinite(nearestDistPx) && nearestDistPx < Infinity ? Math.sqrt(nearestDistPx)*kmpp : null;
-    if(rainAtTarget && nearestKm !== null) nearestKm = Math.max(0, nearestKm);
+    var nearestNM = isFinite(nearestDistPx) && nearestDistPx < Infinity ? Math.sqrt(nearestDistPx)*nmpp : null;
+    if(rainAtTarget && nearestNM !== null) nearestNM = Math.max(0, nearestNM);
+    var sectorsNM = {};
+    for(var k in sectorMapPx) {
+      if(sectorMapPx[k] < Infinity) sectorsNM[k] = +(Math.sqrt(sectorMapPx[k])*nmpp).toFixed(1);
+    }
     var status, why;
     if(loadedTiles===0 && failedTiles>0){
       status='UNKNOWN'; why='ไม่สามารถโหลด tile เรดาร์ได้เลย (Network/CORS)';
     } else if(validPct < CFG.PARTIAL_VALID_MIN){
-      status='PARTIAL'; why='ข้อมูล tile ไม่ครบ ติดตั้งได้ '+loadedTiles+'/'+totalTiles+' tiles (valid:'+(validPct*100).toFixed(0)+'%)';
+      status='PARTIAL'; why='ข้อมูล tile ไม่ครบ (valid:'+(validPct*100).toFixed(0)+'%)';
     } else {
       status='OK'; why='';
     }
@@ -3990,8 +3955,8 @@ function frameScan(host,path,lat,lon){
       coveragePct: +cov.toFixed(2),
       validDataPct: +(validPct*100).toFixed(2),
       rainAtTarget: rainAtTarget,
-      nearestRainKm: nearestKm!==null ? +nearestKm.toFixed(1) : null,
-      centroidKm: centroidKm!==null ? +centroidKm.toFixed(1) : null,
+      nearestRainNM: nearestNM!==null ? +nearestNM.toFixed(1) : null,
+      sectorsNM: sectorsNM,
       tileInfo: { total: totalTiles, ok: loadedTiles, fail: failedTiles },
       frameRaw: { rainPx:rainPx, validPx:validPx, circlePx:circlePx, rPx:r, kmpp:kmpp }
     };
@@ -4003,7 +3968,7 @@ function radarPillar(lat,lon){
   if(lat===null || lon===null || !isFinite(lat) || !isFinite(lon)){
     return Promise.resolve({ dataStatus:'UNKNOWN', state:'UNKNOWN',
       meetsCriterion:null, coveragePct:null, validDataPct:0,
-      rainAtTarget:null, nearestRainKm:null, centroidKm:null,
+      rainAtTarget:null, nearestRainNM:null, sectorsNM:{}, threatLevel:'GREEN',
       prev:null, next:null, closing:null, holding:null,
       motionStatus:'NO_TARGET', frameTime:null, targetRevision:null,
       why:'เป้าหมายไม่ถูกต้อง' });
@@ -4016,7 +3981,7 @@ function radarPillar(lat,lon){
     var host=j.host, past=(j.radar&&j.radar.past)||[], nc=(j.radar&&j.radar.nowcast)||[];
     if(!past.length) return { dataStatus:'UNKNOWN', state:'UNKNOWN',
       meetsCriterion:null, why:'RainViewer ไม่มีเฟรมเรดาร์ย้อนหลัง',
-      coveragePct:null, validDataPct:0, rainAtTarget:null, nearestRainKm:null, centroidKm:null,
+      coveragePct:null, validDataPct:0, rainAtTarget:null, nearestRainNM:null, sectorsNM:{}, threatLevel:'GREEN',
       prev:null, next:null, closing:null, holding:null, motionStatus:'NO_FRAMES',
       frameTime:null, targetRevision:_rev };
     var fN=past[past.length-1],
@@ -4040,48 +4005,26 @@ function radarPillar(lat,lon){
           }
           var newCov = b.coveragePct;
           var rainHere = !!b.rainAtTarget;
-          var b_nr = b.nearestRainKm;
-          var a_nr = a && a.dataStatus==='OK' ? a.nearestRainKm : null;
-          var b_cm = b.centroidKm, a_cm = a && a.dataStatus==='OK' ? a.centroidKm : null;
+          var b_nr = b.nearestRainNM;
+          var a_nr = a && a.dataStatus==='OK' ? a.nearestRainNM : null;
           var closing = null;
-          if(a && a.dataStatus==='OK' && a_nr!==null && b_nr!==null){
-            if(rainHere) closing = true;
-            else if(b.coveragePct>0 && a.coveragePct>0){
-              closing = (b_nr < a_nr - 0.5);
-            }
+          if(a_nr !== null && b_nr !== null){
+            closing = (b_nr < a_nr - 0.2);
           } else if(rainHere){
             closing = true;
           }
-          var holding = null, motionStatus = 'TREND_UNKNOWN';
-          if(c && c.dataStatus==='OK'){
-            var covStable = c.coveragePct >= (b.coveragePct * 0.85);
-            var sameRainHere = rainHere && !!c.rainAtTarget;
-            holding = covStable || sameRainHere;
-            motionStatus = holding ? 'HOLDING' : 'EXITING';
-          } else {
-            if(closing===true) motionStatus = 'CLOSING';
-            else if(closing===false) motionStatus = 'DIVERGING_OR_STATIC';
+          var motionStatus = 'STATIC / DIVERGING';
+          if(rainHere) motionStatus = 'OVERHEAD (เหนือสนาม)';
+          else if(closing === true) motionStatus = 'APPROACHING (เคลื่อนเข้าใกล้)';
+          var threatLevel = 'GREEN';
+          if(b_nr !== null) {
+              if (b_nr <= 5) threatLevel = 'RED';
+              else if (b_nr <= 10 && closing === true) threatLevel = 'RED';
+              else if (b_nr <= 10) threatLevel = 'AMBER';
+              else if (b_nr <= 20) threatLevel = 'AMBER';
           }
-          if(rainHere){
-            if(!closing) closing = true;
-            if(holding===null) holding = true;
-            if(motionStatus === 'TREND_UNKNOWN' || motionStatus === 'DIVERGING_OR_STATIC') motionStatus = 'RAIN_AT_TARGET';
-          }
-          var app = (closing===true) || (holding===true);
-          var meets = null, stStr='UNKNOWN', why='';
-          if(isStale && b.dataStatus==='OK'){
-            stStr = (newCov>=CFG.RADAR_COVER*100 && app)?'PASS':'FAIL';
-            why = 'STALE: เรดาร์อายุ '+ageMin+' นาที (เกิน '+CFG.DATA_STALE_MIN+' นาที)';
-          } else if(b.dataStatus==='PARTIAL'){
-            if(newCov>=CFG.RADAR_COVER*100 && app){ meets=true; stStr='PASS'; why='PARTIAL PASS (ข้อมูลไม่ครบแต่เกินเกณฑ์)'; }
-            else{ meets=null; stStr='UNKNOWN'; why='PARTIAL DATA: valid='+b.validDataPct+'%'; }
-          } else if(b.dataStatus==='OK'){
-            meets = (newCov >= CFG.RADAR_COVER*100) && !!app;
-            stStr = meets ? 'PASS' : 'FAIL';
-            why = meets
-              ? ('ผ่านเกณฑ์: coverage='+newCov.toFixed(1)+'% >= threshold '+(CFG.RADAR_COVER*100).toFixed(0)+'% AND app=true ('+motionStatus+')')
-              : ('ไม่ผ่าน: coverage='+newCov.toFixed(1)+'% thresh='+(CFG.RADAR_COVER*100).toFixed(0)+'% / closing='+closing+' / holding='+holding+' / motion='+motionStatus);
-          }
+          var meets = (threatLevel === 'RED' || threatLevel === 'AMBER');
+          var stStr = meets ? 'PASS' : 'FAIL';
           var ds = isStale ? 'STALE' : b.dataStatus;
           return {
             dataStatus: ds,
@@ -4089,32 +4032,27 @@ function radarPillar(lat,lon){
             status: stStr,
             meets: meets,
             meetsCriterion: meets,
+            threatLevel: threatLevel,
             coveragePct: newCov,
             validDataPct: b.validDataPct,
             rainAtTarget: rainHere,
-            nearestRainKm: b_nr,
-            centroidKm: b_cm,
-            dist: b_nr,
-            cov: newCov,
-            prev: a && a.dataStatus==='OK' ? {cov:a.coveragePct, nr:a.nearestRainKm, cm:a.centroidKm, valid:a.validDataPct} : null,
-            next: c && c.dataStatus==='OK' ? {cov:c.coveragePct, nr:c.nearestRainKm, cm:c.centroidKm, valid:c.validDataPct, rainHere:!!c.rainAtTarget} : null,
+            nearestRainNM: b_nr,
+            sectorsNM: b.sectorsNM,
             closing: closing,
-            holding: holding,
             motionStatus: motionStatus,
             frameTime: frameTimeSec,
             frameTimeISO: frameTimeSec ? new Date(frameTimeSec*1000).toISOString() : null,
             ageMin: ageMin,
             stale: isStale,
             targetRevision: _rev,
-            tileInfo: b.tileInfo,
-            why: why
+            why: 'Threat: ' + threatLevel + ' | Dist: ' + b_nr + ' NM | Motion: ' + motionStatus
           };
         });
       });
     });
   }).catch(function(e){
     return { dataStatus:'UNKNOWN', state:'UNKNOWN', status:'UNKNOWN', meets:null, meetsCriterion:null,
-      coveragePct:null, validDataPct:0, rainAtTarget:null, nearestRainKm:null, centroidKm:null,
+      coveragePct:null, validDataPct:0, rainAtTarget:null, nearestRainNM:null, sectorsNM:{}, threatLevel:'GREEN',
       prev:null, next:null, closing:null, holding:null,
       motionStatus:'NETWORK_ERROR', frameTime:null, targetRevision:_rev,
       why: 'เรดาร์ออนไลน์ล้มเหลว: '+(e&&e.message?e.message:String(e)) };
@@ -4124,32 +4062,29 @@ function radarPillar(lat,lon){
 /* ---------- ตัดสินระดับการเตือน (NORMALIZE UNKNOWN) ---------- */
 function decide(h, p4, p5){
   var p1 = normP(h.p1), p2 = normP(h.p2), p3 = normP(h.p3);
-  var p4n = normP(p4), p5n = normP(p5);
+  var p4n = normP(p4);
   var pillars = [p1,p2,p3,p4n];
   var n = pillars.filter(function(v){ return v===true; }).length;
-  var unkP14 = pillars.filter(function(v){ return v===null; }).length;
-  var r5 = (p5n === true);
-  var p5unk = (p5n === null);
+  var r5Threat = p5 ? p5.threatLevel : 'UNKNOWN';
+  var r5 = (r5Threat === 'RED' || r5Threat === 'AMBER');
   var lead = h.lead, lvl='GREEN';
-  var passList=[], unkList=[];
-  if(p1===true) passList.push('P1'); else if(p1===null) unkList.push('P1');
-  if(p2===true) passList.push('P2'); else if(p2===null) unkList.push('P2');
-  if(p3===true) passList.push('P3'); else if(p3===null) unkList.push('P3');
-  if(p4n===true) passList.push('P4'); else if(p4n===null) unkList.push('P4');
-  if(r5) passList.push('P5'); else if(p5unk) unkList.push('P5');
-  var reason = 'lead='+lead.toFixed(1)+'h | ผ่าน:['+passList.join(',')+'] | ไม่ทราบ:['+unkList.join(',')+'] | P1-P4 ผ่าน='+n;
-  // กฎการเตือนแบบ Aviation Nowcast & Forecast
-  if(n >= 2 || r5) {
-    // เหตุการณ์ภายใน 2 ชม. และ เรดาร์(P5) พบกลุ่มฝนจริง = RED ALERT
-    if(lead <= 2 && r5) {
-       lvl = 'RED';
-    } else {
-       // พยากรณ์ฝนเกิน 2 ชม. หรือ โมเดลบอกตกแต่เรดาร์ยังไม่เจอ = AMBER ADVISORY
-       lvl = 'AMBER';
-    }
+  var passList=[];
+  if(p1===true) passList.push('P1'); if(p2===true) passList.push('P2');
+  if(p3===true) passList.push('P3'); if(p4n===true) passList.push('P4');
+  if(r5) passList.push('P5');
+  if (lead <= 2) {
+      if (r5Threat === 'RED') {
+          lvl = 'RED';
+      } else if (r5Threat === 'AMBER' || n >= 2) {
+          lvl = 'AMBER';
+      }
+  } else {
+      if (n >= 2) {
+          lvl = 'AMBER';
+      }
   }
-  return { lvl:lvl, n:n, r5:r5, unkP14:unkP14, p5unk:p5unk,
-           passList:passList, unkList:unkList, reason:reason, lead:lead };
+  var reason = 'lead='+lead.toFixed(1)+'h | P1-P4 pass='+n+' | P5_Threat='+r5Threat;
+  return { lvl:lvl, n:n, r5:r5, passList:passList, reason:reason, lead:lead };
 }
 
 /* ---------- วาดแบนเนอร์ ---------- */
@@ -4322,9 +4257,9 @@ window.ATC_ALERT_ENGINE = {
     return radarPillar(T.lat,T.lon).then(function(r){
       console.log('[radarDebug] ผลเต็ม:', r);
       try { if(console.table) console.table({ dataStatus:r.dataStatus, state:r.state, meets:String(r.meetsCriterion),
-        coveragePct:r.coveragePct, validDataPct:r.validDataPct,
-        rainAtTarget:r.rainAtTarget, nearestRainKm:r.nearestRainKm, centroidKm:r.centroidKm,
-        motionStatus:r.motionStatus, closing:r.closing, holding:r.holding,
+        threatLevel:r.threatLevel, coveragePct:r.coveragePct, validDataPct:r.validDataPct,
+        rainAtTarget:r.rainAtTarget, nearestRainNM:r.nearestRainNM,
+        sectorsNM:r.sectorsNM, motionStatus:r.motionStatus, closing:r.closing,
         frameTimeISO:r.frameTimeISO, ageMin:r.ageMin }); } catch(e){}
       return r;
     });
