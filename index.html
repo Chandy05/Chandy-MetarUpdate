@@ -1485,8 +1485,8 @@ function renderTafTimeline(tafRaw) {
             if(typeof UW_COORDS !== 'undefined' && UW_COORDS[stn]) currentTargetLoc = {lat: UW_COORDS[stn].lat, lon: UW_COORDS[stn].lon, name: stn};
             
             tafMap = L.map('taf-leaflet-map', {zoomControl: false}).setView([currentTargetLoc.lat, currentTargetLoc.lon], 8);
-            // maxNativeZoom: 18 ป้องกันปัญหา "Zoom Level Not Supported" เมื่อซูมลึกๆ
-            L.tileLayer('http://mt0.google.com/vt/lyrs=y&hl=th&x={x}&y={y}&z={z}', { maxZoom: 20, maxNativeZoom: 18, attribution: '' }).addTo(tafMap);
+            // maxNativeZoom: 17 ป้องกันปัญหา "Zoom Level Not Supported" ในพื้นที่ภูเขา
+            L.tileLayer('http://mt0.google.com/vt/lyrs=y&hl=th&x={x}&y={y}&z={z}', { maxZoom: 20, maxNativeZoom: 17, attribution: '' }).addTo(tafMap);
             tafMarker = L.marker([currentTargetLoc.lat, currentTargetLoc.lon]).addTo(tafMap);
             document.getElementById('taf-coord-input').value = `${currentTargetLoc.lat.toFixed(5)}, ${currentTargetLoc.lon.toFixed(5)}`;
 
@@ -1541,6 +1541,19 @@ function renderTafTimeline(tafRaw) {
 
         let currentAiModel = 'ecmwf_ifs025';
         let lastAiQuery = null;
+        let currentPillarTab = 'P1';
+
+        function switchPillarTab(tabId) {
+            currentPillarTab = tabId;
+            document.querySelectorAll('.pillar-pane').forEach(el => el.classList.add('hide'));
+            const targetPane = document.getElementById('content-' + tabId);
+            if(targetPane) targetPane.classList.remove('hide');
+            
+            // Re-render tabs highlighting without full fetch
+            if (lastAiQuery) {
+                analyzeAreaWeather(lastAiQuery.lat, lastAiQuery.lon, lastAiQuery.name, lastAiQuery.dateStr, lastAiQuery.timeStart, lastAiQuery.timeEnd, true);
+            }
+        }
 
         function changeAiModel(modelId) {
             currentAiModel = modelId;
@@ -1728,7 +1741,36 @@ function renderTafTimeline(tafRaw) {
 
                 let displayDateStr = `${reqStart.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][reqStart.getMonth()]} ${reqStart.getFullYear()+543}`;
                 
-                // --- 3. Model Buttons HTML ---
+                // --- ดึงสถานะจาก 5-Pillar Engine ---
+                let eng = window.ATC_ALERT_ENGINE ? window.ATC_ALERT_ENGINE.last : null;
+                let sP1 = eng && eng.hour ? eng.hour.p1 : false;
+                let sP2 = eng && eng.hour ? eng.hour.p2 : false;
+                let sP3 = eng && eng.hour ? eng.hour.p3 : false;
+                let sP4 = eng ? eng.taf : false;
+                let sP5 = eng && eng.radar ? (eng.radar.state==='PASS'?true:(eng.radar.state==='UNKNOWN'?'UNK':false)) : 'UNK';
+                
+                function mkTabBtn(id, label, ok) {
+                    let bg = (ok===true)?'#1e7a3c':(ok==='UNK'?'#7a4b00':'#8b0000');
+                    let col = (ok===true)?'#9BFFB0':(ok==='UNK'?'#ffe08a':'#ffd9d9');
+                    let stat = (ok===true)?'PASS':(ok==='UNK'?'WAIT':'FAIL');
+                    let isActive = (currentPillarTab === id);
+                    let border = isActive ? `2px solid ${col}` : `2px solid #2a3f5f`;
+                    let opac = isActive ? '1' : '0.6';
+                    return `<button onclick="switchPillarTab('${id}')" style="flex:1; background:${bg}; border:${border}; opacity:${opac}; border-radius:4px; padding:4px; cursor:pointer; display:flex; flex-direction:column; align-items:center; box-shadow:inset 0 0 10px rgba(0,0,0,0.5); transition:0.2s; outline:none;">
+                                <div style="font-size:0.8vw; color:#fff; font-weight:bold;">${label}</div>
+                                <div style="font-size:0.9vw; color:${col}; font-weight:bold;">${stat}</div>
+                            </button>`;
+                }
+                
+                let tabsHtml = `<div style="display:flex; gap:4px; margin-bottom:10px; background:rgba(0,0,0,0.4); padding:6px; border-radius:6px; border:1px solid #2a3f5f;">
+                    ${mkTabBtn('P1', 'P1:MDL', sP1)}
+                    ${mkTabBtn('P2', 'P2:RAIN', sP2)}
+                    ${mkTabBtn('P3', 'P3:SVR', sP3)}
+                    ${mkTabBtn('P4', 'P4:TAF', sP4)}
+                    ${mkTabBtn('P5', 'P5:RDR', sP5)}
+                </div>`;
+
+                // --- 3. Model Buttons HTML (For P1) ---
                 const models = [
                     { id: 'ecmwf_ifs025', name: 'ECMWF' },
                     { id: 'gfs_seamless', name: 'GFS' },
@@ -1740,22 +1782,68 @@ function renderTafTimeline(tafRaw) {
                     let isAct = m.id === currentAiModel;
                     modelBtns += `<button onclick="changeAiModel('${m.id}')" style="flex:1; background:${isAct ? '#2a3f5f' : '#0b131e'}; color:${isAct ? '#00ffcc' : '#a0aec0'}; border:1px solid ${isAct ? '#00ffcc' : '#4a5568'}; border-radius:4px; padding:4px; cursor:pointer; font-weight:bold; font-size:0.9vw; transition:0.2s;">${m.name}</button>`;
                 });
-                modelBtns += `<div style="flex:1.5; background:rgba(0,0,0,0.5); color:#3498db; border:1px solid #3498db; border-radius:4px; padding:4px; text-align:center; font-weight:bold; font-size:0.9vw;">ฝนสะสม: ${totalRainAcc.toFixed(1)} mm</div></div>`;
+                modelBtns += `</div>`;
+
+                // --- เตรียมข้อมูลสำหรับ P2, P3, P4, P5 ---
+                // P3 Spread 
+                let minSpread = 999;
+                hourlyData.forEach(h => { 
+                    let spread = Math.round(h.lcl / 400); 
+                    if(spread < minSpread) minSpread = spread; 
+                });
+                
+                // P4 TAF Highlight
+                let rawTafForP4 = extractWxData(cachedTafText, locName, 'TAF') || "NO TAF DATA AVAILABLE FOR THIS STATION";
+                let hlTaf = rawTafForP4.replace(/\b(TSRA|\+SHRA|SHRA|TS|RA|CB|TCU|VCTS|VCSH)\b/g, '<span style="background:#ff3333; color:#fff; padding:0 4px; border-radius:3px; box-shadow:0 0 5px #ff0000;">$1</span>');
+
+                // P5 Radar
+                let rData = eng && eng.radar ? eng.radar : {state: 'UNKNOWN'};
+                let rText = rData.state === 'UNKNOWN' ? '📡 รอรับข้อมูลจากเซิร์ฟเวอร์เรดาร์...' : `กลุ่มฝนครอบคลุมพื้นที่: <span style="color:#00ffcc;">${rData.cov}%</span><br>ระยะห่างจากศูนย์กลาง: <span style="color:#f39c12;">${rData.dist !== null ? rData.dist + ' km' : 'N/A'}</span>`;
 
                 let html = `
                 <div style="background: rgba(20, 30, 48, 0.8); border: 2px solid ${alertColor}; border-radius: 8px; padding: 15px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); height: 100%; display: flex; flex-direction: column;">
                     
-                    <!-- ส่วนที่ 1: แท็บเลือกโมเดล และปริมาณฝนรวม (จะอยู่ต่อจาก P1-P5 พอดี) -->
-                    ${modelBtns}
-
-                    <!-- ส่วนที่ 2: กราฟความเสี่ยง 3 แถว -->
-                    <div style="flex-shrink:0;">
-                        ${barHtml}
-                    </div>
-
-                    <!-- ส่วนที่ 3: สรุปความรุนแรงและป้ายกำกับ -->
                     <div style="color:${alertColor}; font-size:1.4vw; font-weight:bold; border-bottom: 2px solid ${alertColor}; padding-bottom: 8px; margin-bottom: 12px; text-align:center; flex-shrink:0;">
                         ${overallMaxProb >= 60 ? '🔴 การแจ้งเตือนสภาพอากาศ (WEATHER ALERT)' : (overallMaxProb >= 30 ? '🟡 เฝ้าระวังกลุ่มฝน (ADVISORY)' : '🟢 การพยากรณ์สภาพอากาศ (CLEAR)')}
+                    </div>
+
+                    ${tabsHtml}
+                    
+                    <!-- กล่องเครื่องมือ (Toolbox Panes) -->
+                    <div style="flex-shrink:0; background:rgba(0,0,0,0.3); border:1px solid #2a3f5f; border-radius:6px; padding:10px; margin-bottom:15px;">
+                        
+                        <!-- P1: MDL -->
+                        <div id="content-P1" class="pillar-pane ${currentPillarTab === 'P1' ? '' : 'hide'}">
+                            ${modelBtns}
+                            ${barHtml}
+                        </div>
+
+                        <!-- P2: RAIN -->
+                        <div id="content-P2" class="pillar-pane ${currentPillarTab === 'P2' ? '' : 'hide'}" style="text-align:center; line-height:1.8;">
+                            <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px;">ข้อมูลปริมาณฝน (Rain Rate)</div>
+                            <div style="font-size:1.1vw;">ฝนตกสูงสุด (Max Rate): <span style="color:${maxRain > 2.5 ? '#ff3333' : '#00cc66'}; font-weight:bold; font-size:1.3vw;">${maxRain.toFixed(1)} mm/h</span></div>
+                            <div style="font-size:1.1vw;">ปริมาณฝนสะสมรวม: <span style="color:#3498db; font-weight:bold; font-size:1.3vw;">${totalRainAcc.toFixed(1)} mm</span></div>
+                        </div>
+
+                        <!-- P3: SVR -->
+                        <div id="content-P3" class="pillar-pane ${currentPillarTab === 'P3' ? '' : 'hide'}" style="text-align:center; line-height:1.8;">
+                            <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px;">ดัชนีอากาศแปรปรวน (Severe Weather Index)</div>
+                            <div style="font-size:1vw;">พลังงานพายุ (CAPE): <span style="color:${maxCape > 1000 ? '#ff3333' : '#00cc66'}; font-weight:bold;">${maxCape.toFixed(0)} J/kg</span></div>
+                            <div style="font-size:1vw;">ส่วนต่าง T-Td (Spread): <span style="color:${minSpread <= 3 ? '#ff3333' : '#00cc66'}; font-weight:bold;">${minSpread}°C</span></div>
+                            <div style="font-size:1vw;">ฐานเมฆต่ำสุด (Est. LCL): <span style="color:#00ffcc; font-weight:bold;">~${Math.max(200, minSpread * 400)} FT</span></div>
+                        </div>
+
+                        <!-- P4: TAF -->
+                        <div id="content-P4" class="pillar-pane ${currentPillarTab === 'P4' ? '' : 'hide'}">
+                            <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px;">ข้อความพยากรณ์การบิน (Aviation TAF)</div>
+                            <div style="font-family:'Consolas', monospace; font-size:1.1vw; color:#e2e8f0; line-height:1.5;">${hlTaf}</div>
+                        </div>
+
+                        <!-- P5: RDR -->
+                        <div id="content-P5" class="pillar-pane ${currentPillarTab === 'P5' ? '' : 'hide'}" style="text-align:center; line-height:1.8;">
+                            <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px;">ข้อมูลเรดาร์ 20 NM (RainViewer)</div>
+                            <div style="font-size:1.1vw; font-weight:bold;">${rText}</div>
+                        </div>
                     </div>
 
                     <div style="display:flex; justify-content:space-between; margin-bottom:10px; background:#000; padding:10px; border-radius:6px; border: 1px solid #2a3f5f; flex-shrink:0;">
@@ -1766,18 +1854,6 @@ function renderTafTimeline(tafRaw) {
                         <div style="text-align:right;">
                             <div style="color:#a0aec0; font-size:0.9vw;">📅 วันที่: <span style="color:#fff; font-weight:bold;">${displayDateStr}</span></div>
                             <div style="color:#a0aec0; font-size:0.9vw;">🕒 เวลา: <span style="color:#fff; font-weight:bold;">${timeStart} - ${timeEnd} น.</span></div>
-                        </div>
-                    </div>
-
-                    <div style="flex-shrink:0; background:#000; border-radius:6px; border: 2px solid ${alertColor}; padding:10px; margin-bottom:10px;">
-                        <div style="color:${alertColor}; font-weight:bold; font-size:1vw; border-bottom:1px dashed #4a5568; padding-bottom:4px; margin-bottom:6px;">📊 สรุปประเมินความรุนแรง (${currentAiModel.split('_')[0].toUpperCase()})</div>
-                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                            <span style="color:#a0aec0; font-size:0.9vw;">🌧️ สภาพฝน:</span>
-                            <span style="font-size:1vw; font-weight:bold;">${rainStatus}</span>
-                        </div>
-                        <div style="display:flex; justify-content:space-between;">
-                            <span style="color:#a0aec0; font-size:0.9vw;">⚠️ ความเสี่ยงรุนแรง:</span>
-                            <span style="font-size:1vw; font-weight:bold;">${stormRisk}</span>
                         </div>
                     </div>
 
@@ -3170,40 +3246,9 @@ function mark(ok,label){
   return '<span class="'+cls+'">'+label+':'+sym+'</span>';
 }
 
-/* --- [ใบ #11] วาด Dashboard 5 เสาถาวรในกล่อง 3 --- */
+/* Dashboard 5 เสาถาวร ถูกย้ายไปสร้างรวมในฟังก์ชันวิเคราะห์หลักแล้ว */
 function renderPillarDash(res) {
-  var targetBox = $('box3-taf');
-  if(!targetBox) return;
-  var dash = $('atc-pillar-dash');
-  if(!dash) {
-    dash = document.createElement('div');
-    dash.id = 'atc-pillar-dash';
-    dash.style.cssText = 'flex:0 0 auto; display:flex; gap:4px; margin-bottom:10px; padding:6px; background:rgba(0,0,0,0.6); border:1px solid #2a3f5f; border-radius:6px;';
-    var aiContent = $('ai-report-content');
-    if(aiContent) targetBox.insertBefore(dash, aiContent); else targetBox.appendChild(dash);
-  }
-
-  function box(label, ok, desc) {
-    var bg = (ok===true)?'#1e7a3c':(ok==='UNK'?'#7a4b00':'#8b0000');
-    var col = (ok===true)?'#9BFFB0':(ok==='UNK'?'#ffe08a':'#ffd9d9');
-    return '<div style="flex:1; background:'+bg+'; border:1px solid '+col+'; border-radius:4px; text-align:center; padding:2px; display:flex; flex-direction:column; justify-content:center; box-shadow:inset 0 0 10px rgba(0,0,0,0.5);" title="'+desc+'">' +
-           '<div style="font-size:clamp(9px, 0.75vw, 12px); color:#fff; font-weight:bold; letter-spacing:0.5px;">'+label+'</div>' +
-           '<div style="font-size:clamp(10px, 0.9vw, 14px); color:'+col+'; font-weight:bold;">'+(ok===true?'PASS':(ok==='UNK'?'WAIT':'FAIL'))+'</div>' +
-           '</div>';
-  }
-
-  var p1 = res.hour ? res.hour.p1 : false;
-  var p2 = res.hour ? res.hour.p2 : false;
-  var p3 = res.hour ? res.hour.p3 : false;
-  var p4 = res.taf;
-  var p5 = res.radar.state==='PASS'?true:(res.radar.state==='UNKNOWN'?'UNK':false);
-
-  dash.innerHTML =
-    box('P1:MDL', p1, 'โมเดล 4 ตัวเห็นตรงกัน') +
-    box('P2:RAIN', p2, 'ปริมาณฝนวิกฤต') +
-    box('P3:SVR', p3, 'อากาศแปรปรวน (CAPE)') +
-    box('P4:TAF', p4, 'มนุษย์เตือนใน TAF') +
-    box('P5:RDR', p5, 'เรดาร์พบฝนเข้าประชิด');
+    // ปิดการทำงานกล่องแยก เพื่อให้ไปแสดงผลรวมในระบบ Tabs
 }
 
 function paint(res){
