@@ -37,12 +37,10 @@
         .action-btn:hover { background-color: var(--data-color); color: #000; }
         .action-btn:active { transform: scale(0.95); }
 
-        .flight-rule-badge { padding: 4px 10px; border-radius: 5px; font-size: 1.2vw; font-weight: bold; color: white; text-shadow: 1px 1px 2px #000; letter-spacing: 2px; border: 2px solid rgba(255,255,255,0.5); transition: all 0.3s; }
-        
-        @keyframes flash-imc { 0% { background-color: var(--imc-color); box-shadow: 0 0 20px var(--imc-color); } 50% { background-color: #8b0000; box-shadow: 0 0 5px #8b0000; } 100% { background-color: var(--imc-color); box-shadow: 0 0 20px var(--imc-color); } }
-        .imc-flashing { animation: flash-imc 1s infinite; border-color: #fff; }
-        .vmc-steady { background-color: var(--vmc-color); box-shadow: 0 0 10px var(--vmc-color); }
-        .na-steady { background-color: #555; box-shadow: none; border-color: #777; }
+        .header-mode-toggle { margin-right: 5px; }
+        .header-mode-toggle .wx-mode-btn { padding: 5px 10px; font-size: clamp(11px, 1vw, 15px); }
+        #flight-rule-text { font-weight: bold; }
+        .raw-data-label { color: #6f879b; font-weight: bold; font-size: 1.1vw; margin-right: 15px; flex: 0 0 auto; }
         
         .clock-box { display: flex; flex-direction: column; align-items: center; font-size: 1.1vw; color: var(--data-color); font-weight: bold; background: #111; padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border-color); cursor: pointer; transition: all 0.2s; }
         .clock-box:hover { background: #1a2a40; box-shadow: 0 0 15px rgba(0,255,204,0.3); transform: scale(1.05); }
@@ -135,13 +133,15 @@
             .dashboard-container { flex-direction: column; height: auto; padding: 10px; }
             .panel { min-height: 350px; margin-bottom: 10px; }
             .header-bar { flex-direction: column; align-items: flex-start; gap: 15px; }
-            .header-right-container { width: 100%; justify-content: space-between; }
+            .header-right-container { width: 100%; justify-content: space-between; flex-wrap: wrap; }
             
             .station-title { font-size: 4vw; }
             .station-dropdown { font-size: 3.5vw; }
             .range-identity { font-size: 2.5vw; }
             .action-btn { font-size: 3.5vw; }
-            .flight-rule-badge { font-size: 4vw; }
+            .header-mode-toggle { margin-right: 0; }
+            .header-mode-toggle .wx-mode-btn { padding: 6px 10px; font-size: 3vw; }
+            .raw-data-label { font-size: 3vw; }
             .clock-box { font-size: 3.5vw; }
             .raw-metar-box { font-size: 3.5vw; white-space: nowrap; word-break: normal; }
             
@@ -430,6 +430,22 @@
     box-shadow: none;
 }
 .ruler-tooltip:before { display: none; }
+.radar-tools-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px;
+    border: 1px solid rgba(0,255,204,0.55);
+    border-radius: 6px;
+    background: rgba(11, 19, 30, 0.88);
+    box-shadow: 0 0 8px rgba(0,0,0,0.45);
+}
+.radar-tools-group .rv-time-btn,
+.radar-tools-group .map-fs-btn,
+.radar-tools-group .map-ruler-btn {
+    margin: 0 !important;
+    white-space: nowrap;
+}
 #taf-date, #taf-time-start, #taf-time-end {
     color-scheme: dark;
     letter-spacing: 0.5px;
@@ -500,20 +516,45 @@
     height: 100% !important;
 }
 
-/* ตัวเดียวที่ได้สิทธิ์สกรอล */
+/* กล่องรายงานยึดโครงสร้างไว้ ส่วนเนื้อหาแท็บเป็นพื้นที่สกรอล */
 #ai-report-content {
     flex: 1 1 auto !important;
     min-height: 0 !important;
     max-height: none !important;
-    overflow-y: auto !important;
+    overflow-y: hidden !important;
     overflow-x: hidden !important;
     padding-bottom: 52px !important;
 }
 
-/* ปิดสกรอลซ้อนทุกชั้นภายในกล่อง 3 */
+/* ปิดสกรอลซ้อน ยกเว้น viewport ของแท็บรายงาน */
 #ai-report-content * {
     overflow: visible !important;
     max-height: none !important;
+}
+#ai-report-content > .ai-report-tab-content {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-right: 5px;
+    padding-bottom: 10px;
+}
+.ai-report-main-tab {
+    flex: 1;
+    padding: 7px;
+    color: #6f879b;
+    background: #0f1d28;
+    border: 1px solid #2a3f5f;
+    border-radius: 4px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: clamp(11px, 1vw, 16px);
+    transition: background 0.2s, color 0.2s;
+}
+.ai-report-main-tab.active {
+    color: #00ffcc;
+    background: #06251f;
+    border-color: #00ffcc;
 }
 #ai-report-content *::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
 #ai-report-content * { scrollbar-width: none !important; }
@@ -772,8 +813,11 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
         </div>
         
         <div class="header-right-container">
+            <div class="wx-mode-toggle header-mode-toggle no-capture" data-html2canvas-ignore="true">
+                <button id="btn-mode-metar" class="wx-mode-btn active" onclick="setWxMode('METAR')">METAR</button>
+                <button id="btn-mode-taf" class="wx-mode-btn" onclick="setWxMode('TAF')">TAF</button>
+            </div>
             <button class="action-btn no-capture" data-html2canvas-ignore="true" onclick="generateBriefingImage()">&#128247; Create Briefing Card</button>
-            <div id="flight-rule-badge" class="flight-rule-badge vmc-steady">VMC</div>
             
             <div class="clock-box" id="main-clock-box" title="Double Click เพื่อเปิดนาฬิกาจับเวลา">
                 <div style="font-size: 0.75vw; color: #8898aa;">LOCAL TIME</div>
@@ -804,10 +848,7 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
     <!-- ======================================================= -->
 
     <div class="raw-wx-container">
-        <div class="wx-mode-toggle no-capture" data-html2canvas-ignore="true">
-            <button id="btn-mode-metar" class="wx-mode-btn active" onclick="setWxMode('METAR')">METAR</button>
-            <button id="btn-mode-taf" class="wx-mode-btn" onclick="setWxMode('TAF')">TAF</button>
-        </div>
+        <div class="raw-data-label">RAW DATA:</div>
         <div class="raw-metar-box" id="raw-metar">AWAITING DATA...</div>
     </div>
 
@@ -819,7 +860,7 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
     <div class="dashboard-container">
         
         <div class="panel conditions-panel" style="padding-top: 50px;">
-            <div class="panel-title" style="white-space: nowrap;" id="box1-title">CONDITIONS <span style="margin-left: 15px; color: #a0aec0;">TIME</span> <span id="val-time" style="color: #ffffff; margin-left: 5px;">----</span></div>
+            <div class="panel-title" style="white-space: nowrap;" id="box1-title"><span id="flight-rule-text" style="color: #00cc66;">VMC</span> CONDITIONS <span style="margin-left: 15px; color: #a0aec0;">TIME</span> <span id="val-time" style="color: #ffffff; margin-left: 5px;">----</span></div>
             
             <!-- METAR View -->
             <div id="metar-view-content" style="display: flex; flex-direction: column; justify-content: space-evenly; height: 100%;">
@@ -931,7 +972,7 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
 
                 <div class="radar-viewport hide" id="windy-viewport" style="cursor: crosshair; overflow: hidden; position: relative;">
                     <iframe id="uwFrame" style="position: absolute; top: 0; left: 0; width: 100%; height: calc(100% + 55px); border: none;" src="about:blank" loading="lazy"></iframe>
-                    <button onclick="openWindyFullscreen()" style="position: absolute; bottom: 15px; right: 15px; background: rgba(11, 19, 30, 0.85); color: #00ffcc; border: 2px solid #00ffcc; border-radius: 8px; padding: 8px 15px; font-weight: bold; cursor: pointer; z-index: 100; font-family: 'Consolas', monospace; font-size: 1.2vw; box-shadow: 0 0 10px rgba(0,255,204,0.3);">🔍 FULLSCREEN</button>
+                    <button type="button" onclick="openWindyFullscreen()" title="ขยายเต็มจอ (Fullscreen)" aria-label="ขยายแผนที่ Windy เต็มหน้าจอ" style="position: absolute; top: 125px; right: 11px; width: 30px; height: 30px; background: rgba(60, 60, 60, 0.7); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 100; font-size: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.4); transition: 0.2s;" onmouseover="this.style.background='rgba(90, 90, 90, 0.9)'" onmouseout="this.style.background='rgba(60, 60, 60, 0.7)'">🔍</button>
                 </div>
 
                 <div class="radar-viewport" id="mission-viewport" style="cursor: default; padding: 15px; box-sizing: border-box; background-color: #0b131e; display: flex; flex-direction: column;">
@@ -1087,7 +1128,10 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
 
             if(mode === 'METAR') {
                 metarView.classList.remove('hide'); tafView.classList.add('hide');
-                titleEl.innerHTML = `CONDITIONS <span style="margin-left: 15px; color: #a0aec0;">TIME</span> <span id="val-time" style="color: #ffffff; margin-left: 5px;">${currentParsedData ? currentParsedData.time : '----'}</span>`;
+                const flightRule = currentParsedData ? currentParsedData.flightRule : 'N/A';
+                const flightRuleColor = flightRule === 'IMC' ? '#ff3333' :
+                    (flightRule === 'VMC' ? '#00cc66' : '#555');
+                titleEl.innerHTML = `<span id="flight-rule-text" style="color:${flightRuleColor};">${flightRule}</span> CONDITIONS <span style="margin-left: 15px; color: #a0aec0;">TIME</span> <span id="val-time" style="color: #ffffff; margin-left: 5px;">${currentParsedData ? currentParsedData.time : '----'}</span>`;
                 
                 box2Title.innerText = "WIND INDICATOR";
                 box2Metar.style.display = 'flex'; box2Taf.classList.add('hide');
@@ -1478,10 +1522,10 @@ function renderTafTimeline(tafRaw) {
                 const cautionBox = document.getElementById('caution-box');
                 if (cautionBox) cautionBox.classList.add('hide');
                 
-                const badge = document.getElementById('flight-rule-badge');
-                if (badge) {
-                    badge.innerText = 'N/A';
-                    badge.className = 'flight-rule-badge na-steady';
+                const flightRuleText = document.getElementById('flight-rule-text');
+                if (flightRuleText) {
+                    flightRuleText.innerText = 'N/A';
+                    flightRuleText.style.color = '#555';
                 }
 
                 currentParsedData = null; 
@@ -1518,14 +1562,10 @@ function renderTafTimeline(tafRaw) {
                 setTextIfExists('val-qnh', pData.qnh);
                 setTextIfExists('val-temp', pData.tempDew);
                 
-                const badge = document.getElementById('flight-rule-badge');
-                if (badge) {
-                    badge.innerText = pData.flightRule;
-                    if(pData.flightRule === 'IMC') { 
-                        badge.className = 'flight-rule-badge imc-flashing'; 
-                    } else { 
-                        badge.className = 'flight-rule-badge vmc-steady'; 
-                    }
+                const flightRuleText = document.getElementById('flight-rule-text');
+                if (flightRuleText) {
+                    flightRuleText.innerText = pData.flightRule;
+                    flightRuleText.style.color = pData.flightRule === 'IMC' ? '#ff3333' : '#00cc66';
                 }
 
                 const windSpd = document.getElementById('wind-spd');
@@ -1946,8 +1986,6 @@ function renderTafTimeline(tafRaw) {
                     return btn;
                 }
             });
-            new L.Control.RadarTime({ position: 'topright' }).addTo(tafMap);
-
             L.Control.FullscreenMap = L.Control.extend({
                 onAdd: function(map) {
                     var btn = L.DomUtil.create('button', 'map-fs-btn');
@@ -1994,7 +2032,6 @@ function renderTafTimeline(tafRaw) {
                     return btn;
                 }
             });
-            new L.Control.FullscreenMap({ position: 'topright' }).addTo(tafMap);
             var refreshMapSize = function() {
                 setTimeout(function() {
                     if (tafMap) tafMap.invalidateSize({ pan: false });
@@ -2042,7 +2079,17 @@ function renderTafTimeline(tafRaw) {
                     return btn;
                 }
             });
-            new L.Control.AtcRuler({ position: 'topright' }).addTo(tafMap);
+            L.Control.RadarTools = L.Control.extend({
+                onAdd: function(map) {
+                    var group = L.DomUtil.create('div', 'radar-tools-group');
+                    L.DomEvent.disableClickPropagation(group);
+                    group.appendChild((new L.Control.RadarTime()).onAdd(map));
+                    group.appendChild((new L.Control.FullscreenMap()).onAdd(map));
+                    group.appendChild((new L.Control.AtcRuler()).onAdd(map));
+                    return group;
+                }
+            });
+            new L.Control.RadarTools({ position: 'topright' }).addTo(tafMap);
 
             tafMap.on('mousemove', function(e) {
                 if(!isRulerActive || !rulerActivePoint) return;
@@ -2091,10 +2138,6 @@ function renderTafTimeline(tafRaw) {
                 if(tafMap.dragging) tafMap.dragging.enable();
             });
 
-            L.control.scale({
-                position: 'bottomleft', metric: true, imperial: true, updateWhenIdle: true
-            }).addTo(tafMap);
-            
             updateRainViewerLayer();
             if(rvInterval) clearInterval(rvInterval);
             rvInterval = setInterval(updateRainViewerLayer, 5 * 60 * 1000);
@@ -2134,6 +2177,24 @@ function renderTafTimeline(tafRaw) {
         let currentAiModel = 'ecmwf_ifs025';
         let lastAiQuery = null;
         let currentPillarTab = 'P1';
+        let currentAiReportTab = 'summary';
+
+        function switchAiReportTab(tabId) {
+            const summary = document.getElementById('ai-tab-summary');
+            const pillars = document.getElementById('ai-tab-pillars');
+            const summaryButton = document.getElementById('btn-ai-tab-summary');
+            const pillarsButton = document.getElementById('btn-ai-tab-pillars');
+            const showSummary = tabId === 'summary';
+            if (!summary || !pillars || !summaryButton || !pillarsButton) return;
+
+            currentAiReportTab = showSummary ? 'summary' : 'pillars';
+            summary.style.display = showSummary ? 'flex' : 'none';
+            pillars.style.display = showSummary ? 'none' : 'flex';
+            summaryButton.classList.toggle('active', showSummary);
+            pillarsButton.classList.toggle('active', !showSummary);
+            summaryButton.setAttribute('aria-selected', String(showSummary));
+            pillarsButton.setAttribute('aria-selected', String(!showSummary));
+        }
 
         function switchPillarTab(tabId) {
             currentPillarTab = tabId;
@@ -2584,21 +2645,49 @@ function renderTafTimeline(tafRaw) {
                 ];
                 let modelStatusOk = Object.create(null);
                 models.forEach(m => { modelStatusOk[m.id] = null; });
+                const modelPopThreshold = window.ATC_CFG &&
+                    Number.isFinite(window.ATC_CFG.POP_MIN)
+                    ? window.ATC_CFG.POP_MIN : 60;
                 if(eng && eng.hour && eng.hour.mDict) {
                     models.forEach(m => {
                         const pop = eng.hour.mDict[m.id];
                         if(Number.isFinite(pop)) {
-                            modelStatusOk[m.id] = pop >= window.ATC_CFG.POP_MIN;
+                            modelStatusOk[m.id] = pop >= modelPopThreshold;
                         }
                     });
+                }
+                if(eng && eng.hour && eng.hour.t && data && data.hourly &&
+                   Array.isArray(data.hourly.time) &&
+                   modelStatusOk[currentAiModel] === null) {
+                    let targetIndex = data.hourly.time.indexOf(eng.hour.t);
+                    if(targetIndex < 0) {
+                        const targetTime = Date.parse(eng.hour.t);
+                        if(Number.isFinite(targetTime)) {
+                            targetIndex = data.hourly.time.findIndex(function(time) {
+                                return Date.parse(time) === targetTime;
+                            });
+                        }
+                    }
+                    if(targetIndex >= 0) {
+                        const selectedModelProb =
+                            data.hourly['precipitation_probability_' + currentAiModel] ||
+                            data.hourly.precipitation_probability;
+                        const pop = selectedModelProb && selectedModelProb[targetIndex];
+                        if(Number.isFinite(pop)) {
+                            modelStatusOk[currentAiModel] = pop >= modelPopThreshold;
+                        }
+                    }
                 }
                 let modelBtns = `<div style="display:flex; gap:5px; margin-bottom:10px;">`;
                 models.forEach(m => {
                     let isAct = m.id === currentAiModel;
                     let mStatus = modelStatusOk[m.id];
-                    let textColor = mStatus===false ? '#ff5555' :
-                        (isAct ? '#00ffcc' : (mStatus===true ? '#a0aec0' : '#718096'));
-                    modelBtns += `<button onclick="changeAiModel('${m.id}')" style="flex:1; background:${isAct ? '#2a3f5f' : '#0b131e'}; color:${textColor}; border:1px solid ${isAct ? '#00ffcc' : '#4a5568'}; border-radius:4px; padding:4px; cursor:pointer; font-weight:bold; font-size:0.9vw; transition:0.2s;">${m.name}</button>`;
+                    let textColor = mStatus === false ? '#ff5555' :
+                        (isAct ? '#00ffcc' : (mStatus === true ? '#a0aec0' : '#718096'));
+                    let bgColor = isAct ? '#2a3f5f' : '#0b131e';
+                    if(mStatus === false && isAct) bgColor = 'rgba(255,85,85,0.2)';
+                    let borderColor = isAct ? '#00ffcc' : '#4a5568';
+                    modelBtns += `<button onclick="changeAiModel('${m.id}')" style="flex:1; background:${bgColor}; color:${textColor}; border:1px solid ${borderColor}; border-radius:4px; padding:4px; cursor:pointer; font-weight:bold; font-size:0.9vw; transition:0.2s;">${m.name}</button>`;
                 });
                 modelBtns += `</div>`;
 
@@ -2637,7 +2726,8 @@ function renderTafTimeline(tafRaw) {
                          allSecs.push(k);
                          if(rData.sectorsNM[k] < minNM) { minNM = rData.sectorsNM[k]; minSec = k; }
                      }
-                     lines.push('<div style="color:#fff; font-size:1.1vw;">📍 กลุ่มฝนใกล้สุดอยู่ห่างจากสถานี <span style="color:#ff3333; font-weight:bold;">' + minNM + ' NM</span> ทางทิศ <span style="color:#00ffcc; font-weight:bold;">' + minSec + '</span></div>');
+                     var movTxt = rData.movVector ? ' ' + rData.movVector : '';
+                     lines.push('<div style="color:#fff; font-size:1.1vw;">📍 กลุ่มฝนใกล้สุดอยู่ห่างจากสถานี <span style="color:#ff3333; font-weight:bold;">' + minNM + ' NM</span> ทางทิศ <span style="color:#00ffcc; font-weight:bold;">' + minSec + movTxt + '</span></div>');
                      if(allSecs.length > 1) {
                          lines.push('<div style="color:#a0aec0; font-size:0.95vw; margin-top:2px;">☁️ แนวฝนพาดผ่านทิศ: ' + allSecs.join(', ') + '</div>');
                      }
@@ -2645,6 +2735,13 @@ function renderTafTimeline(tafRaw) {
                   if(rData.motionStatus) {
                      var mColor = (rData.motionStatus.includes('เข้าใกล้') || rData.motionStatus.includes('OVERHEAD')) ? '#ff3333' : '#f1c40f';
                      lines.push('<div style="color:#a0aec0; font-size:1vw; margin-top:6px;">🔄 แนวโน้ม: <span style="color:'+mColor+'; font-weight:bold;">' + rData.motionStatus + '</span></div>');
+                  }
+                  if(rData.etaStr && rData.etdStr) {
+                     lines.push('<div style="color:#f39c12; font-size:0.95vw; margin-top:8px;">⏱️ คาดว่าจะเข้าเขต 5 NM เวลา <span style="color:#fff; font-weight:bold;">' + rData.etaStr + ' น.</span> (สิ้นสุดประมาณ ' + rData.etdStr + ' น.)</div>');
+                     lines.push('<div style="color:#718096; font-size:0.8vw;">*อ้างอิง' + (rData.steeringSource || 'ความเร็วประเมิน') + ': ' + rData.steeringSpd + ' KT / ขนาดก้อนฝนโดยประมาณ: ' + rData.stormDiameterNM.toFixed(1) + ' NM</div>');
+                  } else if(rData.etdStr && rData.nearestRainNM !== null && rData.nearestRainNM <= 5) {
+                     lines.push('<div style="color:#f39c12; font-size:0.95vw; margin-top:8px;">⏱️ คาดว่าฝนจะพ้นเขต 5 NM เวลา <span style="color:#fff; font-weight:bold;">' + rData.etdStr + ' น.</span></div>');
+                     lines.push('<div style="color:#718096; font-size:0.8vw;">*อ้างอิง' + (rData.steeringSource || 'ความเร็วประเมิน') + ': ' + rData.steeringSpd + ' KT / ขนาดก้อนฝนโดยประมาณ: ' + rData.stormDiameterNM.toFixed(1) + ' NM</div>');
                   }
                   if(rData.ageMin != null) {
                      lines.push('<div style="color:#718096; font-size:0.8vw; margin-top:8px;">(เรดาร์อัปเดต '+rData.ageMin+' นาทีที่แล้ว)</div>');
@@ -2660,46 +2757,9 @@ function renderTafTimeline(tafRaw) {
                     </div>
 
                     ${detailsHtml}
-                    ${tabsHtml}
-                    
-                    <!-- กล่องเครื่องมือ (Toolbox Panes) -->
-                    <div style="flex-shrink:0; background:rgba(0,0,0,0.3); border:1px solid #2a3f5f; border-radius:6px; padding:10px; margin-bottom:15px;">
-                        
-                        <!-- P1: MDL -->
-                        <div id="content-P1" class="pillar-pane ${currentPillarTab === 'P1' ? '' : 'hide'}">
-                            ${modelBtns}
-                            ${barHtml}
-                        </div>
 
-                        <!-- P2: RAIN -->
-                        <div id="content-P2" class="pillar-pane ${currentPillarTab === 'P2' ? '' : 'hide'}" style="text-align:center; line-height:1.8;">
-                            <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px;">ข้อมูลปริมาณฝน (Rain Rate)</div>
-                            <div style="font-size:1.1vw;">ฝนตกสูงสุด (Max Rate): <span style="color:${maxRain > 2.5 ? '#ff3333' : '#00cc66'}; font-weight:bold; font-size:1.3vw;">${maxRain.toFixed(1)} mm/h</span></div>
-                            <div style="font-size:1.1vw;">ปริมาณฝนสะสมรวม: <span style="color:#3498db; font-weight:bold; font-size:1.3vw;">${totalRainAcc.toFixed(1)} mm</span></div>
-                        </div>
-
-                        <!-- P3: SVR -->
-                        <div id="content-P3" class="pillar-pane ${currentPillarTab === 'P3' ? '' : 'hide'}" style="text-align:center; line-height:1.8;">
-                            <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px;">ดัชนีอากาศแปรปรวน (Severe Weather Index)</div>
-                            <div style="font-size:1vw;">พลังงานพายุ (CAPE): <span style="color:${maxCape > 1000 ? '#ff3333' : '#00cc66'}; font-weight:bold;">${maxCape.toFixed(0)} J/kg</span></div>
-                            <div style="font-size:1vw;">ส่วนต่าง T-Td (Spread): <span style="color:${minSpread <= 3 ? '#ff3333' : '#00cc66'}; font-weight:bold;">${minSpread}°C</span></div>
-                            <div style="font-size:1vw;">ฐานเมฆต่ำสุด (Est. LCL): <span style="color:#00ffcc; font-weight:bold;">~${Math.max(200, minSpread * 400)} FT</span></div>
-                        </div>
-
-                        <!-- P4: TAF -->
-                        <div id="content-P4" class="pillar-pane ${currentPillarTab === 'P4' ? '' : 'hide'}">
-                            <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px;">ข้อความพยากรณ์การบิน (Aviation TAF)</div>
-                            <div style="font-family:'Consolas', monospace; font-size:1.1vw; color:#e2e8f0; line-height:1.5;">${hlTaf}</div>
-                        </div>
-
-                        <!-- P5: RDR -->
-                        <div id="content-P5" class="pillar-pane ${currentPillarTab === 'P5' ? '' : 'hide'}" style="text-align:center; line-height:1.8;">
-                            <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px;">ข้อมูลเรดาร์ 20 NM (RainViewer)</div>
-                            <div style="font-size:1.1vw; font-weight:bold;">${rText}</div>
-                        </div>
-                    </div>
-
-                    <div style="display:flex; justify-content:space-between; margin-bottom:10px; background:#000; padding:10px; border-radius:6px; border: 1px solid #2a3f5f; flex-shrink:0;">
+                    <!-- ส่วนแสดงข้อมูลเป้าหมาย (ล็อกไว้ด้านบน) -->
+                    <div style="display:flex; justify-content:space-between; margin-bottom:10px; background:#000; padding:10px; border-radius:6px; border:1px solid #2a3f5f; flex-shrink:0;">
                         <div>
                             <div style="color:#a0aec0; font-size:0.9vw;">📍 พื้นที่เป้าหมาย: <span style="color:#fff; font-weight:bold;">${locName}</span></div>
                             <div style="color:#a0aec0; font-size:0.9vw;">พิกัด: ${lat.toFixed(4)}, ${lon.toFixed(4)}</div>
@@ -2710,10 +2770,55 @@ function renderTafTimeline(tafRaw) {
                         </div>
                     </div>
 
-                    <!-- ส่วนที่ 4: รายละเอียดรายเหตุการณ์ -->
-                    <div style="flex:1; min-height:0; overflow-y:auto; padding-right:5px; padding-bottom:20px;">
-                        <div style="color:#a0aec0; font-size:1vw; margin-bottom:8px; border-bottom:1px dashed #4a5568; padding-bottom:4px; position:sticky; top:0; background:rgba(20,30,48,0.9); z-index:10;">รายละเอียดแยกตามช่วงเวลา:</div>
+                    <!-- แถบแท็บหลัก -->
+                    <div role="tablist" aria-label="มุมมองรายงาน AI" style="display:flex; gap:5px; margin-bottom:8px; flex-shrink:0;">
+                        <button id="btn-ai-tab-summary" type="button" role="tab" aria-controls="ai-tab-summary" aria-selected="${currentAiReportTab === 'summary'}" class="ai-report-main-tab ${currentAiReportTab === 'summary' ? 'active' : ''}" onclick="switchAiReportTab('summary')">📝 สรุปเหตุการณ์</button>
+                        <button id="btn-ai-tab-pillars" type="button" role="tab" aria-controls="ai-tab-pillars" aria-selected="${currentAiReportTab === 'pillars'}" class="ai-report-main-tab ${currentAiReportTab === 'pillars' ? 'active' : ''}" onclick="switchAiReportTab('pillars')">🛠️ ข้อมูล 5-PILLAR</button>
+                    </div>
+
+                    <!-- แท็บ 1: สรุปเหตุการณ์ -->
+                    <div id="ai-tab-summary" class="ai-report-tab-content" role="tabpanel" aria-labelledby="btn-ai-tab-summary" style="display:${currentAiReportTab === 'summary' ? 'flex' : 'none'}; flex-direction:column;">
+                        <div style="color:#a0aec0; font-size:1vw; margin-bottom:8px; border-bottom:1px dashed #4a5568; padding-bottom:4px;">รายละเอียดแยกตามช่วงเวลา:</div>
                         ${eventHtml}
+                    </div>
+
+                    <!-- แท็บ 2: ข้อมูล 5-PILLAR -->
+                    <div id="ai-tab-pillars" class="ai-report-tab-content" role="tabpanel" aria-labelledby="btn-ai-tab-pillars" style="display:${currentAiReportTab === 'pillars' ? 'flex' : 'none'}; flex-direction:column;">
+                        ${tabsHtml}
+                        <div style="flex:1 1 auto; min-height:0; background:rgba(0,0,0,0.3); border:1px solid #2a3f5f; border-radius:6px; padding:10px; margin-bottom:8px;">
+                            <!-- P1: MDL -->
+                            <div id="content-P1" class="pillar-pane ${currentPillarTab === 'P1' ? '' : 'hide'}">
+                                ${modelBtns}
+                                ${barHtml}
+                            </div>
+
+                            <!-- P2: RAIN -->
+                            <div id="content-P2" class="pillar-pane ${currentPillarTab === 'P2' ? '' : 'hide'}" style="text-align:center; line-height:1.8;">
+                                <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px;">ข้อมูลปริมาณฝน (Rain Rate)</div>
+                                <div style="font-size:1.1vw;">ฝนตกสูงสุด (Max Rate): <span style="color:${maxRain > 2.5 ? '#ff3333' : '#00cc66'}; font-weight:bold; font-size:1.3vw;">${maxRain.toFixed(1)} mm/h</span></div>
+                                <div style="font-size:1.1vw;">ปริมาณฝนสะสมรวม: <span style="color:#3498db; font-weight:bold; font-size:1.3vw;">${totalRainAcc.toFixed(1)} mm</span></div>
+                            </div>
+
+                            <!-- P3: SVR -->
+                            <div id="content-P3" class="pillar-pane ${currentPillarTab === 'P3' ? '' : 'hide'}" style="text-align:center; line-height:1.8;">
+                                <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px;">ดัชนีอากาศแปรปรวน (Severe Weather Index)</div>
+                                <div style="font-size:1vw;">พลังงานพายุ (CAPE): <span style="color:${maxCape > 1000 ? '#ff3333' : '#00cc66'}; font-weight:bold;">${maxCape.toFixed(0)} J/kg</span></div>
+                                <div style="font-size:1vw;">ส่วนต่าง T-Td (Spread): <span style="color:${minSpread <= 3 ? '#ff3333' : '#00cc66'}; font-weight:bold;">${minSpread}°C</span></div>
+                                <div style="font-size:1vw;">ฐานเมฆต่ำสุด (Est. LCL): <span style="color:#00ffcc; font-weight:bold;">~${Math.max(200, minSpread * 400)} FT</span></div>
+                            </div>
+
+                            <!-- P4: TAF -->
+                            <div id="content-P4" class="pillar-pane ${currentPillarTab === 'P4' ? '' : 'hide'}">
+                                <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px;">ข้อความพยากรณ์การบิน (Aviation TAF)</div>
+                                <div style="font-family:'Consolas', monospace; font-size:1.1vw; color:#e2e8f0; line-height:1.5;">${hlTaf}</div>
+                            </div>
+
+                            <!-- P5: RDR -->
+                            <div id="content-P5" class="pillar-pane ${currentPillarTab === 'P5' ? '' : 'hide'}" style="text-align:center; line-height:1.8;">
+                                <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px;">ข้อมูลเรดาร์ 20 NM (RainViewer)</div>
+                                <div style="font-size:1.1vw; font-weight:bold;">${rText}</div>
+                            </div>
+                        </div>
                     </div>
                 </div>`;
                 requestControl.commit(request, html);
@@ -3089,7 +3194,6 @@ async function generateBriefingImage() {
           .main-logo { height: 95px !important; min-height: 95px !important; }
           .station-title { font-size: 46px !important; }
           .chdy-icon { height: 42px !important; min-height: 42px !important; margin-left: 10px !important; }
-          .flight-rule-badge { font-size: 28px !important; padding: 6px 15px !important; }
           .clock-box { font-size: 26px !important; padding: 6px 15px !important; }
           .clock-box div:first-child { font-size: 14px !important; }
           .raw-metar-box { font-size: 32px !important; padding: 15px 25px !important; }
@@ -4246,6 +4350,57 @@ function radarPillar(lat,lon){
             motionStatus = 'เคลื่อนเข้าใกล้สนาม';
           }
           if(rainHere) motionStatus = 'OVERHEAD (ตกเหนือสนาม)';
+
+          var steeringSpd = null;
+          var steeringSource = '';
+          if(typeof uwState !== 'undefined' && uwState.rows){
+            var w5k = uwState.rows.find(function(r){
+              return r.ft === 5000 || r.hdr === '5K';
+            });
+            if(w5k && Number.isFinite(w5k.spd) && w5k.spd > 0){
+              steeringSpd = w5k.spd;
+              steeringSource = 'ลม 5000 ft';
+            }
+          }
+          var frameDeltaHours = (fN.time - fP.time) / 3600;
+          if((!Number.isFinite(steeringSpd) || steeringSpd <= 0) &&
+             closing === true && a_nr !== null && b_nr !== null &&
+             Number.isFinite(frameDeltaHours) && frameDeltaHours > 0){
+            steeringSpd = (a_nr - b_nr) / frameDeltaHours;
+            if(steeringSpd > 0) steeringSource = 'แนวโน้มจากเรดาร์';
+            else steeringSpd = null;
+          }
+
+          var stormDiameterNM = null;
+          if(b.frameRaw && Number.isFinite(b.frameRaw.rainPx) &&
+             b.frameRaw.rainPx > 0 && Number.isFinite(b.frameRaw.kmpp)){
+            var stormAreaSqKm = b.frameRaw.rainPx *
+              b.frameRaw.kmpp * b.frameRaw.kmpp;
+            stormDiameterNM = Math.max(
+              2,
+              (Math.sqrt(stormAreaSqKm / Math.PI) * 2) / 1.852
+            );
+          }
+          var etaStr = null, etdStr = null;
+          if(Number.isFinite(steeringSpd) && steeringSpd > 0 &&
+             stormDiameterNM !== null){
+            if(b_nr !== null && b_nr > 5 && closing === true){
+              var etaMins = Math.round(((b_nr - 5) / steeringSpd) * 60);
+              var durationMins = Math.round((stormDiameterNM / steeringSpd) * 60);
+              var dETA = new Date(Date.now() + etaMins * 60000);
+              var dETD = new Date(dETA.getTime() + durationMins * 60000);
+              etaStr = String(dETA.getHours()).padStart(2, '0') + ':' +
+                String(dETA.getMinutes()).padStart(2, '0');
+              etdStr = String(dETD.getHours()).padStart(2, '0') + ':' +
+                String(dETD.getMinutes()).padStart(2, '0');
+            } else if(b_nr !== null && b_nr <= 5){
+              var passMins = Math.round((stormDiameterNM / steeringSpd) * 60);
+              var dETDNow = new Date(Date.now() + passMins * 60000);
+              etdStr = String(dETDNow.getHours()).padStart(2, '0') + ':' +
+                String(dETDNow.getMinutes()).padStart(2, '0');
+            }
+          }
+
           var threatLevel = 'GREEN';
           if(b_nr !== null) {
               if (b_nr <= 5) threatLevel = 'RED';
@@ -4270,6 +4425,12 @@ function radarPillar(lat,lon){
             sectorsNM: b.sectorsNM,
             closing: closing,
             motionStatus: motionStatus,
+            movVector: movStr,
+            steeringSpd: Number.isFinite(steeringSpd) ? Math.round(steeringSpd) : null,
+            steeringSource: steeringSource,
+            stormDiameterNM: stormDiameterNM,
+            etaStr: etaStr,
+            etdStr: etdStr,
             frameTime: frameTimeSec,
             frameTimeISO: frameTimeSec ? new Date(frameTimeSec*1000).toISOString() : null,
             ageMin: ageMin,
@@ -4510,18 +4671,6 @@ function boot(){
   watch(); 
   setTimeout(run,2500); 
   setInterval(run,CFG.REFRESH); 
-  
-  // บังคับรีรัน Engine ทันทีเมื่อผู้ใช้เปลี่ยนพิกัด/สถานีเป้าหมาย
-  if(window.__ATC_TARGET__ && typeof window.__ATC_TARGET__.subscribe === 'function') {
-    window.__ATC_TARGET__.subscribe(function() {
-      if(busy) {
-        rerunRequested=true;
-        return;
-      }
-      clearTimeout(tmr); 
-      tmr = setTimeout(run, 600); // หน่วงเวลาเล็กน้อยเพื่อป้องกันการรัวคลิกแผนที่
-    });
-  }
 }
 if(document.readyState==='complete'||document.readyState==='interactive') setTimeout(boot,800);
 else document.addEventListener('DOMContentLoaded',function(){ setTimeout(boot,800); });
