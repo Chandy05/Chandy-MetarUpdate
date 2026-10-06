@@ -51,7 +51,10 @@
         .wx-mode-toggle { display: flex; background: #0b131e; border-radius: 6px; border: 2px solid var(--border-color); overflow: hidden; margin-right: 15px; flex-shrink: 0; }
         .wx-mode-btn { background: transparent; color: #6f879b; border: none; padding: 4px 15px; font-size: 1.1vw; font-weight: bold; font-family: 'Consolas', monospace; cursor: pointer; transition: all 0.2s; }
         .wx-mode-btn.active { background: var(--data-color); color: #000; box-shadow: 0 0 10px rgba(0,255,204,0.4); }
-        .raw-metar-box { flex: 1; font-size: 1.3vw; color: #f1c40f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .raw-metar-box { flex: 1; font-size: 1.3vw; color: #f1c40f; white-space: nowrap; overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; scrollbar-width: thin; scrollbar-color: var(--data-color) transparent; }
+        .raw-metar-box::-webkit-scrollbar { height: 6px; }
+        .raw-metar-box::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 3px; }
+        .raw-metar-box::-webkit-scrollbar-thumb { background: var(--data-color); border-radius: 3px; }
 
         /* --- DASHBOARD --- */
         .dashboard-container { display: flex; flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 15px; gap: 15px; box-sizing: border-box; }
@@ -140,7 +143,7 @@
             .action-btn { font-size: 3.5vw; }
             .flight-rule-badge { font-size: 4vw; }
             .clock-box { font-size: 3.5vw; }
-            .raw-metar-box { font-size: 3vw; white-space: normal; word-break: break-all; }
+            .raw-metar-box { font-size: 3.5vw; white-space: nowrap; word-break: normal; }
             
             .data-label { font-size: 4vw; width: 100px; }
             .data-value { font-size: 5vw; }
@@ -686,7 +689,7 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
     </div>
 
     <!-- AI Area Predictor Banner -->
-    <div id="ai-alert-banner" class="hide" style="cursor: pointer; background: linear-gradient(90deg, #8b0000 0%, #ff3333 50%, #8b0000 100%); color: white; text-align: center; padding: 6px; font-size: 1.2vw; font-weight: bold; text-shadow: 1px 1px 2px #000; animation: blink 2s infinite; border-bottom: 2px solid #fff;" onclick="this.style.animation='none'; this.style.opacity='0.95';">
+    <div id="ai-alert-banner" class="hide" style="cursor: pointer; background: linear-gradient(90deg, #8b0000 0%, #ff3333 50%, #8b0000 100%); color: white; text-align: center; padding: 6px; font-size: 1.2vw; font-weight: bold; text-shadow: 1px 1px 2px #000; animation: blink 2s infinite; border-bottom: 2px solid #fff;" onclick="this.style.animation='none'; this.style.opacity='0.95'; triggerAIFromBanner();">
         ⚠️ AI FORECAST ALERT: ระบบกำลังวิเคราะห์...
     </div>
 
@@ -1425,6 +1428,32 @@ function renderTafTimeline(tafRaw) {
         // --- TAF Interactive Mode & ECMWF AI Predictor ---
         let tafMap = null; let tafMarker = null; 
         let currentTargetLoc = {lat: 15.036, lon: 100.912, name: 'สนามบินปัจจุบัน'};
+        let rvLayer = null; let rvInterval = null;
+
+        async function updateRainViewerLayer() {
+            if (!tafMap) return;
+            try {
+                const res = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+                const data = await res.json();
+                const past = data.radar.past;
+                if (!past || past.length === 0) return;
+                
+                const latest = past[past.length - 1]; 
+                const tileUrl = `${data.host}${latest.path}/256/{z}/{x}/{y}/2/1_1.png`;
+
+                if (rvLayer) tafMap.removeLayer(rvLayer);
+                rvLayer = L.tileLayer(tileUrl, { opacity: 0.65, maxZoom: 20, zIndex: 10 }).addTo(tafMap);
+
+                const date = new Date(latest.time * 1000);
+                const timeStr = String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0') + ' L';
+                const btn = document.getElementById('rv-time-btn');
+                if (btn) btn.innerHTML = `📡 Radar: ${timeStr} ↻`;
+            } catch (e) {
+                console.error("RainViewer Fetch Error: ", e);
+                const btn = document.getElementById('rv-time-btn');
+                if (btn) btn.innerHTML = `📡 Radar: ERROR ↻`;
+            }
+        }
 
         // --- ฟังก์ชันแปลงพิกัด DMS (Google Earth) เป็น Decimal ---
         function handleCoordInput(val) {
@@ -1465,6 +1494,27 @@ function renderTafTimeline(tafRaw) {
                 document.getElementById('taf-coord-input').value = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
             });
 
+            // เพิ่มปุ่มควบคุมเวลาเรดาร์
+            L.Control.RadarTime = L.Control.extend({
+                onAdd: function(map) {
+                    var btn = L.DomUtil.create('button', 'rv-time-btn');
+                    btn.id = 'rv-time-btn';
+                    btn.style.cssText = 'background: rgba(11, 19, 30, 0.85); color: #00ffcc; border: 1px solid #00ffcc; border-radius: 4px; padding: 4px 8px; font-weight: bold; cursor: pointer; font-family: Consolas, monospace; font-size: 1vw; box-shadow: 0 0 5px rgba(0,255,204,0.3);';
+                    btn.innerHTML = '📡 Radar: LOAD... ↻';
+                    btn.onclick = function(e) {
+                        L.DomEvent.stopPropagation(e);
+                        btn.innerHTML = '📡 Radar: LOAD... ↻';
+                        updateRainViewerLayer();
+                    };
+                    return btn;
+                }
+            });
+            new L.Control.RadarTime({ position: 'topright' }).addTo(tafMap);
+            
+            updateRainViewerLayer();
+            if(rvInterval) clearInterval(rvInterval);
+            rvInterval = setInterval(updateRainViewerLayer, 5 * 60 * 1000);
+
             let d = new Date();
             document.getElementById('taf-date').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
             document.getElementById('taf-time-start').value = String(d.getHours()).padStart(2,'0') + ":00";
@@ -1487,6 +1537,31 @@ function renderTafTimeline(tafRaw) {
             }
         });
 
+        let currentAiModel = 'ecmwf_ifs025';
+        let lastAiQuery = null;
+
+        function changeAiModel(modelId) {
+            currentAiModel = modelId;
+            if (lastAiQuery) {
+                analyzeAreaWeather(lastAiQuery.lat, lastAiQuery.lon, lastAiQuery.name, lastAiQuery.dateStr, lastAiQuery.timeStart, lastAiQuery.timeEnd);
+            }
+        }
+
+        function triggerAIFromBanner() {
+            let d = new Date();
+            let dStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+            let tStart = String(d.getHours()).padStart(2,'0') + ":00";
+            d.setHours(d.getHours() + 12); // ดูล่วงหน้า 12 ชม.
+            let tEnd = String(d.getHours()).padStart(2,'0') + ":00";
+            
+            document.getElementById('taf-date').value = dStr;
+            document.getElementById('taf-time-start').value = tStart;
+            document.getElementById('taf-time-end').value = tEnd;
+            
+            setWxMode('TAF'); // บังคับสลับไปโหมด TAF
+            analyzeAreaWeather(currentTargetLoc.lat, currentTargetLoc.lon, currentTargetLoc.name, dStr, tStart, tEnd);
+        }
+
         function triggerManualAIAnalysis() {
             let dDate = document.getElementById('taf-date').value;
             let tStart = document.getElementById('taf-time-start').value;
@@ -1497,11 +1572,13 @@ function renderTafTimeline(tafRaw) {
 
         // --- ECMWF Advanced Logic (Hourly Breakdown) ---
         async function analyzeAreaWeather(lat, lon, locName, dateStr, timeStart, timeEnd) {
+            lastAiQuery = { lat, lon, name: locName, dateStr, timeStart, timeEnd };
             const reportEl = document.getElementById('ai-report-content');
-            reportEl.innerHTML = `<div style="text-align:center; color:#00ffcc; font-size:1.5vw; margin-top:50px;">กำลังวิเคราะห์โมเดล ECMWF... ⏳</div>`;
+            reportEl.innerHTML = `<div style="text-align:center; color:var(--data-color); font-size:1.5vw; margin-top:50px;">กำลังวิเคราะห์โมเดล ${currentAiModel.toUpperCase()}... ⏳</div>`;
 
             try {
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,dewpoint_2m,precipitation_probability,precipitation,windspeed_10m,winddirection_10m,windgusts_10m,visibility,cape&models=ecmwf_ifs025&timezone=auto&forecast_days=3`;
+                // Fetch dynamic model
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,dewpoint_2m,precipitation_probability,precipitation,windspeed_10m,winddirection_10m,windgusts_10m,visibility,cape&models=${currentAiModel}&timezone=auto&forecast_days=3`;
                 const res = await fetch(url);
                 const data = await res.json();
                 if(!data || !data.hourly) throw new Error("ไม่พบข้อมูล");
@@ -1513,35 +1590,47 @@ function renderTafTimeline(tafRaw) {
                 let hasData = false;
                 let hourlyData = [];
                 let overallMaxProb = 0;
+                let totalRainAcc = 0;
 
                 for(let i=0; i<data.hourly.time.length; i++) {
                     let dt = new Date(data.hourly.time[i]);
                     if(dt >= reqStart && dt <= reqEnd) {
                         hasData = true;
-                        let prob = data.hourly.precipitation_probability[i];
+                        let prob = data.hourly.precipitation_probability[i] || 0;
                         if (prob > overallMaxProb) overallMaxProb = prob;
                         
+                        let rain = data.hourly.precipitation[i] || 0;
+                        totalRainAcc += rain;
+                        
+                        let t = data.hourly.temperature_2m[i];
+                        let td = data.hourly.dewpoint_2m[i];
+                        let estLcl = Math.max(200, Math.round((t - td) * 400)); // Aviation Standard (T-Td)*400
+                        
+                        // Visibility Fallback if model doesn't provide it
+                        let visVal = data.hourly.visibility ? data.hourly.visibility[i] : null;
+                        if (!Number.isFinite(visVal)) {
+                            visVal = (rain > 10) ? 1500 : (rain > 2.5 ? 3000 : (rain > 0 ? 6000 : 10000));
+                        }
+
                         hourlyData.push({
                             timeStr: String(dt.getHours()).padStart(2,'0') + "00",
                             prob: prob,
-                            rain: data.hourly.precipitation[i],
-                            cape: data.hourly.cape[i],
-                            vis: data.hourly.visibility[i],
-                            wSpd: Math.round(data.hourly.windspeed_10m[i] / 1.852),
-                            wGust: Math.round(data.hourly.windgusts_10m[i] / 1.852),
-                            wDir: data.hourly.winddirection_10m[i],
-                            lcl: Math.round((data.hourly.temperature_2m[i] - data.hourly.dewpoint_2m[i]) * 400)
+                            rain: rain,
+                            cape: data.hourly.cape ? data.hourly.cape[i] : 0,
+                            vis: visVal,
+                            wSpd: Math.round((data.hourly.windspeed_10m[i] || 0) / 1.852),
+                            wGust: Math.round((data.hourly.windgusts_10m[i] || 0) / 1.852),
+                            wDir: data.hourly.winddirection_10m[i] || 0,
+                            lcl: estLcl
                         });
                     }
                 }
 
                 if(!hasData) { reportEl.innerHTML = `<div style="text-align:center; color:#ff3333; margin-top:50px;">ไม่อยู่ในห้วงเวลา (วิเคราะห์ล่วงหน้าได้ 72 ชม.)</div>`; return; }
 
-                // คำนวณค่าสูงสุด Global รวมทุกชั่วโมง (สำหรับ Summary องค์รวม)
-                const maxRain = hourlyData.reduce((m, h) => Math.max(m, h.rain ?? 0), 0);
-                const maxCape = hourlyData.reduce((m, h) => Math.max(m, h.cape ?? 0), 0);
+                const maxRain = hourlyData.reduce((m, h) => Math.max(m, h.rain), 0);
+                const maxCape = hourlyData.reduce((m, h) => Math.max(m, h.cape), 0);
 
-                // 1. สร้างกราฟแท่งรายชั่วโมง (Visual Bar)
                 let barHtml = `<div style="display:flex; width:100%; height:25px; border-radius:4px; overflow:hidden; border:1px solid #4a5568; margin-bottom:15px;">`;
                 hourlyData.forEach(h => {
                     let bg = '#00cc66';
@@ -1550,12 +1639,10 @@ function renderTafTimeline(tafRaw) {
                         else if(h.rain > 2.5) bg = '#ff3333';
                         else bg = '#f39c12';
                     } else if(h.prob >= 30) bg = '#3498db';
-                    
                     barHtml += `<div style="flex:1; background:${bg}; display:flex; align-items:center; justify-content:center; color:#fff; font-size:0.8vw; font-weight:bold; border-right:1px solid rgba(0,0,0,0.2);" title="${h.timeStr} โอกาสฝน ${h.prob}%">${h.timeStr.substring(0,2)}</div>`;
                 });
                 barHtml += `</div>`;
 
-                // 2. จัดกลุ่มเหตุการณ์สภาพอากาศ (Event Breakdown)
                 let eventHtml = '';
                 let currentEvent = null;
 
@@ -1592,8 +1679,12 @@ function renderTafTimeline(tafRaw) {
                     else if(ev.type === 'VCSH') { color = '#a0aec0'; desc = 'เมฆฝนบริเวณใกล้เคียง (VCSH)'; icon = '☁️'; }
                     else return '';
 
-                    let visStr = (ev.minVis < 5000) ? `<span style="color:#ff3333;">Vis: ${Math.round(ev.minVis/1000)}km</span>` : `Vis: >10km`;
-                    let wndStr = `${ev.wDir}°/${ev.wSpd}KT ${ev.maxGust > ev.wSpd+5 ? `<span style="color:#ff3333;">G${ev.maxGust}</span>` : ''}`;
+                    let visKm = Math.round(ev.minVis/1000);
+                    let visStr = (ev.minVis < 5000) ? `<span style="color:#ff3333;">Vis: ${visKm}km</span>` : `Vis: ${visKm >= 10 ? '>10' : visKm}km`;
+                    
+                    let wDirStr = String(ev.wDir).padStart(3, '0');
+                    let gustStr = (ev.maxGust >= ev.wSpd + 5) ? `<span style="color:#ff3333;">G${ev.maxGust}</span>` : '';
+                    let wndStr = `${wDirStr}°/${ev.wSpd}KT ${gustStr}`;
 
                     return `<div style="background:rgba(0,0,0,0.3); border-left:4px solid ${color}; padding:8px; border-radius:4px; margin-bottom:8px; font-size:1vw;">
                                 <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
@@ -1603,7 +1694,7 @@ function renderTafTimeline(tafRaw) {
                                 <div style="color:#fff; font-weight:bold; font-size:1.1vw; margin-bottom:4px;">ลักษณะอากาศ: ${desc}</div>
                                 <div style="display:flex; justify-content:space-between; color:#a0aec0; font-size:0.9vw;">
                                     <span>${visStr}</span>
-                                    <span>ฐานเมฆ: ${ev.minLcl} FT</span>
+                                    <span style="color:#00ffcc;">ฐานเมฆ: ~${ev.minLcl} FT</span>
                                     <span>ลม: ${wndStr}</span>
                                 </div>
                             </div>`;
@@ -1611,42 +1702,34 @@ function renderTafTimeline(tafRaw) {
 
                 if(!eventHtml) eventHtml = `<div style="text-align:center; color:#00cc66; font-size:1.2vw; padding:20px;">✅ ไม่มีแนวโน้มฝนตก หรือสภาพอากาศเลวร้ายในห้วงเวลานี้</div>`;
 
-                // === Global Summary Logic (ป้องกันข้อมูลขัดแย้ง ฝนปรอย vs ฟ้าคะนอง) ===
-                let alertColor = '#00cc66';
-                let rainStatus = `<span style="color:#00cc66;">ไม่มีฝน (Clear)</span>`;
-                let stormRisk = `<span style="color:#00cc66;">ปกติ</span>`;
-
-                if(overallMaxProb >= 60) {
-                    alertColor = '#ff3333';
-                    if (maxCape > 1000) {
-                        rainStatus = `<span style="color:#ff3333; font-weight:bold;">พายุฝนฟ้าคะนอง (Thunderstorm)</span>`;
-                        stormRisk = `<span style="color:#ff3333; font-weight:bold; text-shadow:0 0 5px #ff0000;">⚠️ เสี่ยงฟ้าผ่าและลมกระโชกแรง</span>`;
-                    } else if(maxRain > 10) {
-                        rainStatus = `<span style="color:#ff3333; font-weight:bold;">ฝนตกหนัก (Heavy Rain - ${maxRain.toFixed(1)} mm/h)</span>`;
-                        stormRisk = `<span style="color:#f39c12;">ทัศนวิสัยต่ำขณะฝนตกหนัก</span>`;
-                    } else if(maxRain > 2.5) {
-                        rainStatus = `<span style="color:#f39c12; font-weight:bold;">ฝนตกปานกลาง (Moderate Rain)</span>`;
-                        stormRisk = `<span style="color:#00cc66;">ไม่มีความเสี่ยงพายุรุนแรง</span>`;
-                    } else {
-                        rainStatus = `<span style="color:#3498db; font-weight:bold;">ฝนตกปรอย (Light Rain)</span>`;
-                        stormRisk = `<span style="color:#00cc66;">ไม่มีความเสี่ยงพายุรุนแรง</span>`;
-                    }
-                } else if(overallMaxProb >= 30) {
-                    alertColor = '#f39c12';
-                    rainStatus = `<span style="color:#f39c12;">อาจมีกลุ่มฝนรอบๆ พื้นที่ (VCSH)</span>`;
-                }
-
-                let titleColor = alertColor; // สีกรอบ/หัวข้อให้สอดคล้องกับ severity โดยตรง
-                // === /Global Summary Logic ===
+                let alertColor = overallMaxProb >= 60 ? '#ff3333' : (overallMaxProb >= 30 ? '#f39c12' : '#00cc66');
+                let rainStatus = overallMaxProb >= 60 ? (maxRain > 10 ? `<span style="color:#ff3333;">ฝนตกหนัก</span>` : `<span style="color:#f39c12;">ฝนตกปานกลาง</span>`) : (overallMaxProb >= 30 ? `<span style="color:#3498db;">เมฆฝนบริเวณใกล้เคียง</span>` : `<span style="color:#00cc66;">ไม่มีฝน</span>`);
+                let stormRisk = overallMaxProb >= 60 && maxCape > 1000 ? `<span style="color:#ff3333; font-weight:bold; text-shadow:0 0 5px #ff0000;">⚠️ พายุฝนฟ้าคะนอง</span>` : `<span style="color:#00cc66;">ปกติ</span>`;
 
                 let displayDateStr = `${reqStart.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][reqStart.getMonth()]} ${reqStart.getFullYear()+543}`;
                 
+                // Model Buttons HTML
+                const models = [
+                    { id: 'ecmwf_ifs025', name: 'ECMWF' },
+                    { id: 'gfs_seamless', name: 'GFS' },
+                    { id: 'icon_seamless', name: 'ICON' },
+                    { id: 'jma_seamless', name: 'JMA' }
+                ];
+                let modelBtns = `<div style="display:flex; gap:5px; margin-bottom:10px;">`;
+                models.forEach(m => {
+                    let isAct = m.id === currentAiModel;
+                    modelBtns += `<button onclick="changeAiModel('${m.id}')" style="flex:1; background:${isAct ? '#2a3f5f' : '#0b131e'}; color:${isAct ? '#00ffcc' : '#a0aec0'}; border:1px solid ${isAct ? '#00ffcc' : '#4a5568'}; border-radius:4px; padding:4px; cursor:pointer; font-weight:bold; font-size:0.9vw;">${m.name}</button>`;
+                });
+                modelBtns += `<div style="flex:1.5; background:rgba(0,0,0,0.5); color:#3498db; border:1px solid #3498db; border-radius:4px; padding:4px; text-align:center; font-weight:bold; font-size:0.9vw;">ปริมาณฝนสะสม: ${totalRainAcc.toFixed(1)} mm</div></div>`;
+
                 let html = `
-                <div style="background: rgba(20, 30, 48, 0.8); border: 2px solid ${titleColor}; border-radius: 8px; padding: 15px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); height: 100%; display: flex; flex-direction: column;">
-                    <div style="color:${titleColor}; font-size:1.4vw; font-weight:bold; border-bottom: 2px solid ${titleColor}; padding-bottom: 8px; margin-bottom: 12px; text-align:center; flex-shrink:0;">
-                        ${overallMaxProb >= 60 ? '🔴 การแจ้งเตือนสภาพอากาศ (WEATHER ALERT)' : '🟢 การพยากรณ์สภาพอากาศ (CLEAR)'}
+                <div style="background: rgba(20, 30, 48, 0.8); border: 2px solid ${alertColor}; border-radius: 8px; padding: 15px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); height: 100%; display: flex; flex-direction: column;">
+                    <div style="color:${alertColor}; font-size:1.4vw; font-weight:bold; border-bottom: 2px solid ${alertColor}; padding-bottom: 8px; margin-bottom: 12px; text-align:center; flex-shrink:0;">
+                        ${overallMaxProb >= 60 ? '🔴 การแจ้งเตือนสภาพอากาศ (WEATHER ALERT)' : (overallMaxProb >= 30 ? '🟡 เฝ้าระวังกลุ่มฝน (ADVISORY)' : '🟢 การพยากรณ์สภาพอากาศ (CLEAR)')}
                     </div>
                     
+                    ${modelBtns}
+
                     <div style="display:flex; justify-content:space-between; margin-bottom:10px; background:#000; padding:10px; border-radius:6px; border: 1px solid #2a3f5f; flex-shrink:0;">
                         <div>
                             <div style="color:#a0aec0; font-size:0.9vw;">📍 พื้นที่เป้าหมาย: <span style="color:#fff; font-weight:bold;">${locName}</span></div>
@@ -1659,7 +1742,7 @@ function renderTafTimeline(tafRaw) {
                     </div>
 
                     <div style="flex-shrink:0; background:#000; border-radius:6px; border: 2px solid ${alertColor}; padding:10px; margin-bottom:10px;">
-                        <div style="color:${alertColor}; font-weight:bold; font-size:1vw; border-bottom:1px dashed #4a5568; padding-bottom:4px; margin-bottom:6px;">📊 สรุปการประเมินสภาพอากาศ (Global Summary)</div>
+                        <div style="color:${alertColor}; font-weight:bold; font-size:1vw; border-bottom:1px dashed #4a5568; padding-bottom:4px; margin-bottom:6px;">📊 สรุปประเมินความรุนแรง (${currentAiModel.split('_')[0].toUpperCase()})</div>
                         <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
                             <span style="color:#a0aec0; font-size:0.9vw;">🌧️ สภาพฝน:</span>
                             <span style="font-size:1vw; font-weight:bold;">${rainStatus}</span>
@@ -1684,7 +1767,7 @@ function renderTafTimeline(tafRaw) {
 
             } catch(e) {
                 console.error(e);
-                reportEl.innerHTML = `<div style="text-align:center; color:#ff3333; margin-top:50px;">❌ เกิดข้อผิดพลาดในการดึงข้อมูลแบบจำลอง</div>`;
+                reportEl.innerHTML = `<div style="text-align:center; color:#ff3333; margin-top:50px;">❌ เกิดข้อผิดพลาดในการดึงข้อมูลแบบจำลอง<br>${e.message}</div>`;
             }
         }
 
@@ -3063,17 +3146,17 @@ function mark(ok,label){
   return '<span class="'+cls+'">'+label+':'+sym+'</span>';
 }
 
-/* --- [ใบ #11] วาด Dashboard 5 เสาถาวรในกล่อง 2 --- */
+/* --- [ใบ #11] วาด Dashboard 5 เสาถาวรในกล่อง 3 --- */
 function renderPillarDash(res) {
-  var box2 = $('box2-taf');
-  if(!box2) return;
+  var targetBox = $('box3-taf');
+  if(!targetBox) return;
   var dash = $('atc-pillar-dash');
   if(!dash) {
     dash = document.createElement('div');
     dash.id = 'atc-pillar-dash';
-    dash.style.cssText = 'flex:0 0 auto; display:flex; gap:4px; margin-bottom:5px; padding:6px; background:rgba(0,0,0,0.6); border:1px solid #2a3f5f; border-radius:6px;';
-    var mapEl = $('taf-leaflet-map');
-    if(mapEl) box2.insertBefore(dash, mapEl); else box2.appendChild(dash);
+    dash.style.cssText = 'flex:0 0 auto; display:flex; gap:4px; margin-bottom:10px; padding:6px; background:rgba(0,0,0,0.6); border:1px solid #2a3f5f; border-radius:6px;';
+    var aiContent = $('ai-report-content');
+    if(aiContent) targetBox.insertBefore(dash, aiContent); else targetBox.appendChild(dash);
   }
 
   function box(label, ok, desc) {
