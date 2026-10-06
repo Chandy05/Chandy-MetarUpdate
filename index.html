@@ -403,6 +403,33 @@
 }
 /* ===== DATE/TIME INPUT : 24H + DD/MM/YYYY ===== */
 #taf-leaflet-map { box-sizing: border-box; min-width: 0; }
+@keyframes blink-warn { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+#taf-leaflet-map:fullscreen,
+#taf-leaflet-map:-webkit-full-screen {
+    width: 100vw !important;
+    height: 100vh !important;
+    min-height: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #000;
+}
+.map-fs-btn {
+    background: rgba(11, 19, 30, 0.85);
+    color: #00ffcc;
+    border: 1px solid #00ffcc;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 16px;
+    box-shadow: 0 0 5px rgba(0,255,204,0.3);
+}
+.ruler-tooltip {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+.ruler-tooltip:before { display: none; }
 #taf-date, #taf-time-start, #taf-time-end {
     color-scheme: dark;
     letter-spacing: 0.5px;
@@ -856,7 +883,7 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
                         </div>
                     </div>
                     <!-- แถว 3: ปุ่มวิเคราะห์เต็มความกว้าง -->
-                    <button onclick="triggerManualAIAnalysis()" style="flex:0 0 auto; width:100%; background:var(--data-color); color:#000; font-weight:bold; font-size:clamp(12px,1.1vw,17px); padding:8px 8px; border:none; border-radius:6px; cursor:pointer; box-shadow:0 0 10px rgba(0,255,204,0.4); transition:all 0.2s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">🔍 วิเคราะห์สภาพอากาศโดยละเอียด</button>
+                    <button id="btn-analyze-ai" onclick="triggerManualAIAnalysis()" style="flex:0 0 auto; width:100%; background:var(--data-color); color:#000; font-weight:bold; font-size:clamp(12px,1.1vw,17px); padding:8px 8px; border:none; border-radius:6px; cursor:pointer; box-shadow:0 0 10px rgba(0,255,204,0.4); transition:all 0.2s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">🔍 วิเคราะห์สภาพอากาศโดยละเอียด</button>
                 </div>
             </div>
         </div>
@@ -1616,11 +1643,18 @@ function renderTafTimeline(tafRaw) {
                 if (previous) previous.controller.abort();
                 const el = document.getElementById('ai-report-content');
                 if (el) el.dataset.waitingForEngine = 'false';
-                showMessage(
-                    'pending',
-                    message || 'มีการเปลี่ยนตำแหน่งหรือช่วงเวลา กรุณากดวิเคราะห์',
-                    '#f39c12'
-                );
+                if (el) {
+                    clearMetadata(el);
+                    el.dataset.analysisState = 'stale';
+                }
+                const btn = document.getElementById('btn-analyze-ai');
+                if (btn) {
+                    btn.innerHTML = '⚠️ ข้อมูลเปลี่ยน! กดเพื่อวิเคราะห์ใหม่';
+                    btn.style.background = '#f39c12';
+                    btn.style.boxShadow = '0 0 15px rgba(243, 156, 18, 0.8)';
+                    btn.style.animation = 'blink-warn 1s infinite';
+                    btn.setAttribute('aria-label', message || 'ข้อมูลเปลี่ยน กรุณากดเพื่อวิเคราะห์ใหม่');
+                }
             }
 
             function begin(query) {
@@ -1675,6 +1709,14 @@ function renderTafTimeline(tafRaw) {
                 const el = document.getElementById('ai-report-content');
                 clearMetadata(el);
                 if (el) el.dataset.analysisState = 'loading';
+                const btn = document.getElementById('btn-analyze-ai');
+                if (btn) {
+                    btn.innerHTML = '🔍 วิเคราะห์สภาพอากาศโดยละเอียด';
+                    btn.style.background = 'var(--data-color)';
+                    btn.style.boxShadow = '0 0 10px rgba(0,255,204,0.4)';
+                    btn.style.animation = 'none';
+                    btn.setAttribute('aria-label', 'วิเคราะห์สภาพอากาศโดยละเอียด');
+                }
                 return request;
             }
 
@@ -1782,13 +1824,13 @@ function renderTafTimeline(tafRaw) {
                 }).addTo(tafMap);
 
                 const date = new Date(latest.time * 1000);
-                const timeStr = String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0') + ' L';
+                const timeStr = String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
                 const btn = document.getElementById('rv-time-btn');
-                if (btn) btn.innerHTML = `📡 Radar: ${timeStr} ↻`;
+                if (btn) btn.innerHTML = `📡 ${timeStr} ↻`;
             } catch (e) {
                 console.error("RainViewer Fetch Error: ", e);
                 const btn = document.getElementById('rv-time-btn');
-                if (btn) btn.innerHTML = `📡 Radar: ERROR ↻`;
+                if (btn) btn.innerHTML = `📡 ERROR ↻`;
             }
         }
 
@@ -1827,6 +1869,11 @@ function renderTafTimeline(tafRaw) {
             const stn = document.getElementById('station-select').value;
             if(typeof UW_COORDS !== 'undefined' && UW_COORDS[stn]) setTarget({lat: UW_COORDS[stn].lat, lon: UW_COORDS[stn].lon, name: stn, source: 'station', stationCode: stn});
             var _t0 = getTarget();
+            let isRulerActive = false;
+            let rulerLine = null;
+            let rulerTooltip = null;
+            let rulerActivePoint = null;
+            let rulerButton = null;
             
             tafMap = L.map('taf-leaflet-map', {zoomControl: false}).setView([_t0.lat, _t0.lon], 8);
             // maxNativeZoom: 15 ป้องกันปัญหา "Zoom Level Not Supported" ในเขตภูเขา/ชนบท
@@ -1846,6 +1893,7 @@ function renderTafTimeline(tafRaw) {
             document.getElementById('taf-coord-input').value = `${_t0.lat.toFixed(5)}, ${_t0.lon.toFixed(5)}`;
 
             tafMap.on('click', function(e) {
+                if(isRulerActive) return;
                 setTarget({lat: e.latlng.lat, lon: e.latlng.lng, name: 'พิกัดบนแผนที่', source: 'map', stationCode: null});
                 tafMarker.setLatLng(e.latlng);
                 if(tafRadiusCircle) tafRadiusCircle.setLatLng([e.latlng.lat, e.latlng.lng]);
@@ -1889,16 +1937,163 @@ function renderTafTimeline(tafRaw) {
                     var btn = L.DomUtil.create('button', 'rv-time-btn');
                     btn.id = 'rv-time-btn';
                     btn.style.cssText = 'background: rgba(11, 19, 30, 0.85); color: #00ffcc; border: 1px solid #00ffcc; border-radius: 4px; padding: 4px 8px; font-weight: bold; cursor: pointer; font-family: Consolas, monospace; font-size: 1vw; box-shadow: 0 0 5px rgba(0,255,204,0.3);';
-                    btn.innerHTML = '📡 Radar: LOAD... ↻';
+                    btn.innerHTML = '📡 LOAD... ↻';
                     btn.onclick = function(e) {
                         L.DomEvent.stopPropagation(e);
-                        btn.innerHTML = '📡 Radar: LOAD... ↻';
+                        btn.innerHTML = '📡 LOAD... ↻';
                         updateRainViewerLayer();
                     };
                     return btn;
                 }
             });
             new L.Control.RadarTime({ position: 'topright' }).addTo(tafMap);
+
+            L.Control.FullscreenMap = L.Control.extend({
+                onAdd: function(map) {
+                    var btn = L.DomUtil.create('button', 'map-fs-btn');
+                    btn.type = 'button';
+                    btn.innerHTML = '🔍';
+                    btn.title = 'เต็มจอ (Fullscreen)';
+                    btn.setAttribute('aria-label', 'ขยายแผนที่เต็มหน้าจอ');
+                    L.DomEvent.disableClickPropagation(btn);
+                    L.DomEvent.on(btn, 'click', function(e) {
+                        L.DomEvent.stopPropagation(e);
+                        var mapContainer = document.getElementById('taf-leaflet-map');
+                        var fullscreenElement = document.fullscreenElement ||
+                            document.webkitFullscreenElement || document.msFullscreenElement;
+                        if (!fullscreenElement) {
+                            var enterFullscreen = mapContainer.requestFullscreen ||
+                                mapContainer.webkitRequestFullscreen || mapContainer.msRequestFullscreen;
+                            if (!enterFullscreen) {
+                                alert('เบราว์เซอร์นี้ไม่รองรับการแสดงแผนที่เต็มหน้าจอ');
+                                return;
+                            }
+                            var fullscreenRequest = enterFullscreen.call(mapContainer);
+                            if (fullscreenRequest && typeof fullscreenRequest.catch === 'function') {
+                                fullscreenRequest.catch(function(error) {
+                                    console.error('Map fullscreen request failed:', error);
+                                    alert('ไม่สามารถขยายแผนที่เต็มหน้าจอได้');
+                                });
+                            }
+                        } else {
+                            var exitFullscreen = document.exitFullscreen ||
+                                document.webkitExitFullscreen || document.msExitFullscreen;
+                            if (!exitFullscreen) {
+                                alert('ไม่สามารถออกจากโหมดเต็มหน้าจอได้');
+                                return;
+                            }
+                            var fullscreenExit = exitFullscreen.call(document);
+                            if (fullscreenExit && typeof fullscreenExit.catch === 'function') {
+                                fullscreenExit.catch(function(error) {
+                                    console.error('Map fullscreen exit failed:', error);
+                                    alert('ไม่สามารถออกจากโหมดเต็มหน้าจอได้');
+                                });
+                            }
+                        }
+                    });
+                    return btn;
+                }
+            });
+            new L.Control.FullscreenMap({ position: 'topright' }).addTo(tafMap);
+            var refreshMapSize = function() {
+                setTimeout(function() {
+                    if (tafMap) tafMap.invalidateSize({ pan: false });
+                }, 200);
+            };
+            document.addEventListener('fullscreenchange', refreshMapSize);
+            document.addEventListener('webkitfullscreenchange', refreshMapSize);
+            document.addEventListener('MSFullscreenChange', refreshMapSize);
+
+            L.Control.AtcRuler = L.Control.extend({
+                onAdd: function(map) {
+                    var btn = L.DomUtil.create('button', 'map-ruler-btn');
+                    rulerButton = btn;
+                    btn.type = 'button';
+                    btn.style.cssText = 'background: rgba(11, 19, 30, 0.85); color: #00ffcc; border: 1px solid #00ffcc; border-radius: 4px; padding: 4px 6px; font-weight: bold; cursor: pointer; font-size: 16px; box-shadow: 0 0 5px rgba(0,255,204,0.3);';
+                    btn.innerHTML = '📏';
+                    btn.title = 'เครื่องมือวัดระยะและทิศทาง (Ruler)';
+                    btn.setAttribute('aria-label', btn.title);
+                    btn.setAttribute('aria-pressed', 'false');
+                    L.DomEvent.disableClickPropagation(btn);
+                    btn.onclick = function(e) {
+                        L.DomEvent.stopPropagation(e);
+                        isRulerActive = !isRulerActive;
+                        if(isRulerActive) {
+                            if(rulerLine) { map.removeLayer(rulerLine); rulerLine = null; }
+                            if(rulerTooltip) { map.removeLayer(rulerTooltip); rulerTooltip = null; }
+                            rulerActivePoint = getTarget();
+                            btn.style.background = '#f39c12';
+                            btn.style.color = '#fff';
+                            btn.style.borderColor = '#fff';
+                            btn.setAttribute('aria-pressed', 'true');
+                            map.getContainer().style.cursor = 'crosshair';
+                            if(map.dragging) map.dragging.disable();
+                        } else {
+                            btn.style.background = 'rgba(11, 19, 30, 0.85)';
+                            btn.style.color = '#00ffcc';
+                            btn.style.borderColor = '#00ffcc';
+                            btn.setAttribute('aria-pressed', 'false');
+                            map.getContainer().style.cursor = '';
+                            if(map.dragging) map.dragging.enable();
+                            if(rulerLine) { map.removeLayer(rulerLine); rulerLine = null; }
+                            if(rulerTooltip) { map.removeLayer(rulerTooltip); rulerTooltip = null; }
+                        }
+                    };
+                    return btn;
+                }
+            });
+            new L.Control.AtcRuler({ position: 'topright' }).addTo(tafMap);
+
+            tafMap.on('mousemove', function(e) {
+                if(!isRulerActive || !rulerActivePoint) return;
+                var centerLl = L.latLng(rulerActivePoint.lat, rulerActivePoint.lon);
+                var mouseLl = e.latlng;
+                var distNM = (centerLl.distanceTo(mouseLl) / 1852).toFixed(1);
+                var dLon = (mouseLl.lng - centerLl.lng) * Math.PI / 180;
+                var lat1 = centerLl.lat * Math.PI / 180;
+                var lat2 = mouseLl.lat * Math.PI / 180;
+                var y = Math.sin(dLon) * Math.cos(lat2);
+                var x = Math.cos(lat1) * Math.sin(lat2) -
+                    Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+                var brng = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+                var brngStr = Math.round(brng).toString().padStart(3, '0') + '°';
+                var label = '<div style="background:#000; border:1px solid #f39c12; color:#00ffcc; padding:2px 5px; border-radius:4px; font-weight:bold; font-size:clamp(12px,1vw,16px);">' +
+                    brngStr + ' / ' + distNM + ' NM</div>';
+
+                if(!rulerLine) {
+                    rulerLine = L.polyline([centerLl, mouseLl], {
+                        color: '#f39c12', weight: 2, dashArray: '5,5', interactive: false
+                    }).addTo(tafMap);
+                } else {
+                    rulerLine.setLatLngs([centerLl, mouseLl]);
+                }
+                if(!rulerTooltip) {
+                    rulerTooltip = L.tooltip({
+                        permanent: true, direction: 'right',
+                        className: 'ruler-tooltip', opacity: 0.9
+                    }).setLatLng(mouseLl).setContent(label).addTo(tafMap);
+                } else {
+                    rulerTooltip.setLatLng(mouseLl);
+                    rulerTooltip.setContent(label);
+                }
+            });
+
+            tafMap.on('click', function() {
+                if(!isRulerActive) return;
+                isRulerActive = false;
+                if(rulerButton) {
+                    rulerButton.style.background = 'rgba(11, 19, 30, 0.85)';
+                    rulerButton.style.color = '#00ffcc';
+                    rulerButton.style.borderColor = '#00ffcc';
+                    rulerButton.setAttribute('aria-pressed', 'false');
+                }
+                tafMap.getContainer().style.cursor = '';
+                if(tafMap.dragging) tafMap.dragging.enable();
+            });
+
+            L.control.scale({
+                position: 'bottomleft', metric: true, imperial: true, updateWhenIdle: true
+            }).addTo(tafMap);
             
             updateRainViewerLayer();
             if(rvInterval) clearInterval(rvInterval);
@@ -2435,13 +2630,20 @@ function renderTafTimeline(tafRaw) {
                      lines.push('<div style="color:#00cc66; font-weight:bold; font-size:1.1vw; margin-bottom:8px;">✅ ไม่พบกลุ่มฝนในรัศมี 20 NM</div>');
                   }
                   if(rData.sectorsNM && Object.keys(rData.sectorsNM).length > 0) {
-                     var secList = [];
-                     for(var k in rData.sectorsNM) secList.push('<span style="color:#00ffcc; font-weight:bold;">'+k+' ('+rData.sectorsNM[k]+' NM)</span>');
-                     lines.push('<div style="color:#fff; font-size:1.1vw;">📍 ทิศทางกลุ่มฝน: ' + secList.join(', ') + '</div>');
+                     var minNM = Infinity;
+                     var minSec = '';
+                     var allSecs = [];
+                     for(var k in rData.sectorsNM) {
+                         allSecs.push(k);
+                         if(rData.sectorsNM[k] < minNM) { minNM = rData.sectorsNM[k]; minSec = k; }
+                     }
+                     lines.push('<div style="color:#fff; font-size:1.1vw;">📍 กลุ่มฝนใกล้สุดอยู่ห่างจากสถานี <span style="color:#ff3333; font-weight:bold;">' + minNM + ' NM</span> ทางทิศ <span style="color:#00ffcc; font-weight:bold;">' + minSec + '</span></div>');
+                     if(allSecs.length > 1) {
+                         lines.push('<div style="color:#a0aec0; font-size:0.95vw; margin-top:2px;">☁️ แนวฝนพาดผ่านทิศ: ' + allSecs.join(', ') + '</div>');
+                     }
                   }
                   if(rData.motionStatus) {
-                     var mColor = rData.motionStatus.includes('APPROACH') ? '#ff3333' : '#a0aec0';
-                     if(rData.motionStatus.includes('OVERHEAD')) mColor = '#ff3333';
+                     var mColor = (rData.motionStatus.includes('เข้าใกล้') || rData.motionStatus.includes('OVERHEAD')) ? '#ff3333' : '#f1c40f';
                      lines.push('<div style="color:#a0aec0; font-size:1vw; margin-top:6px;">🔄 แนวโน้ม: <span style="color:'+mColor+'; font-weight:bold;">' + rData.motionStatus + '</span></div>');
                   }
                   if(rData.ageMin != null) {
@@ -3898,7 +4100,8 @@ function frameScan(host,path,lat,lon){
     catch(e){
       return { dataStatus:'UNKNOWN', why:'CORS/canvas getImageData ล้มเหลว: '+e.message,
                coveragePct:null, validDataPct:0, rainAtTarget:null,
-               nearestRainNM:null, sectorsNM:{}, tileInfo:{total:totalTiles,ok:loadedTiles,fail:failedTiles},
+                  nearestRainNM:null, sectorsNM:{}, cx:null, cy:null,
+                  tileInfo:{total:totalTiles,ok:loadedTiles,fail:failedTiles},
                frameRaw:null };
     }
     var rainPx=0, validPx=0, circlePx=0;
@@ -3950,6 +4153,8 @@ function frameScan(host,path,lat,lon){
     } else {
       status='OK'; why='';
     }
+    var cx = rainPx > 0 ? sx/rainPx : null;
+    var cy = rainPx > 0 ? sy/rainPx : null;
     return {
       dataStatus: status, why: why,
       coveragePct: +cov.toFixed(2),
@@ -3957,6 +4162,8 @@ function frameScan(host,path,lat,lon){
       rainAtTarget: rainAtTarget,
       nearestRainNM: nearestNM!==null ? +nearestNM.toFixed(1) : null,
       sectorsNM: sectorsNM,
+      cx: cx,
+      cy: cy,
       tileInfo: { total: totalTiles, ok: loadedTiles, fail: failedTiles },
       frameRaw: { rainPx:rainPx, validPx:validPx, circlePx:circlePx, rPx:r, kmpp:kmpp }
     };
@@ -4013,9 +4220,32 @@ function radarPillar(lat,lon){
           } else if(rainHere){
             closing = true;
           }
-          var motionStatus = 'STATIC / DIVERGING';
-          if(rainHere) motionStatus = 'OVERHEAD (เหนือสนาม)';
-          else if(closing === true) motionStatus = 'APPROACHING (เคลื่อนเข้าใกล้)';
+          var movStr = '';
+          if(a && a.dataStatus === 'OK' &&
+             Number.isFinite(a.cx) && Number.isFinite(a.cy) &&
+             Number.isFinite(b.cx) && Number.isFinite(b.cy)){
+            var vecX = b.cx - a.cx;
+            var vecY = b.cy - a.cy;
+            var distMoved = Math.sqrt(vecX*vecX + vecY*vecY);
+            if(distMoved < 1){
+              movStr = 'STNR (ทรงตัว)';
+            } else {
+              var angle = (Math.atan2(vecX, -vecY) * 180 / Math.PI + 360) % 360;
+              var dirs = ['N','NE','E','SE','S','SW','W','NW'];
+              var dirIdx = Math.round(angle / 45) % 8;
+              movStr = 'MOV ' + dirs[dirIdx];
+            }
+          }
+          var motionStatus = 'ทรงตัว / ออกห่าง';
+          if(movStr === 'STNR (ทรงตัว)') motionStatus = 'STNR (ทรงตัว) - ไม่เข้าใกล้สนาม';
+          else if(movStr){
+            motionStatus = movStr + (closing === true
+              ? ' - เคลื่อนเข้าใกล้สนาม'
+              : ' - เคลื่อนตัวออกห่าง');
+          } else if(closing === true){
+            motionStatus = 'เคลื่อนเข้าใกล้สนาม';
+          }
+          if(rainHere) motionStatus = 'OVERHEAD (ตกเหนือสนาม)';
           var threatLevel = 'GREEN';
           if(b_nr !== null) {
               if (b_nr <= 5) threatLevel = 'RED';
