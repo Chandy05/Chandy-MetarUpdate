@@ -1562,6 +1562,196 @@ function renderTafTimeline(tafRaw) {
         function getTarget(){ return window.__ATC_TARGET__.get(); }
         function setTarget(patch){ return window.__ATC_TARGET__.set(patch); }
 
+        // Detailed-report request control only; not the shared alert result.
+        window.__ATC_REPORT_REQUESTS__ = (function () {
+            let sequence = 0;
+            let active = null;
+            let lastCompleted = null;
+
+            const watchedInputIds = new Set([
+                'taf-coord-input',
+                'taf-date',
+                'taf-date-start',
+                'taf-date-end',
+                'taf-time-start',
+                'taf-time-end'
+            ]);
+
+            function inputKey() {
+                return JSON.stringify(
+                    Array.from(watchedInputIds).map(function (id) {
+                        const el = document.getElementById(id);
+                        return [id, el ? el.value : null];
+                    })
+                );
+            }
+
+            function modelId() {
+                return typeof currentAiModel === 'string'
+                    ? currentAiModel : '';
+            }
+
+            function clearMetadata(el) {
+                if (!el) return;
+                delete el.dataset.resultId;
+                delete el.dataset.targetRevision;
+                delete el.dataset.requestSnapshot;
+            }
+
+            function showMessage(state, message, color) {
+                const el = document.getElementById('ai-report-content');
+                if (!el) return;
+                clearMetadata(el);
+                el.dataset.analysisState = state;
+                const box = document.createElement('div');
+                box.style.cssText =
+                    'padding:20px;text-align:center;color:' + color + ';';
+                box.textContent = message;
+                el.replaceChildren(box);
+            }
+
+            function invalidate(message) {
+                const previous = active;
+                active = null;
+                if (previous) previous.controller.abort();
+                showMessage(
+                    'pending',
+                    message || 'มีการเปลี่ยนตำแหน่งหรือช่วงเวลา กรุณากดวิเคราะห์',
+                    '#f39c12'
+                );
+            }
+
+            function begin(query) {
+                const target = getTarget();
+                if (
+                    !target ||
+                    !Number.isFinite(query.lat) ||
+                    !Number.isFinite(query.lon) ||
+                    query.lat < -90 || query.lat > 90 ||
+                    query.lon < -180 || query.lon > 180
+                ) {
+                    invalidate('พิกัดไม่ถูกต้อง กรุณาตรวจสอบก่อนวิเคราะห์');
+                    return null;
+                }
+
+                if (
+                    query.lat !== Number(target.lat) ||
+                    query.lon !== Number(target.lon)
+                ) {
+                    invalidate(
+                        'ตำแหน่งคำขอไม่ตรงกับตำแหน่งที่เลือก กรุณากดวิเคราะห์ใหม่'
+                    );
+                    return null;
+                }
+
+                const previous = active;
+                active = null;
+                if (previous) previous.controller.abort();
+
+                const snapshot = Object.freeze({
+                    lat: query.lat,
+                    lon: query.lon,
+                    name: String(query.name || ''),
+                    source: target.source || 'unknown',
+                    stationCode: target.stationCode || null,
+                    targetRevision: target.revision,
+                    dateStr: query.dateStr,
+                    timeStart: query.timeStart,
+                    timeEnd: query.timeEnd,
+                    model: modelId(),
+                    inputKey: inputKey()
+                });
+
+                const request = Object.freeze({
+                    id: 'report-' + (++sequence),
+                    startedAt: new Date().toISOString(),
+                    snapshot: snapshot,
+                    controller: new AbortController()
+                });
+
+                active = request;
+                const el = document.getElementById('ai-report-content');
+                clearMetadata(el);
+                if (el) el.dataset.analysisState = 'loading';
+                return request;
+            }
+
+            function isCurrent(request) {
+                if (
+                    !request ||
+                    active !== request ||
+                    request.controller.signal.aborted
+                ) return false;
+
+                const target = getTarget();
+                return !!target &&
+                    target.revision === request.snapshot.targetRevision &&
+                    Number(target.lat) === request.snapshot.lat &&
+                    Number(target.lon) === request.snapshot.lon &&
+                    modelId() === request.snapshot.model &&
+                    inputKey() === request.snapshot.inputKey;
+            }
+
+            function commit(request, html) {
+                if (!isCurrent(request)) return false;
+                const el = document.getElementById('ai-report-content');
+                if (!el) return false;
+
+                el.innerHTML = html;
+                el.dataset.analysisState = 'completed';
+                el.dataset.resultId = request.id;
+                el.dataset.targetRevision =
+                    String(request.snapshot.targetRevision);
+                el.dataset.requestSnapshot =
+                    JSON.stringify(request.snapshot);
+
+                lastCompleted = Object.freeze({
+                    resultId: request.id,
+                    snapshot: request.snapshot,
+                    completedAt: new Date().toISOString(),
+                    html: html
+                });
+                return true;
+            }
+
+            function fail(request, error) {
+                if (!isCurrent(request)) return;
+                showMessage(
+                    'error',
+                    'เกิดข้อผิดพลาดในการดึงข้อมูลแบบจำลอง: ' +
+                    (error && error.message ? error.message : 'ไม่ทราบสาเหตุ'),
+                    '#ff6666'
+                );
+            }
+
+            function finish(request) {
+                if (active === request) active = null;
+            }
+
+            function handleDraftEdit(event) {
+                const el = event.target;
+                if (el && watchedInputIds.has(el.id)) invalidate();
+            }
+
+            document.addEventListener('input', handleDraftEdit, true);
+            document.addEventListener('change', handleDraftEdit, true);
+            window.__ATC_TARGET__.subscribe(function () {
+                invalidate();
+            });
+
+            return Object.freeze({
+                begin: begin,
+                isCurrent: isCurrent,
+                commit: commit,
+                fail: fail,
+                finish: finish,
+                invalidate: invalidate,
+                getLastCompleted: function () {
+                    return lastCompleted;
+                }
+            });
+        })();
+
         let tafMap = null; let tafMarker = null; let tafRadiusCircle = null;
         // Backward compat alias: โค้ดเก่าที่ยังเขียน currentTargetLoc ตรงๆ ยังทำงานได้
         // (จะถูก sync ผ่าน subscribe ด้านบน)
@@ -1914,16 +2104,51 @@ function renderTafTimeline(tafRaw) {
 
         // --- ECMWF Advanced Logic (Hourly Breakdown) ---
         async function analyzeAreaWeather(lat, lon, locName, dateStr, timeStart, timeEnd) {
-            lastAiQuery = { lat, lon, name: locName, dateStr, timeStart, timeEnd };
+            const requestControl = window.__ATC_REPORT_REQUESTS__;
+            const request = requestControl.begin({
+                lat: lat,
+                lon: lon,
+                name: locName,
+                dateStr: dateStr,
+                timeStart: timeStart,
+                timeEnd: timeEnd
+            });
+
+            if (!request) return;
+
+            lastAiQuery = {
+                lat, lon, name: locName, dateStr, timeStart, timeEnd
+            };
             const reportEl = document.getElementById('ai-report-content');
-            reportEl.innerHTML = `<div style="text-align:center; color:var(--data-color); font-size:1.5vw; margin-top:50px;">กำลังวิเคราะห์โมเดล ${currentAiModel.toUpperCase()}... ⏳</div>`;
+            reportEl.innerHTML = `<div style="text-align:center; color:var(--data-color); font-size:1.5vw; margin-top:50px;">กำลังวิเคราะห์โมเดล ${request.snapshot.model.toUpperCase()}... ⏳</div>`;
 
             try {
                 // Fetch dynamic model
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,dewpoint_2m,precipitation_probability,precipitation,windspeed_10m,winddirection_10m,windgusts_10m,visibility,cape&models=${currentAiModel}&timezone=auto&forecast_days=3`;
-                const res = await fetch(url);
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,dewpoint_2m,precipitation_probability,precipitation,windspeed_10m,winddirection_10m,windgusts_10m,visibility,cape&models=${encodeURIComponent(request.snapshot.model)}&timezone=auto&forecast_days=3`;
+
+                const res = await fetch(url, {
+                    signal: request.controller.signal
+                });
+
+                if (!requestControl.isCurrent(request)) return;
+
+                if (!res.ok) {
+                    throw new Error(
+                        'Model HTTP ' + res.status + ' ' + res.statusText
+                    );
+                }
+
                 const data = await res.json();
-                if(!data || !data.hourly) throw new Error("ไม่พบข้อมูล");
+
+                if (!requestControl.isCurrent(request)) return;
+
+                if (
+                    !data ||
+                    !data.hourly ||
+                    !Array.isArray(data.hourly.time)
+                ) {
+                    throw new Error('ไม่พบข้อมูลรายชั่วโมงที่ถูกต้อง');
+                }
 
                 let reqStart = new Date(`${dateStr}T${timeStart}:00`);
                 let reqEnd = new Date(`${dateStr}T${timeEnd}:00`);
@@ -1968,6 +2193,7 @@ function renderTafTimeline(tafRaw) {
                     }
                 }
 
+                if (!requestControl.isCurrent(request)) return;
                 if(!hasData) { reportEl.innerHTML = `<div style="text-align:center; color:#ff3333; margin-top:50px;">ไม่อยู่ในห้วงเวลา (วิเคราะห์ล่วงหน้าได้ 72 ชม.)</div>`; return; }
 
                 const maxRain = hourlyData.reduce((m, h) => Math.max(m, h.rain), 0);
@@ -2262,11 +2488,21 @@ function renderTafTimeline(tafRaw) {
                         ${eventHtml}
                     </div>
                 </div>`;
-                reportEl.innerHTML = html;
+                requestControl.commit(request, html);
 
             } catch(e) {
+                if (
+                    request.controller.signal.aborted ||
+                    (e && e.name === 'AbortError')
+                ) return;
+
+                if (!requestControl.isCurrent(request)) return;
+
                 console.error(e);
-                reportEl.innerHTML = `<div style="text-align:center; color:#ff3333; margin-top:50px;">❌ เกิดข้อผิดพลาดในการดึงข้อมูลแบบจำลอง<br>${e.message}</div>`;
+                requestControl.fail(request, e);
+
+            } finally {
+                requestControl.finish(request);
             }
         }
 
