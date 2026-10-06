@@ -1464,11 +1464,11 @@ function renderTafTimeline(tafRaw) {
             updateRawTextDisplay(selectedStation, rawMetar); 
             
             if(cachedTafText) {
-                const cleanTaf = extractWxData(cachedTafText, selectedStation);
+                const cleanTaf = extractWxData(cachedTafText, selectedStation, 'TAF');
                 if(cleanTaf) {
                     renderTafTimeline(cleanTaf);
                 } else {
-                    document.getElementById('taf-timeline-container').innerHTML = '<div style="color:red; text-align:center;">NO TAF DATA FOR THIS STATION</div>';
+                    document.getElementById('taf-timeline-container').innerHTML = '<div style="color:#ff3333; text-align:center; font-weight:bold; margin-top:30px; font-size:1.5vw;">NO TAF DATA FOR THIS STATION</div>';
                 }
             }
             
@@ -2288,14 +2288,32 @@ function renderTafTimeline(tafRaw) {
 
                 if(!eventHtml) eventHtml = `<div style="text-align:center; color:#00cc66; font-size:1.2vw; padding:20px;">✅ ไม่มีแนวโน้มฝนตก หรือสภาพอากาศเลวร้ายในห้วงเวลานี้</div>`;
 
-                let alertColor = overallMaxProb >= 60 ? '#ff3333' : (overallMaxProb >= 30 ? '#f39c12' : '#00cc66');
-                let rainStatus = overallMaxProb >= 60 ? (maxRain > 10 ? `<span style="color:#ff3333;">ฝนตกหนัก</span>` : `<span style="color:#f39c12;">ฝนตกปานกลาง</span>`) : (overallMaxProb >= 30 ? `<span style="color:#3498db;">เมฆฝนบริเวณใกล้เคียง</span>` : `<span style="color:#00cc66;">ไม่มีฝน</span>`);
-                let stormRisk = overallMaxProb >= 60 && maxCape > 1000 ? `<span style="color:#ff3333; font-weight:bold; text-shadow:0 0 5px #ff0000;">⚠️ พายุฝนฟ้าคะนอง</span>` : `<span style="color:#00cc66;">ปกติ</span>`;
-
                 let displayDateStr = `${reqStart.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][reqStart.getMonth()]} ${reqStart.getFullYear()+543}`;
                 
-                // --- ดึงสถานะจาก 5-Pillar Engine ---
+                // --- ดึงสถานะจาก 5-Pillar Engine ของเป้าหมายปัจจุบัน ---
                 let eng = window.ATC_ALERT_ENGINE ? window.ATC_ALERT_ENGINE.last : null;
+                if(eng && eng.target &&
+                    (Number(eng.target.lat)!==lat || Number(eng.target.lon)!==lon ||
+                     eng.target.revision!==request.snapshot.targetRevision)) eng = null;
+                let alertColor = '#00cc66';
+                let alertTitle = '🟢 การพยากรณ์สภาพอากาศ (CLEAR)';
+                if(eng) {
+                    if(eng.lvl==='RED') {
+                        alertColor='#ff3333';
+                        alertTitle='🔴 การแจ้งเตือนสภาพอากาศ (WEATHER ALERT)';
+                    } else if(eng.lvl==='AMBER') {
+                        alertColor='#f39c12';
+                        alertTitle='🟡 เฝ้าระวังกลุ่มฝน (ADVISORY)';
+                    }
+                } else {
+                    alertColor=overallMaxProb>=60?'#ff3333':(overallMaxProb>=30?'#f39c12':'#00cc66');
+                    alertTitle=overallMaxProb>=60?'🔴 การแจ้งเตือนสภาพอากาศ (WEATHER ALERT)':
+                        (overallMaxProb>=30?'🟡 เฝ้าระวังกลุ่มฝน (ADVISORY)':'🟢 การพยากรณ์สภาพอากาศ (CLEAR)');
+                }
+                let engineDetText = eng && window.__ATC_LATEST_DETAIL__
+                    ? window.__ATC_LATEST_DETAIL__
+                    : `POP ${overallMaxProb}% | AGREE N/A | RAIN ${maxRain.toFixed(1)}mm`;
+                let detailsHtml = `<div style="text-align:center; font-size:1vw; color:#e2e8f0; background:rgba(0,0,0,0.5); padding:6px; border-radius:4px; margin-bottom:8px; border:1px solid #2a3f5f; font-family:'Consolas', monospace; letter-spacing:0.5px;">${engineDetText}</div>`;
                 let sP1 = eng && eng.hour ? eng.hour.p1 : false;
                 let sP2 = eng && eng.hour ? eng.hour.p2 : false;
                 let sP3 = eng && eng.hour ? eng.hour.p3 : false;
@@ -2340,7 +2358,12 @@ function renderTafTimeline(tafRaw) {
                 let modelBtns = `<div style="display:flex; gap:5px; margin-bottom:10px;">`;
                 models.forEach(m => {
                     let isAct = m.id === currentAiModel;
-                    modelBtns += `<button onclick="changeAiModel('${m.id}')" style="flex:1; background:${isAct ? '#2a3f5f' : '#0b131e'}; color:${isAct ? '#00ffcc' : '#a0aec0'}; border:1px solid ${isAct ? '#00ffcc' : '#4a5568'}; border-radius:4px; padding:4px; cursor:pointer; font-weight:bold; font-size:0.9vw; transition:0.2s;">${m.name}</button>`;
+                    let mStatusOk = eng && eng.modelStatus &&
+                        Object.prototype.hasOwnProperty.call(eng.modelStatus,m.id)
+                        ? eng.modelStatus[m.id] : null;
+                    let textColor = mStatusOk===false ? '#ff5555' :
+                        (isAct ? '#00ffcc' : (mStatusOk===true ? '#a0aec0' : '#718096'));
+                    modelBtns += `<button onclick="changeAiModel('${m.id}')" style="flex:1; background:${isAct ? '#2a3f5f' : '#0b131e'}; color:${textColor}; border:1px solid ${isAct ? '#00ffcc' : '#4a5568'}; border-radius:4px; padding:4px; cursor:pointer; font-weight:bold; font-size:0.9vw; transition:0.2s;">${m.name}</button>`;
                 });
                 modelBtns += `</div>`;
 
@@ -2429,9 +2452,10 @@ function renderTafTimeline(tafRaw) {
                 <div style="background: rgba(20, 30, 48, 0.8); border: 2px solid ${alertColor}; border-radius: 8px; padding: 15px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); height: 100%; display: flex; flex-direction: column;">
                     
                     <div style="color:${alertColor}; font-size:1.4vw; font-weight:bold; border-bottom: 2px solid ${alertColor}; padding-bottom: 8px; margin-bottom: 12px; text-align:center; flex-shrink:0;">
-                        ${overallMaxProb >= 60 ? '🔴 การแจ้งเตือนสภาพอากาศ (WEATHER ALERT)' : (overallMaxProb >= 30 ? '🟡 เฝ้าระวังกลุ่มฝน (ADVISORY)' : '🟢 การพยากรณ์สภาพอากาศ (CLEAR)')}
+                        ${alertTitle}
                     </div>
 
+                    ${detailsHtml}
                     ${tabsHtml}
                     
                     <!-- กล่องเครื่องมือ (Toolbox Panes) -->
@@ -4092,40 +4116,50 @@ function paint(res){
   var b=$('ai-alert-banner'); if(!b) return;
   if(obs) obs.disconnect();
   b.classList.remove('atc-lv-red','atc-lv-amber','atc-lv-green');
+  var detStr = 'POP '+(res.hour?res.hour.maxPop:0)+'% | AGREE '+
+    (res.hour?res.hour.agree:0)+'/'+CFG.MODELS.length+' | RAIN '+
+    (res.hour?res.hour.rain.toFixed(1):0)+'mm';
+  if(res.radar) detStr += ' | RDR: '+res.radar.dataStatus+
+    ' valid:'+(res.radar.validDataPct!=null?res.radar.validDataPct.toFixed(0):0)+'%';
+  window.__ATC_LATEST_DETAIL__ = detStr;
   if(res.lvl==='GREEN'&&!CFG.SHOW_GREEN){
     b.classList.add('hide');
     b.setAttribute('data-atc-eng',res.id);
   } else {
-    var head, lv=res.lvl;
-    if(lv==='RED') head='🔴 CONFIRMED WX ALERT: ยืนยันกลุ่มฝนเข้าเกณฑ์เสี่ยง';
-    else if(lv==='AMBER') head='🟡 WX ADVISORY: เฝ้าระวัง องค์ประกอบยังไม่ครบ';
-    else head='🟢 NO SIGNIFICANT WX: ตรวจครบ ไม่เข้าเกณฑ์';
-    var when='';
-    if(res.hour){
-      var leadMins=Math.round(res.hour.lead*60);
-      var ts = leadMins<60 ? (leadMins+' นาที'):(res.hour.lead.toFixed(1)+' ชม.');
-      when = ' | ช่วง '+res.hour.t.replace('T',' ')+' (อีก '+ts+')';
-    }
-    var det = '';
-    if(res.hour) det += 'POP '+res.hour.maxPop+'% | AGREE '+res.hour.agree+'/'+CFG.MODELS.length+' | RAIN '+res.hour.rain.toFixed(1)+'mm';
-    var rdr = res.radar;
-    if(rdr){
-      det += ' | RDR: ';
-      if(rdr.dataStatus==='UNKNOWN' || rdr.dataStatus==='PARTIAL'){
-        det += '<span style="color:#ffd166;">'+rdr.dataStatus+'</span>';
-        if(rdr.validDataPct!=null) det += ' valid:'+rdr.validDataPct+'%';
-        if(rdr.why) det += ' ('+rdr.why+')';
-      } else {
-        if(rdr.stale) det += '<span style="color:#ffd166;">STALE</span> ';
-        det += 'cov:'+(rdr.coveragePct!=null?rdr.coveragePct.toFixed(1):'?')+'%';
-        if(rdr.rainAtTarget) det += ' <span style="color:#ff3333;">ฝนทับจุด!</span>';
-        else if(rdr.nearestRainKm!=null) det += ' ใกล้สุด:'+rdr.nearestRainKm+'km';
-        else det += ' ไม่พบฝนในวง';
-        if(rdr.ageMin!=null) det += ' (อายุ '+rdr.ageMin+'น.)';
+    var lv=res.lvl;
+    var ranges=[], rangeStart=null, rangeEnd=null, previousEventTime=null;
+    (res.rows||[]).forEach(function(row){
+      var rowTime = new Date(row.t);
+      var timestamp = rowTime.getTime();
+      var isRainPeriod = row.maxPop >= CFG.POP_MIN || row.rain >= 1.0;
+      if(!Number.isFinite(timestamp)) return;
+      if(isRainPeriod){
+        if(rangeStart===null || timestamp-previousEventTime!==3600000){
+          if(rangeStart!==null) ranges.push(rangeStart===rangeEnd?rangeStart:rangeStart+'-'+rangeEnd);
+          rangeStart = String(row.t).substring(11,16);
+        }
+        rangeEnd = String(row.t).substring(11,16);
+        previousEventTime = timestamp;
+      } else if(rangeStart!==null){
+        ranges.push(rangeStart===rangeEnd?rangeStart:rangeStart+'-'+rangeEnd);
+        rangeStart=null;
+        rangeEnd=null;
+        previousEventTime=null;
       }
+    });
+    if(rangeStart!==null) ranges.push(rangeStart===rangeEnd?rangeStart:rangeStart+'-'+rangeEnd);
+    var rangeStr = ranges.length ? ranges.join(', ') :
+      (res.hour ? String(res.hour.t).substring(11,16) : 'ไม่มีช่วงฝนที่เข้าเกณฑ์');
+    var severity = 'ปกติ';
+    if(lv==='RED') severity = res.hour && res.hour.cape >= 1000 ? 'พายุฝนฟ้าคะนอง' : 'ฝนตกหนัก';
+    else if(lv==='AMBER') severity = res.hour && res.hour.rain >= 1.0 ? 'ฝนปานกลาง' : 'ฝนเบา/เมฆฝนใกล้เคียง';
+    var head = lv==='RED' ? '🔴 WX ALERT: แจ้งเตือน '+severity :
+      (lv==='AMBER' ? '🟡 WX ADVISORY: เฝ้าระวัง '+severity : '🟢 NO SIGNIFICANT WX: '+severity);
+    var leadText='';
+    if(res.hour && res.hour.lead>=0){
+      var mins=Math.round(res.hour.lead*60);
+      leadText=' (อีก '+(mins<60?mins+' นาที':res.hour.lead.toFixed(1)+' ชม.')+')';
     }
-    det += ' | เป้าหมาย:'+(res.loc||'UNKNOWN')+'['+(res.target?res.target.source:'?')+']';
-    if(res.decideReason) det += '<br><span style="font-size:0.85em;opacity:.8;">'+'['+res.decideReason+']</span>';
     b.classList.add(lv==='RED'?'atc-lv-red':(lv==='AMBER'?'atc-lv-amber':'atc-lv-green'));
     b.classList.remove('hide');
     var sP1 = res.hour?res.hour.p1:false;
@@ -4133,7 +4167,7 @@ function paint(res){
     var sP3 = res.hour?res.hour.p3:false;
     var sP4 = normP(res.taf);
     var sP5 = normP(res.radar);
-    b.innerHTML = head + when + '<br>' + det +
+    b.innerHTML = head + ' | ช่วง '+rangeStr+leadText+'<br>'+
       '<span class="atc-pillars">'+
         mark(sP1,'P1')+' '+mark(sP2,'P2')+' '+mark(sP3,'P3')+' '+
         mark(sP4===null?'UNK':sP4,'P4')+' '+
@@ -4186,10 +4220,28 @@ function run(){
           rows[i]._sc=sc;
           if(!best||sc>best._sc) best=rows[i];
         }
+        var modelStatus = {};
+        CFG.MODELS.forEach(function(m){
+          var pops = d && d.hourly
+            ? (d.hourly['precipitation_probability_'+m] || d.hourly.precipitation_probability)
+            : null;
+          var maxPop = -Infinity;
+          var hasPop = false;
+          if(pops && typeof pops.length === 'number'){
+            for(var j=0;j<pops.length;j++){
+              if(Number.isFinite(pops[j])){
+                hasPop = true;
+                if(pops[j] > maxPop) maxPop = pops[j];
+              }
+            }
+          }
+          modelStatus[m] = hasPop ? maxPop >= CFG.POP_MIN : null;
+        });
         var dec = best?decide(best,p4,p5):{lvl:'GREEN',n:0,r5:false,passList:[],unkList:['P1','P2','P3','P4','P5'],reason:'ไม่มีข้อมูลโมเดลในช่วง'};
         var res = { id:Date.now(), lvl:dec.lvl, n:dec.n, hour:best, taf:p4,
                     radar:p5, rows:rows, loc:T.name, target:T,
                     decideReason: dec.reason,
+                    modelStatus:modelStatus,
                     at:new Date().toISOString() };
         last=res; window.ATC_ALERT_ENGINE.last=res;
         paint(res); logIt(res);
