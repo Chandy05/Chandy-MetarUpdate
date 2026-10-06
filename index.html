@@ -1442,8 +1442,14 @@ function renderTafTimeline(tafRaw) {
                 const tileUrl = `${data.host}${latest.path}/256/{z}/{x}/{y}/2/1_1.png`;
 
                 if (rvLayer) tafMap.removeLayer(rvLayer);
-                // ปรับ opacity เป็น 0.85 และตั้ง zIndex: 1000 ให้อยู่ชั้นบนสุดเสมอ ไม่ถูกแผนที่ทับ
-                rvLayer = L.tileLayer(tileUrl, { opacity: 0.85, maxZoom: 20, maxNativeZoom: 13, zIndex: 1000 }).addTo(tafMap);
+                rvLayer = L.tileLayer(tileUrl, {
+                    opacity: 0.85,
+                    maxZoom: 20,
+                    // RainViewer รองรับภาพจริงสูงสุด zoom 7
+                    // เมื่อซูมเกิน 7 ให้ Leaflet ขยายภาพเดิมแทนการขอ tile ระดับสูงขึ้น
+                    maxNativeZoom: 7,
+                    zIndex: 1000
+                }).addTo(tafMap);
 
                 const date = new Date(latest.time * 1000);
                 const timeStr = String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0') + ' L';
