@@ -3802,12 +3802,15 @@ function evalModels(d){
 
 /* ---------- เสา 4 : TAF (3-state: true/false/null) ---------- */
 function tafPillar(){
-  var s=bodyTxt().replace(/\s+/g,' ');
-  var m=s.match(/TAF[\s\S]{0,900}/);
-  if(m) s=m[0];
-  if(!s || s.length < 20) return { status:'UNKNOWN', meets:null, why:'ไม่พบข้อความ TAF ในหน้า' };
+  var st = window.__ATC_TARGET__ && typeof window.__ATC_TARGET__.get === 'function'
+    ? window.__ATC_TARGET__.get() : null;
+  var stCode = st && st.stationCode ? st.stationCode :
+    (document.getElementById('station-select') ? document.getElementById('station-select').value : null);
+  if(!window.cachedTafText || !stCode) return { status:'UNKNOWN', meets:null, why:'ไม่มีข้อมูล TAF ในระบบ หรือไม่ระบุสถานี' };
+  var s = window.extractWxData ? window.extractWxData(window.cachedTafText, stCode, 'TAF') : null;
+  if(!s || s.length < 20) return { status:'UNKNOWN', meets:null, why:'ไม่พบ TAF สำหรับสถานี ' + stCode };
   var hit = /(TEMPO|BECMG|PROB30|PROB40|FM\d{6})[\s\S]{0,70}?(TSRA|\+SHRA|SHRA|TS|RA)\b/.test(s);
-  return { status: hit?'PASS':'FAIL', meets:hit, why:hit?'พบ TSRA/SHRA/TS ใน TAF':'ไม่พบฝนเด็ดใน TAF (ช่วงเวลาที่เลือกอาจไม่ครอบคลุม)' };
+  return { status: hit?'PASS':'FAIL', meets:hit, why:hit?'พบ TSRA/SHRA/TS ใน TAF ของ '+stCode:'ไม่พบกลุ่มฝนใน TAF ของ '+stCode };
 }
 
 /* ---------- Helper: normalize boolean pillar (UNKNOWN = null) ---------- */
@@ -4063,15 +4066,15 @@ function decide(h, p4, p5){
   if(p4n===true) passList.push('P4'); else if(p4n===null) unkList.push('P4');
   if(r5) passList.push('P5'); else if(p5unk) unkList.push('P5');
   var reason = 'lead='+lead.toFixed(1)+'h | ผ่าน:['+passList.join(',')+'] | ไม่ทราบ:['+unkList.join(',')+'] | P1-P4 ผ่าน='+n;
-  if(lead<=2){
-    if(r5 && n>=2) lvl='RED';
-    else if(r5 || n>=3 || (p5unk && n>=3)) lvl='AMBER';
-    else if(n>=2) lvl='AMBER';
-  } else if(lead<=6){
-    var tot=n+(r5?1:0);
-    if(tot>=4) lvl='RED'; else if(tot>=2 || (p5unk && n>=2)) lvl='AMBER';
-  } else {
-    if(n===4) lvl='RED'; else if(n>=2) lvl='AMBER';
+  // กฎการเตือนแบบ Aviation Nowcast & Forecast
+  if(n >= 2 || r5) {
+    // เหตุการณ์ภายใน 2 ชม. และ เรดาร์(P5) พบกลุ่มฝนจริง = RED ALERT
+    if(lead <= 2 && r5) {
+       lvl = 'RED';
+    } else {
+       // พยากรณ์ฝนเกิน 2 ชม. หรือ โมเดลบอกตกแต่เรดาร์ยังไม่เจอ = AMBER ADVISORY
+       lvl = 'AMBER';
+    }
   }
   return { lvl:lvl, n:n, r5:r5, unkP14:unkP14, p5unk:p5unk,
            passList:passList, unkList:unkList, reason:reason, lead:lead };
@@ -4234,7 +4237,20 @@ window.ATC_ALERT_ENGINE = {
   clearLog:function(){ try{ localStorage.removeItem('atc_alert_log'); }catch(e){} }
 };
 
-function boot(){ watch(); setTimeout(run,2500); setInterval(run,CFG.REFRESH); }
+function boot(){ 
+  watch(); 
+  setTimeout(run,2500); 
+  setInterval(run,CFG.REFRESH); 
+  
+  // บังคับรีรัน Engine ทันทีเมื่อผู้ใช้เปลี่ยนพิกัด/สถานีเป้าหมาย
+  if(window.__ATC_TARGET__ && typeof window.__ATC_TARGET__.subscribe === 'function') {
+    window.__ATC_TARGET__.subscribe(function() {
+      if(busy) return;
+      clearTimeout(tmr); 
+      tmr = setTimeout(run, 600); // หน่วงเวลาเล็กน้อยเพื่อป้องกันการรัวคลิกแผนที่
+    });
+  }
+}
 if(document.readyState==='complete'||document.readyState==='interactive') setTimeout(boot,800);
 else document.addEventListener('DOMContentLoaded',function(){ setTimeout(boot,800); });
 })();
