@@ -1867,6 +1867,77 @@ function renderTafTimeline(tafRaw) {
         })();
 
         let tafMap = null; let tafMarker = null; let tafRadiusCircle = null;
+        let tafWindArrow = null;
+
+        function getDestinationLatLng(lat, lng, brng, distNM) {
+            const R = 3440.065;
+            const brngRad = brng * Math.PI / 180;
+            const latRad = lat * Math.PI / 180;
+            const lngRad = lng * Math.PI / 180;
+            const destLatRad = Math.asin(
+                Math.sin(latRad) * Math.cos(distNM / R) +
+                Math.cos(latRad) * Math.sin(distNM / R) * Math.cos(brngRad)
+            );
+            const destLngRad = lngRad + Math.atan2(
+                Math.sin(brngRad) * Math.sin(distNM / R) * Math.cos(latRad),
+                Math.cos(distNM / R) - Math.sin(latRad) * Math.sin(destLatRad)
+            );
+            return [destLatRad * 180 / Math.PI, destLngRad * 180 / Math.PI];
+        }
+
+        function updateTafWindArrow() {
+            if (!tafMap) return;
+
+            const w5k = typeof uwState !== 'undefined' && uwState.rows
+                ? uwState.rows.find(r => r.ft === 5000 || r.hdr === '5K')
+                : null;
+            if (!w5k || !Number.isFinite(w5k.dir) ||
+                !Number.isFinite(w5k.spd) || w5k.spd < 2) {
+                if (tafWindArrow) {
+                    tafMap.removeLayer(tafWindArrow);
+                    tafWindArrow = null;
+                }
+                return;
+            }
+
+            const target = getTarget();
+            if (!target || !Number.isFinite(target.lat) ||
+                !Number.isFinite(target.lon)) return;
+
+            const destPos = getDestinationLatLng(target.lat, target.lon, w5k.dir, 20);
+            const directionRad = w5k.dir * Math.PI / 180;
+            const labelX = 45 + Math.sin(directionRad) * 36;
+            const labelY = 45 - Math.cos(directionRad) * 36;
+            const icon = L.divIcon({
+                className: '',
+                html: `
+                    <div style="position:relative;width:90px;height:90px;pointer-events:none;">
+                        <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(${w5k.dir}deg);display:flex;align-items:center;justify-content:center;">
+                            <svg width="28" height="28" viewBox="0 0 24 24" style="filter:drop-shadow(0 0 5px #f39c12);">
+                                <path d="M12 2L12 22M12 22L5 15M12 22L19 15" stroke="#f39c12" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            </svg>
+                        </div>
+                        <div style="position:absolute;left:${labelX}px;top:${labelY}px;transform:translate(-50%,-50%);color:#f39c12;font-weight:bold;font-size:13px;text-shadow:0 0 5px rgba(243,156,18,0.8);white-space:nowrap;">
+                            ${w5k.spd} KT
+                        </div>
+                    </div>
+                `,
+                iconSize: [90, 90],
+                iconAnchor: [45, 45]
+            });
+
+            if (!tafWindArrow) {
+                tafWindArrow = L.marker(destPos, {
+                    icon: icon,
+                    zIndexOffset: 1000,
+                    interactive: false
+                }).addTo(tafMap);
+            } else {
+                tafWindArrow.setLatLng(destPos);
+                tafWindArrow.setIcon(icon);
+            }
+        }
+
         // Backward compat alias: โค้ดเก่าที่ยังเขียน currentTargetLoc ตรงๆ ยังทำงานได้
         // (จะถูก sync ผ่าน subscribe ด้านบน)
         Object.defineProperty(window, 'currentTargetLocCompat', { get: getTarget });
@@ -1959,7 +2030,9 @@ function renderTafTimeline(tafRaw) {
                 if(window.ring10NM) window.ring10NM.setLatLng([s.lat, s.lon]);
                 if(window.ring5NM) window.ring5NM.setLatLng([s.lat, s.lon]);
               }
+              updateTafWindArrow();
             });
+            updateTafWindArrow();
             document.getElementById('taf-coord-input').value = `${_t0.lat.toFixed(5)}, ${_t0.lon.toFixed(5)}`;
 
             tafMap.on('click', function(e) {
@@ -2719,6 +2792,12 @@ function renderTafTimeline(tafRaw) {
                 models.forEach(m => {
                     let isAct = m.id === currentAiModel;
                     let mStatus = modelStatusOk[m.id];
+                    
+                    // Once the engine has a result, only models that explicitly pass remain non-failed.
+                    if (eng && mStatus !== true) {
+                        mStatus = false;
+                    }
+
                     let textColor = mStatus === false ? '#ff5555' :
                         (isAct ? '#00ffcc' : (mStatus === true ? '#a0aec0' : '#718096'));
                     let bgColor = isAct ? '#2a3f5f' : '#0b131e';
@@ -3763,9 +3842,16 @@ function uwRender(){
 function uwUpdateMap(){
   const fr = document.getElementById('uwFrame');
   const sel= document.getElementById('uwLevel');
-  if(!fr || !sel) return;
+  if(!fr || !sel){
+    if(typeof updateTafWindArrow === 'function') updateTafWindArrow();
+    return;
+  }
   const st = UW_COORDS[uwState.icao];
-  if(!st){ fr.src = 'about:blank'; return; }
+  if(!st){
+    fr.src = 'about:blank';
+    if(typeof updateTafWindArrow === 'function') updateTafWindArrow();
+    return;
+  }
   const lvl = sel.value;
   let cal = 'now';
   const t = (uwState.times && uwState.times.length) ? uwState.times[uwState.idx] : null;
@@ -3780,6 +3866,7 @@ function uwUpdateMap(){
          + '&detailLat='+st.lat+'&detailLon='+st.lon
          + '&detail=true&marker=true&calendar='+cal+'&message=true'
          + '&uwts='+Date.now();
+  if(typeof updateTafWindArrow === 'function') updateTafWindArrow();
 }
 
 function uwFloorFt(){
