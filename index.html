@@ -433,20 +433,38 @@
 .radar-tools-group {
     display: flex;
     flex-direction: column;
-    align-items: stretch;
+    align-items: flex-end; /* จัดให้ปุ่มทั้งหมดชิดขอบขวา */
     gap: 4px;
-    padding: 4px;
-    border: 1px solid rgba(0,255,204,0.55);
-    border-radius: 6px;
-    background: rgba(11, 19, 30, 0.88);
-    box-shadow: 0 0 8px rgba(0,0,0,0.45);
+    padding: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
 }
-.radar-tools-group .rv-time-btn,
+.radar-tools-group .rv-time-btn {
+    margin: 0 !important;
+    white-space: nowrap;
+    width: auto !important;
+    background: rgba(11, 19, 30, 0.85) !important;
+    border: 1px solid rgba(0,255,204,0.5) !important;
+    border-radius: 4px;
+    padding: 3px 6px !important;
+    font-size: clamp(10px, 0.9vw, 13px) !important;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+}
 .radar-tools-group .map-fs-btn,
 .radar-tools-group .map-ruler-btn {
     margin: 0 !important;
-    white-space: nowrap;
-    width: 100%;
+    width: 28px !important;
+    height: 28px !important;
+    padding: 0 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(11, 19, 30, 0.85) !important;
+    border: 1px solid rgba(0,255,204,0.5) !important;
+    border-radius: 4px;
+    font-size: 14px !important;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
 }
 #taf-date, #taf-time-start, #taf-time-end {
     color-scheme: dark;
@@ -2755,8 +2773,6 @@ function renderTafTimeline(tafRaw) {
                         ${alertTitle}
                     </div>
 
-                    ${detailsHtml}
-
                     <!-- ส่วนแสดงข้อมูลเป้าหมาย (ล็อกไว้ด้านบน) -->
                     <div style="display:flex; justify-content:space-between; margin-bottom:10px; background:#000; padding:10px; border-radius:6px; border:1px solid #2a3f5f; flex-shrink:0;">
                         <div>
@@ -2769,22 +2785,23 @@ function renderTafTimeline(tafRaw) {
                         </div>
                     </div>
 
-                    <!-- แถบแท็บหลัก -->
-                    <div role="tablist" aria-label="มุมมองรายงาน AI" style="display:flex; gap:5px; margin-bottom:8px; flex-shrink:0;">
-                        <button id="btn-ai-tab-summary" type="button" role="tab" aria-controls="ai-tab-summary" aria-selected="${currentAiReportTab === 'summary'}" class="ai-report-main-tab ${currentAiReportTab === 'summary' ? 'active' : ''}" onclick="switchAiReportTab('summary')">📝 สรุปเหตุการณ์</button>
-                        <button id="btn-ai-tab-pillars" type="button" role="tab" aria-controls="ai-tab-pillars" aria-selected="${currentAiReportTab === 'pillars'}" class="ai-report-main-tab ${currentAiReportTab === 'pillars' ? 'active' : ''}" onclick="switchAiReportTab('pillars')">🛠️ ข้อมูล 5-PILLAR</button>
+                    <!-- แถบแท็บหลัก (ชิดซ้าย สไตล์เดียวกับเรดาร์) -->
+                    <div class="panel-tabs" role="tablist" aria-label="มุมมองรายงาน AI" style="margin-bottom:8px; flex-shrink:0;">
+                        <button id="btn-ai-tab-summary" type="button" role="tab" aria-controls="ai-tab-summary" aria-selected="${currentAiReportTab === 'summary'}" class="panel-tab ${currentAiReportTab === 'summary' ? 'active' : ''}" onclick="switchAiReportTab('summary')">WX REPORT</button>
+                        <button id="btn-ai-tab-pillars" type="button" role="tab" aria-controls="ai-tab-pillars" aria-selected="${currentAiReportTab === 'pillars'}" class="panel-tab ${currentAiReportTab === 'pillars' ? 'active' : ''}" onclick="switchAiReportTab('pillars')">5-PILLAR</button>
                     </div>
 
-                    <!-- แท็บ 1: สรุปเหตุการณ์ -->
-                    <div id="ai-tab-summary" class="ai-report-tab-content" role="tabpanel" aria-labelledby="btn-ai-tab-summary" style="display:${currentAiReportTab === 'summary' ? 'flex' : 'none'}; flex-direction:column;">
-                        <div style="color:#a0aec0; font-size:1vw; margin-bottom:8px; border-bottom:1px dashed #4a5568; padding-bottom:4px;">รายละเอียดแยกตามช่วงเวลา:</div>
+                    <!-- แท็บ 1: WX REPORT -->
+                    <div id="ai-tab-summary" class="ai-report-tab-content" role="tabpanel" aria-labelledby="btn-ai-tab-summary" style="display:${currentAiReportTab === 'summary' ? 'flex' : 'none'}; flex-direction:column; overflow-y:auto; padding-right:5px;">
+                        <div style="color:#a0aec0; font-size:1vw; margin-bottom:8px; border-bottom:1px dashed #4a5568; padding-bottom:4px; position:sticky; top:0; background:rgba(20,30,48,0.95); z-index:10;">รายละเอียดแยกตามช่วงเวลา:</div>
                         ${eventHtml}
                     </div>
 
-                    <!-- แท็บ 2: ข้อมูล 5-PILLAR -->
-                    <div id="ai-tab-pillars" class="ai-report-tab-content" role="tabpanel" aria-labelledby="btn-ai-tab-pillars" style="display:${currentAiReportTab === 'pillars' ? 'flex' : 'none'}; flex-direction:column;">
+                    <!-- แท็บ 2: 5-PILLAR -->
+                    <div id="ai-tab-pillars" class="ai-report-tab-content" role="tabpanel" aria-labelledby="btn-ai-tab-pillars" style="display:${currentAiReportTab === 'pillars' ? 'flex' : 'none'}; flex-direction:column; overflow-y:auto; padding-right:5px;">
+                        ${detailsHtml}
                         ${tabsHtml}
-                        <div style="flex:1 1 auto; min-height:0; background:rgba(0,0,0,0.3); border:1px solid #2a3f5f; border-radius:6px; padding:10px; margin-bottom:8px;">
+                        <div style="flex:1 1 auto; min-height:0; background:rgba(0,0,0,0.3); border:1px solid #2a3f5f; border-radius:6px; padding:10px; margin-bottom:8px; overflow-y:auto;">
                             <!-- P1: MDL -->
                             <div id="content-P1" class="pillar-pane ${currentPillarTab === 'P1' ? '' : 'hide'}">
                                 ${modelBtns}
