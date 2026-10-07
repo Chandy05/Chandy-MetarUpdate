@@ -1016,8 +1016,15 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
             </div>
 
             <!-- TAF View (Detailed AI Report) -->
-            <div id="box3-taf" class="hide" style="width:100%; flex:1 1 auto; min-height:0; display:flex; flex-direction:column; padding:36px 8px 10px 15px; box-sizing:border-box; overflow:hidden; background:#080d14;">
-                <div id="ai-report-content" style="flex:1 1 auto; min-height:0; height:auto; display:flex; flex-direction:column; overflow-y:auto; overflow-x:hidden; color:#a0aec0; font-size:clamp(12px,1.2vw,18px); text-align:center; margin-top:0; padding-right:8px; padding-bottom:48px; box-sizing:border-box;">
+            <div id="box3-taf" class="hide" style="width:100%; flex:1 1 auto; min-height:0; display:flex; flex-direction:column; box-sizing:border-box; overflow:hidden; background:#080d14;">
+                <div class="radar-header" style="justify-content:space-between; border-bottom:1px solid var(--border-color); padding:8px 10px; background:rgba(10, 15, 24, 0.8); flex-shrink:0;">
+                    <div class="panel-tabs" role="tablist" aria-label="มุมมองรายงาน AI">
+                        <button id="btn-ai-tab-summary" type="button" role="tab" aria-controls="ai-tab-summary" aria-selected="true" class="panel-tab active" onclick="switchAiReportTab('summary')">WX REPORT</button>
+                        <button id="btn-ai-tab-pillars" type="button" role="tab" aria-controls="ai-tab-pillars" aria-selected="false" class="panel-tab" onclick="switchAiReportTab('pillars')">5-PILLAR</button>
+                    </div>
+                    <div class="radar-title-text" style="color:#a0aec0; letter-spacing:1px;">DETAILED AI REPORT</div>
+                </div>
+                <div id="ai-report-content" style="flex:1 1 auto; min-height:0; height:auto; display:flex; flex-direction:column; overflow-y:auto; overflow-x:hidden; color:#a0aec0; font-size:clamp(12px,1.2vw,18px); text-align:center; margin-top:0; padding:15px 8px 48px 15px; box-sizing:border-box;">
                     กรุณาเลือกพื้นที่และเวลาจากแผงควบคุม (ตรงกลาง) <br>แล้วกด <span style="color:var(--data-color); font-weight:bold;">🔍 วิเคราะห์สภาพอากาศ</span>
                 </div>
             </div>
@@ -1166,7 +1173,7 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
                 box2Title.innerHTML = `<span style="color: #00ffcc;">SMART AREA PREDICTOR</span>`;
                 box2Metar.style.display = 'none'; box2Taf.classList.remove('hide');
 
-                box3Title.classList.remove('hide');
+                box3Title.classList.add('hide');
                 box3Metar.classList.add('hide'); box3Taf.classList.remove('hide');
 
                 // กำหนดขนาดและโหลดแผนที่ Leaflet ในกล่อง 2
@@ -2783,12 +2790,6 @@ function renderTafTimeline(tafRaw) {
                             <div style="color:#a0aec0; font-size:0.9vw;">📅 วันที่: <span style="color:#fff; font-weight:bold;">${displayDateStr}</span></div>
                             <div style="color:#a0aec0; font-size:0.9vw;">🕒 เวลา: <span style="color:#fff; font-weight:bold;">${timeStart} - ${timeEnd} น.</span></div>
                         </div>
-                    </div>
-
-                    <!-- แถบแท็บหลัก (ชิดซ้าย สไตล์เดียวกับเรดาร์) -->
-                    <div class="panel-tabs" role="tablist" aria-label="มุมมองรายงาน AI" style="margin-bottom:8px; flex-shrink:0;">
-                        <button id="btn-ai-tab-summary" type="button" role="tab" aria-controls="ai-tab-summary" aria-selected="${currentAiReportTab === 'summary'}" class="panel-tab ${currentAiReportTab === 'summary' ? 'active' : ''}" onclick="switchAiReportTab('summary')">WX REPORT</button>
-                        <button id="btn-ai-tab-pillars" type="button" role="tab" aria-controls="ai-tab-pillars" aria-selected="${currentAiReportTab === 'pillars'}" class="panel-tab ${currentAiReportTab === 'pillars' ? 'active' : ''}" onclick="switchAiReportTab('pillars')">5-PILLAR</button>
                     </div>
 
                     <!-- แท็บ 1: WX REPORT -->
