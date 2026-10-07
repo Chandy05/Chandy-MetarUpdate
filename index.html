@@ -466,23 +466,27 @@
     font-size: 14px !important;
     box-shadow: 0 0 5px rgba(0,0,0,0.5);
 }
-#taf-date, #taf-time-start, #taf-time-end {
+#taf-date-start, #taf-date-end, #taf-time-start, #taf-time-end {
     color-scheme: dark;
     letter-spacing: 0.5px;
 }
-#taf-date::-webkit-datetime-edit,
+#taf-date-start::-webkit-datetime-edit,
+#taf-date-end::-webkit-datetime-edit,
 #taf-time-start::-webkit-datetime-edit,
 #taf-time-end::-webkit-datetime-edit {
     color: #ffffff;
     font-family: 'Consolas', monospace;
 }
-#taf-date::-webkit-datetime-edit-fields-wrapper,
+#taf-date-start::-webkit-datetime-edit-fields-wrapper,
+#taf-date-end::-webkit-datetime-edit-fields-wrapper,
 #taf-time-start::-webkit-datetime-edit-fields-wrapper,
 #taf-time-end::-webkit-datetime-edit-fields-wrapper { padding: 0; }
-#taf-date::-webkit-datetime-edit-text,
+#taf-date-start::-webkit-datetime-edit-text,
+#taf-date-end::-webkit-datetime-edit-text,
 #taf-time-start::-webkit-datetime-edit-text,
 #taf-time-end::-webkit-datetime-edit-text { color: #a0aec0; padding: 0 1px; }
-#taf-date::-webkit-calendar-picker-indicator,
+#taf-date-start::-webkit-calendar-picker-indicator,
+#taf-date-end::-webkit-calendar-picker-indicator,
 #taf-time-start::-webkit-calendar-picker-indicator,
 #taf-time-end::-webkit-calendar-picker-indicator {
     filter: invert(1) brightness(1.4);
@@ -622,7 +626,8 @@ input.atc-time24 {
 input.atc-time24::placeholder { color: #4a5568; letter-spacing: 1.5px; }
 input.atc-time24:focus { border-color: var(--accent-gold, #d4af37) !important; }
 input.atc-time24.invalid { border-color: #e53e3e !important; }
-#taf-date::-webkit-datetime-edit-second-field,
+#taf-date-start::-webkit-datetime-edit-second-field,
+#taf-date-end::-webkit-datetime-edit-second-field,
 #taf-time-start::-webkit-datetime-edit-second-field,
 #taf-time-end::-webkit-datetime-edit-second-field { display: none; }
 /* ===== BOX3 AI REPORT SCROLL (ชุดเดียวกับ box1) ===== */
@@ -680,6 +685,10 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
     border-color: #ff6b6b !important;
     color: #ffe0e0 !important;
 }
+#taf-datetime-grid > .taf-btn-analyze-container {
+    width: clamp(72px, 8vw, 100px);
+    min-width: 0;
+}
 
 /* ==== MOBILE: ความกว้าง ≤ 900px ==== */
 @media (max-width: 900px) {
@@ -712,11 +721,15 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
     #taf-controls #taf-current-location-btn {
         font-size: 15px !important;
     }
-    #taf-datetime-row {
+    #taf-datetime-grid {
         grid-template-columns: 1fr 1fr !important;
     }
-    #taf-datetime-row > .taf-dt-date {
-        grid-column: 1 / -1;
+    #taf-datetime-grid > .taf-btn-analyze-container {
+        grid-column: 1 / -1 !important;
+        grid-row: auto !important;
+        height: auto !important;
+        width: 100% !important;
+        margin-top: 5px;
     }
     #taf-location-status {
         font-size: 14px !important;
@@ -724,7 +737,7 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
     .taf-coord-label {
         font-size: 15px !important;
     }
-    #taf-datetime-row .taf-dt-col > span {
+    #taf-datetime-grid .taf-dt-col > span {
         font-size: 14px !important;
     }
     body { overflow-y: auto !important; }
@@ -736,7 +749,7 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
     #taf-controls .taf-coord-label { flex: 0 0 auto; width: auto; }
     #taf-controls #taf-coord-input { flex: 1 1 180px; width: 100%; }
     #taf-controls #taf-current-location-btn { flex: 1 1 100%; width: 100%; min-height: 44px; }
-    #taf-datetime-row {
+    #taf-datetime-grid {
         grid-template-columns: 1fr !important;
     }
 }
@@ -928,23 +941,33 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
                     </div>
                     <!-- สถานะตำแหน่ง: ไม่จองความสูงเมื่อว่าง (min-height:0) -->
                     <div id="taf-location-status" role="status" aria-live="polite" style="min-height:0; line-height:1.35; font-size:0.85vw; padding:0 2px; color:#a0aec0;"></div>
-                    <!-- แถว 2: วันที่ + เวลาเริ่ม + เวลาสิ้นสุด (Grid) -->
-                    <div id="taf-datetime-row" style="display:grid; grid-template-columns: 1.5fr 1fr 1fr; gap:4px; align-items:end;">
-                        <div class="taf-dt-col taf-dt-date" style="display:flex; flex-direction:column; min-width:0;">
-                            <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">📅 วันที่:</span>
-                            <input type="date" id="taf-date" lang="en-GB" data-format="dd/mm/yyyy" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:3px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
+                    <!-- แถว 2: วันที่/เวลา เริ่มและสิ้นสุด พร้อมปุ่มวิเคราะห์ -->
+                    <div id="taf-datetime-grid" style="display:grid; grid-template-columns: 1fr 1fr auto; gap:5px; align-items:end;">
+                        <div class="taf-dt-col" style="display:flex; flex-direction:column; min-width:0;">
+                            <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">📅 เริ่มวันที่:</span>
+                            <input type="date" id="taf-date-start" lang="en-GB" data-format="dd/mm/yyyy" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:3px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
                         </div>
-                        <div class="taf-dt-col taf-dt-start" style="display:flex; flex-direction:column; min-width:0;">
-                            <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">⏰ เริ่ม (L):</span>
+                        <div class="taf-dt-col" style="display:flex; flex-direction:column; min-width:0;">
+                            <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">⏰ เวลา (L):</span>
                             <input type="text" id="taf-time-start" class="atc-time24" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:3px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
                         </div>
-                        <div class="taf-dt-col taf-dt-end" style="display:flex; flex-direction:column; min-width:0;">
-                            <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">⏰ ถึง (L):</span>
+                        
+                        <div class="taf-dt-col" style="display:flex; flex-direction:column; min-width:0;">
+                            <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">📅 ถึงวันที่:</span>
+                            <input type="date" id="taf-date-end" lang="en-GB" data-format="dd/mm/yyyy" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:3px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
+                        </div>
+                        <div class="taf-dt-col" style="display:flex; flex-direction:column; min-width:0;">
+                            <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">⏰ เวลา (L):</span>
                             <input type="text" id="taf-time-end" class="atc-time24" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:3px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
                         </div>
+
+                        <div class="taf-btn-analyze-container" style="grid-column:3; grid-row: 1 / span 2; height: 100%;">
+                            <button id="btn-analyze-ai" onclick="triggerManualAIAnalysis()" style="height:100%; width:100%; background:var(--data-color); color:#000; font-weight:bold; padding:4px 10px; border:none; border-radius:6px; cursor:pointer; box-shadow:0 0 10px rgba(0,255,204,0.4); transition:all 0.2s; display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1.2;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">
+                                <span style="font-size:1.6vw; margin-bottom:2px;">🔍</span>
+                                <span style="font-size:clamp(12px,1.1vw,16px);">วิเคราะห์</span>
+                            </button>
+                        </div>
                     </div>
-                    <!-- แถว 3: ปุ่มวิเคราะห์เต็มความกว้าง -->
-                    <button id="btn-analyze-ai" onclick="triggerManualAIAnalysis()" style="flex:0 0 auto; width:100%; background:var(--data-color); color:#000; font-weight:bold; font-size:clamp(12px,1.1vw,17px); padding:8px 8px; border:none; border-radius:6px; cursor:pointer; box-shadow:0 0 10px rgba(0,255,204,0.4); transition:all 0.2s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">🔍 วิเคราะห์สภาพอากาศโดยละเอียด</button>
                 </div>
             </div>
         </div>
@@ -1024,7 +1047,7 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
                     </div>
                     <div class="radar-title-text" style="color:#a0aec0; letter-spacing:1px;">DETAILED AI REPORT</div>
                 </div>
-                <div id="ai-report-content" style="flex:1 1 auto; min-height:0; height:auto; display:flex; flex-direction:column; overflow-y:auto; overflow-x:hidden; color:#a0aec0; font-size:clamp(12px,1.2vw,18px); text-align:center; margin-top:0; padding:4px 8px 48px 8px; box-sizing:border-box;">
+                <div id="ai-report-content" style="flex:1 1 auto; min-height:0; height:auto; display:flex; flex-direction:column; overflow-y:auto; overflow-x:hidden; color:#a0aec0; font-size:clamp(12px,1.2vw,18px); text-align:center; margin-top:0; padding:5px 8px 48px 15px; box-sizing:border-box;">
                     กรุณาเลือกพื้นที่และเวลาจากแผงควบคุม (ตรงกลาง) <br>แล้วกด <span style="color:var(--data-color); font-weight:bold;">🔍 วิเคราะห์สภาพอากาศ</span>
                 </div>
             </div>
@@ -1665,7 +1688,6 @@ function renderTafTimeline(tafRaw) {
 
             const watchedInputIds = new Set([
                 'taf-coord-input',
-                'taf-date',
                 'taf-date-start',
                 'taf-date-end',
                 'taf-time-start',
@@ -1759,7 +1781,8 @@ function renderTafTimeline(tafRaw) {
                     source: target.source || 'unknown',
                     stationCode: target.stationCode || null,
                     targetRevision: target.revision,
-                    dateStr: query.dateStr,
+                    dateStartStr: query.dateStartStr,
+                    dateEndStr: query.dateEndStr,
                     timeStart: query.timeStart,
                     timeEnd: query.timeEnd,
                     model: modelId(),
@@ -2176,11 +2199,13 @@ function renderTafTimeline(tafRaw) {
         }
 
         function setDefaultForecastWindow() {
-            let d = new Date();
-            document.getElementById('taf-date').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-            document.getElementById('taf-time-start').value = String(d.getHours()).padStart(2,'0') + ":00";
-            d.setHours(d.getHours() + 12);
-            document.getElementById('taf-time-end').value = String(d.getHours()).padStart(2,'0') + ":00";
+            let d1 = new Date();
+            let d2 = new Date();
+            d2.setHours(d2.getHours() + 12);
+            document.getElementById('taf-date-start').value = d1.getFullYear() + '-' + String(d1.getMonth() + 1).padStart(2, '0') + '-' + String(d1.getDate()).padStart(2, '0');
+            document.getElementById('taf-time-start').value = String(d1.getHours()).padStart(2,'0') + ":00";
+            document.getElementById('taf-date-end').value = d2.getFullYear() + '-' + String(d2.getMonth() + 1).padStart(2, '0') + '-' + String(d2.getDate()).padStart(2, '0');
+            document.getElementById('taf-time-end').value = String(d2.getHours()).padStart(2,'0') + ":00";
         }
 
         document.getElementById('station-select').addEventListener('change', (e) => {
@@ -2232,37 +2257,41 @@ function renderTafTimeline(tafRaw) {
             
             // Re-render tabs highlighting without full fetch
             if (lastAiQuery) {
-                analyzeAreaWeather(lastAiQuery.lat, lastAiQuery.lon, lastAiQuery.name, lastAiQuery.dateStr, lastAiQuery.timeStart, lastAiQuery.timeEnd, true);
+                analyzeAreaWeather(lastAiQuery.lat, lastAiQuery.lon, lastAiQuery.name, lastAiQuery.dateStartStr, lastAiQuery.dateEndStr, lastAiQuery.timeStart, lastAiQuery.timeEnd);
             }
         }
 
         function changeAiModel(modelId) {
             currentAiModel = modelId;
             if (lastAiQuery) {
-                analyzeAreaWeather(lastAiQuery.lat, lastAiQuery.lon, lastAiQuery.name, lastAiQuery.dateStr, lastAiQuery.timeStart, lastAiQuery.timeEnd);
+                analyzeAreaWeather(lastAiQuery.lat, lastAiQuery.lon, lastAiQuery.name, lastAiQuery.dateStartStr, lastAiQuery.dateEndStr, lastAiQuery.timeStart, lastAiQuery.timeEnd);
             }
         }
 
         function triggerAIFromBanner() {
-            let d = new Date();
-            let dStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-            let tStart = String(d.getHours()).padStart(2,'0') + ":00";
-            d.setHours(d.getHours() + 12); // ดูล่วงหน้า 12 ชม.
-            let tEnd = String(d.getHours()).padStart(2,'0') + ":00";
+            let d1 = new Date();
+            let d2 = new Date();
+            d2.setHours(d2.getHours() + 12); // ดูล่วงหน้า 12 ชม.
+            let dStartStr = d1.getFullYear() + '-' + String(d1.getMonth() + 1).padStart(2, '0') + '-' + String(d1.getDate()).padStart(2, '0');
+            let tStart = String(d1.getHours()).padStart(2,'0') + ":00";
+            let dEndStr = d2.getFullYear() + '-' + String(d2.getMonth() + 1).padStart(2, '0') + '-' + String(d2.getDate()).padStart(2, '0');
+            let tEnd = String(d2.getHours()).padStart(2,'0') + ":00";
             
-            document.getElementById('taf-date').value = dStr;
+            document.getElementById('taf-date-start').value = dStartStr;
+            document.getElementById('taf-date-end').value = dEndStr;
             document.getElementById('taf-time-start').value = tStart;
             document.getElementById('taf-time-end').value = tEnd;
             
             setWxMode('TAF'); // บังคับสลับไปโหมด TAF
-            analyzeAreaWeather(currentTargetLoc.lat, currentTargetLoc.lon, currentTargetLoc.name, dStr, tStart, tEnd);
+            analyzeAreaWeather(currentTargetLoc.lat, currentTargetLoc.lon, currentTargetLoc.name, dStartStr, dEndStr, tStart, tEnd);
         }
 
         async function triggerManualAIAnalysis() {
-            let dDate = document.getElementById('taf-date').value;
+            let dDateStart = document.getElementById('taf-date-start').value;
+            let dDateEnd = document.getElementById('taf-date-end').value;
             let tStart = document.getElementById('taf-time-start').value;
             let tEnd = document.getElementById('taf-time-end').value;
-            if(!dDate || !tStart || !tEnd) { alert("กรุณาระบุวันที่และเวลาให้ครบถ้วน"); return; }
+            if(!dDateStart || !dDateEnd || !tStart || !tEnd) { alert("กรุณาระบุวันที่และเวลาให้ครบถ้วน"); return; }
 
             const btn = document.getElementById('btn-analyze-ai');
             if(btn) {
@@ -2280,7 +2309,7 @@ function renderTafTimeline(tafRaw) {
                 }
             }
 
-            analyzeAreaWeather(currentTargetLoc.lat, currentTargetLoc.lon, currentTargetLoc.name, dDate, tStart, tEnd);
+            analyzeAreaWeather(currentTargetLoc.lat, currentTargetLoc.lon, currentTargetLoc.name, dDateStart, dDateEnd, tStart, tEnd);
         }
 
         /* ======================= ตำแหน่งปัจจุบัน (TAF) ======================= */
@@ -2412,7 +2441,7 @@ function renderTafTimeline(tafRaw) {
         })();
 
         // --- ECMWF Advanced Logic (Hourly Breakdown) ---
-        async function analyzeAreaWeather(lat, lon, locName, dateStr, timeStart, timeEnd) {
+        async function analyzeAreaWeather(lat, lon, locName, dateStartStr, dateEndStr, timeStart, timeEnd) {
             const requestControl = window.__ATC_REPORT_REQUESTS__;
             const reportEl = document.getElementById('ai-report-content');
             if (reportEl) reportEl.dataset.waitingForEngine = 'false';
@@ -2420,7 +2449,8 @@ function renderTafTimeline(tafRaw) {
                 lat: lat,
                 lon: lon,
                 name: locName,
-                dateStr: dateStr,
+                dateStartStr: dateStartStr,
+                dateEndStr: dateEndStr,
                 timeStart: timeStart,
                 timeEnd: timeEnd
             });
@@ -2428,15 +2458,21 @@ function renderTafTimeline(tafRaw) {
             if (!request) return;
 
             lastAiQuery = {
-                lat, lon, name: locName, dateStr, timeStart, timeEnd
+                lat, lon, name: locName, dateStartStr, dateEndStr, timeStart, timeEnd
             };
             if (reportEl) {
                 reportEl.innerHTML = `<div style="text-align:center; color:var(--data-color); font-size:1.5vw; margin-top:50px;">กำลังวิเคราะห์โมเดล ${request.snapshot.model.toUpperCase()}... ⏳</div>`;
             }
 
             try {
+                let reqStart = new Date(`${dateStartStr}T${timeStart}:00`);
+                let reqEnd = new Date(`${dateEndStr}T${timeEnd}:00`);
+                if (!Number.isFinite(reqStart.getTime()) || !Number.isFinite(reqEnd.getTime()) || reqEnd <= reqStart) {
+                    throw new Error('ช่วงวันที่และเวลาไม่ถูกต้อง');
+                }
+
                 // Fetch dynamic model
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,dewpoint_2m,precipitation_probability,precipitation,windspeed_10m,winddirection_10m,windgusts_10m,visibility,cape&models=${encodeURIComponent(request.snapshot.model)}&timezone=auto&forecast_days=3`;
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,dewpoint_2m,precipitation_probability,precipitation,windspeed_10m,winddirection_10m,windgusts_10m,visibility,cape&models=${encodeURIComponent(request.snapshot.model)}&timezone=auto&forecast_days=7`;
 
                 const res = await fetch(url, {
                     signal: request.controller.signal
@@ -2461,10 +2497,6 @@ function renderTafTimeline(tafRaw) {
                 ) {
                     throw new Error('ไม่พบข้อมูลรายชั่วโมงที่ถูกต้อง');
                 }
-
-                let reqStart = new Date(`${dateStr}T${timeStart}:00`);
-                let reqEnd = new Date(`${dateStr}T${timeEnd}:00`);
-                if(reqEnd <= reqStart) reqEnd.setDate(reqEnd.getDate() + 1);
 
                 let hasData = false;
                 let hourlyData = [];
@@ -2600,7 +2632,9 @@ function renderTafTimeline(tafRaw) {
 
                 if(!eventHtml) eventHtml = `<div style="text-align:center; color:#00cc66; font-size:1.2vw; padding:20px;">✅ ไม่มีแนวโน้มฝนตก หรือสภาพอากาศเลวร้ายในห้วงเวลานี้</div>`;
 
-                let displayDateStr = `${reqStart.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][reqStart.getMonth()]} ${reqStart.getFullYear()+543}`;
+                let sDateStr = `${reqStart.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][reqStart.getMonth()]} ${reqStart.getFullYear()+543}`;
+                let eDateStr = `${reqEnd.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][reqEnd.getMonth()]} ${reqEnd.getFullYear()+543}`;
+                let displayDateStr = (sDateStr === eDateStr) ? sDateStr : `${sDateStr} - ${eDateStr}`;
                 
                 // --- ดึงสถานะจาก 5-Pillar Engine ของเป้าหมายปัจจุบัน ---
                 let eng = window.ATC_ALERT_ENGINE ? window.ATC_ALERT_ENGINE.last : null;
@@ -2624,7 +2658,7 @@ function renderTafTimeline(tafRaw) {
                 }
                 let engineDetText = eng && window.__ATC_LATEST_DETAIL__
                     ? window.__ATC_LATEST_DETAIL__
-                    : `POP ${overallMaxProb}% | AGREE N/A | RAIN ${maxRain.toFixed(1)}mm`;
+                    : `AGREE N/A | POP ${overallMaxProb}% | RAIN ${maxRain.toFixed(1)}mm`;
                 let detailsHtml = `<div style="text-align:center; font-size:1vw; color:#e2e8f0; background:rgba(0,0,0,0.5); padding:6px; border-radius:4px; margin-bottom:8px; border:1px solid #2a3f5f; font-family:'Consolas', monospace; letter-spacing:0.5px;">${engineDetText}</div>`;
                 let sP1 = eng && eng.hour ? eng.hour.p1 : 'UNK';
                 let sP2 = eng && eng.hour ? eng.hour.p2 : 'UNK';
@@ -2773,9 +2807,7 @@ function renderTafTimeline(tafRaw) {
                   return lines.join('');
                 })();
 
-                let html = `
-                <div style="background: rgba(20, 30, 48, 0.8); border: 2px solid ${alertColor}; border-radius: 8px; padding: 15px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); height: 100%; display: flex; flex-direction: column;">
-                    
+                let html = `<div style="background: rgba(20, 30, 48, 0.8); border: 2px solid ${alertColor}; border-radius: 8px; padding: 15px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); height: 100%; display: flex; flex-direction: column;">
                     <div style="color:${alertColor}; font-size:1.4vw; font-weight:bold; border-bottom: 2px solid ${alertColor}; padding-bottom: 8px; margin-bottom: 12px; text-align:center; flex-shrink:0;">
                         ${alertTitle}
                     </div>
@@ -4520,7 +4552,8 @@ function renderPillarDash(res){
     lastAiQuery.lat,
     lastAiQuery.lon,
     lastAiQuery.name,
-    lastAiQuery.dateStr,
+    lastAiQuery.dateStartStr,
+    lastAiQuery.dateEndStr,
     lastAiQuery.timeStart,
     lastAiQuery.timeEnd
   );
@@ -4530,8 +4563,8 @@ function paint(res){
   var b=$('ai-alert-banner'); if(!b) return;
   if(obs) obs.disconnect();
   b.classList.remove('atc-lv-red','atc-lv-amber','atc-lv-green');
-  var detStr = 'POP '+(res.hour?res.hour.maxPop:0)+'% | AGREE '+
-    (res.hour?res.hour.agree:0)+'/'+CFG.MODELS.length+' | RAIN '+
+  var detStr = 'AGREE '+(res.hour?res.hour.agree:0)+'/'+CFG.MODELS.length+
+    ' | POP '+(res.hour?res.hour.maxPop:0)+'% | RAIN '+
     (res.hour?res.hour.rain.toFixed(1):0)+'mm';
   if(res.radar) detStr += ' | RDR: '+res.radar.dataStatus+
     ' valid:'+(res.radar.validDataPct!=null?res.radar.validDataPct.toFixed(0):0)+'%';
