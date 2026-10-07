@@ -792,7 +792,7 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
 .atc-p-ok{ color:#9BFFB0; } .atc-p-no{ color:#ffd9d9; opacity:.7; }
 .atc-p-unk{ color:#ffe08a; }
 
-/* ===== RAINVIEWER TIMELINE PLAYER BAR ===== */
+/* ===== RAINVIEWER TIMELINE PLAYER BAR (COLLAPSIBLE) ===== */
 .rv-player-container {
   position: absolute;
   bottom: 8px;
@@ -800,19 +800,42 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
   transform: translateX(-50%);
   margin: 0 !important;
   z-index: 1000;
-  background: rgba(11, 19, 30, 0.9);
+  background: rgba(11, 19, 30, 0.92);
   border: 1px solid var(--data-color);
   border-radius: 6px;
-  padding: 4px 10px;
+  padding: 3px 8px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-family: 'Consolas', monospace;
   box-shadow: 0 0 12px rgba(0,0,0,0.85);
-  backdrop-filter: blur(4px);
-  width: 90%;
-  max-width: 440px;
+  backdrop-filter: blur(5px);
+  transition: all 0.25s ease-in-out;
   box-sizing: border-box;
+}
+.rv-player-container.collapsed {
+  width: auto !important;
+  max-width: none !important;
+  padding: 2px 8px;
+  background: rgba(11, 19, 30, 0.8);
+  border-color: rgba(0, 255, 204, 0.6);
+  cursor: pointer;
+}
+.rv-player-container.collapsed .rv-player-body {
+  display: none !important;
+}
+.rv-player-container:not(.collapsed) {
+  width: 92%;
+  max-width: 440px;
+}
+.rv-player-container:not(.collapsed) .rv-player-collapsed-btn {
+  display: none !important;
+}
+.rv-player-body {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
 }
 .rv-player-btn {
   background: #152233;
@@ -828,11 +851,14 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
   flex-shrink: 0;
 }
 .rv-player-btn:hover { background: var(--data-color); color: #000; }
+.rv-player-btn.close-btn { color: #a0aec0; padding: 2px 6px; font-size: 12px; }
+.rv-player-btn.close-btn:hover { background: #ff3333; color: #fff; border-color: #ff3333; }
 .rv-player-slider {
   flex: 1;
   cursor: pointer;
   accent-color: var(--data-color);
   height: 6px;
+  min-width: 60px;
 }
 .rv-player-badge {
   color: #fff;
@@ -843,9 +869,22 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
   padding: 2px 6px;
   border-radius: 4px;
   border: 1px solid #1e3a4a;
-  min-width: 95px;
+  min-width: 88px;
   text-align: center;
   flex-shrink: 0;
+}
+.rv-player-collapsed-btn {
+  background: transparent;
+  border: none;
+  color: var(--data-color);
+  font-family: 'Consolas', monospace;
+  font-size: clamp(11px, 0.9vw, 13px);
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 4px;
 }
 </style>
 </head>
@@ -2042,11 +2081,24 @@ function renderTafTimeline(tafRaw) {
 
             const badge = document.getElementById('rv-time-badge');
             if (badge) badge.innerHTML = `📡 ${timeStr} (${statusTag})`;
+            const miniBadge = document.getElementById('rv-mini-badge');
+            if (miniBadge) miniBadge.innerHTML = `📡 ${timeStr} (${statusTag})`;
             const slider = document.getElementById('rv-time-slider');
             if (slider && Number(slider.value) !== idx) slider.value = String(idx);
             const button = document.getElementById('rv-time-btn');
             if (button && idx === rvLiveIdx) {
                 button.innerHTML = `📡 ${timeStr} ↻`;
+            }
+        }
+
+        function toggleRvPlayerExpand(expand) {
+            const box = document.getElementById('rv-player-box');
+            if (!box) return;
+            if (expand) {
+                box.classList.remove('collapsed');
+            } else {
+                box.classList.add('collapsed');
+                if (rvIsPlaying) toggleRainViewerPlay();
             }
         }
 
@@ -2131,18 +2183,33 @@ function renderTafTimeline(tafRaw) {
                 if (!rvPlayerControl) {
                     const container = L.DomUtil.create(
                         'div',
-                        'rv-player-container',
+                        'rv-player-container collapsed',
                         tafMap.getContainer()
                     );
+                    container.id = 'rv-player-box';
                     L.DomEvent.disableClickPropagation(container);
                     L.DomEvent.disableScrollPropagation(container);
                     container.innerHTML = `
-                        <button type="button" class="rv-player-btn" data-frame-step="-1" title="ย้อนหลัง -10 นาที">◀</button>
-                        <button type="button" class="rv-player-btn" id="rv-play-btn" title="เล่น/หยุด ลูป">▶</button>
-                        <button type="button" class="rv-player-btn" data-frame-step="1" title="ถัดไป +10 นาที">▶</button>
-                        <input type="range" class="rv-player-slider" id="rv-time-slider" min="0" max="${rvFrames.length - 1}" value="${rvLiveIdx}">
-                        <div class="rv-player-badge" id="rv-time-badge">📡 --:--</div>
+                        <button type="button" class="rv-player-collapsed-btn" id="rv-player-expand-btn" title="คลิกเพื่อเปิดแถบควบคุมเวลาเรดาร์">
+                            <span id="rv-mini-badge">📡 2 ชม. (ย้อนหลัง/คาดการณ์)</span><span>▲</span>
+                        </button>
+                        <div class="rv-player-body">
+                            <button type="button" class="rv-player-btn" data-frame-step="-1" title="ย้อนหลัง -10 นาที">◀</button>
+                            <button type="button" class="rv-player-btn" id="rv-play-btn" title="เล่น/หยุด ลูป">▶</button>
+                            <button type="button" class="rv-player-btn" data-frame-step="1" title="ถัดไป +10 นาที">▶</button>
+                            <input type="range" class="rv-player-slider" id="rv-time-slider" min="0" max="${rvFrames.length - 1}" value="${rvLiveIdx}">
+                            <div class="rv-player-badge" id="rv-time-badge">📡 --:--</div>
+                            <button type="button" class="rv-player-btn close-btn" id="rv-player-collapse-btn" title="ย่อเก็บ">✕</button>
+                        </div>
                     `;
+                    container.querySelector('#rv-player-expand-btn')
+                        .addEventListener('click', function() {
+                            toggleRvPlayerExpand(true);
+                        });
+                    container.querySelector('#rv-player-collapse-btn')
+                        .addEventListener('click', function() {
+                            toggleRvPlayerExpand(false);
+                        });
                     container.querySelectorAll('[data-frame-step]')
                         .forEach(button => button.addEventListener('click', () =>
                             stepRainViewerFrame(Number(button.dataset.frameStep))
