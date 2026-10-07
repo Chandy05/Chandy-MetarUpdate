@@ -685,11 +685,6 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
     border-color: #ff6b6b !important;
     color: #ffe0e0 !important;
 }
-#taf-datetime-grid > .taf-btn-analyze-container {
-    width: clamp(72px, 8vw, 100px);
-    min-width: 0;
-}
-
 /* ==== MOBILE: ความกว้าง ≤ 900px ==== */
 @media (max-width: 900px) {
     #box2-taf {
@@ -721,23 +716,13 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
     #taf-controls #taf-current-location-btn {
         font-size: 15px !important;
     }
-    #taf-datetime-grid {
-        grid-template-columns: 1fr 1fr !important;
-    }
-    #taf-datetime-grid > .taf-btn-analyze-container {
-        grid-column: 1 / -1 !important;
-        grid-row: auto !important;
-        height: auto !important;
-        width: 100% !important;
-        margin-top: 5px;
-    }
     #taf-location-status {
         font-size: 14px !important;
     }
     .taf-coord-label {
         font-size: 15px !important;
     }
-    #taf-datetime-grid .taf-dt-col > span {
+    #taf-controls .taf-dt-col > span {
         font-size: 14px !important;
     }
     body { overflow-y: auto !important; }
@@ -749,9 +734,6 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
     #taf-controls .taf-coord-label { flex: 0 0 auto; width: auto; }
     #taf-controls #taf-coord-input { flex: 1 1 180px; width: 100%; }
     #taf-controls #taf-current-location-btn { flex: 1 1 100%; width: 100%; min-height: 44px; }
-    #taf-datetime-grid {
-        grid-template-columns: 1fr !important;
-    }
 }
 
 /* ==== จอสูง ≤ 760px (Desktop ต่ำ) ให้คืนพื้นที่แผนที่เพิ่ม ==== */
@@ -941,32 +923,29 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
                     </div>
                     <!-- สถานะตำแหน่ง: ไม่จองความสูงเมื่อว่าง (min-height:0) -->
                     <div id="taf-location-status" role="status" aria-live="polite" style="min-height:0; line-height:1.35; font-size:0.85vw; padding:0 2px; color:#a0aec0;"></div>
-                    <!-- แถว 2: วันที่/เวลา เริ่มและสิ้นสุด พร้อมปุ่มวิเคราะห์ -->
-                    <div id="taf-datetime-grid" style="display:grid; grid-template-columns: 1fr 1fr auto; gap:5px; align-items:end;">
-                        <div class="taf-dt-col" style="display:flex; flex-direction:column; min-width:0;">
-                            <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">📅 เริ่มวันที่:</span>
-                            <input type="date" id="taf-date-start" lang="en-GB" data-format="dd/mm/yyyy" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:3px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
+                    <!-- แถว 2: วันที่/เวลา เริ่มและสิ้นสุด แบบ 2 บรรทัด -->
+                    <div style="display:flex; flex-direction:column; gap:5px;">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; align-items:end;">
+                            <div class="taf-dt-col" style="display:flex; flex-direction:column; min-width:0;">
+                                <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">📅 เริ่มวันที่:</span>
+                                <input type="date" id="taf-date-start" lang="en-GB" data-format="dd/mm/yyyy" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:3px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
+                            </div>
+                            <div class="taf-dt-col" style="display:flex; flex-direction:column; min-width:0;">
+                                <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">⏰ เวลา (L):</span>
+                                <input type="text" id="taf-time-start" class="atc-time24" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:3px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
+                            </div>
                         </div>
-                        <div class="taf-dt-col" style="display:flex; flex-direction:column; min-width:0;">
-                            <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">⏰ เวลา (L):</span>
-                            <input type="text" id="taf-time-start" class="atc-time24" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:3px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; align-items:end;">
+                            <div class="taf-dt-col" style="display:flex; flex-direction:column; min-width:0;">
+                                <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">📅 ถึงวันที่:</span>
+                                <input type="date" id="taf-date-end" lang="en-GB" data-format="dd/mm/yyyy" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:3px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
+                            </div>
+                            <div class="taf-dt-col" style="display:flex; flex-direction:column; min-width:0;">
+                                <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">⏰ เวลา (L):</span>
+                                <input type="text" id="taf-time-end" class="atc-time24" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:3px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
+                            </div>
                         </div>
-                        
-                        <div class="taf-dt-col" style="display:flex; flex-direction:column; min-width:0;">
-                            <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">📅 ถึงวันที่:</span>
-                            <input type="date" id="taf-date-end" lang="en-GB" data-format="dd/mm/yyyy" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:3px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
-                        </div>
-                        <div class="taf-dt-col" style="display:flex; flex-direction:column; min-width:0;">
-                            <span style="font-size:0.9vw; color:#a0aec0; font-weight:bold;">⏰ เวลา (L):</span>
-                            <input type="text" id="taf-time-end" class="atc-time24" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocomplete="off" style="background:#152233; color:#fff; border:1px solid var(--border-color); border-radius:4px; padding:3px; font-size:0.9vw; font-family:'Consolas', monospace; outline:none;">
-                        </div>
-
-                        <div class="taf-btn-analyze-container" style="grid-column:3; grid-row: 1 / span 2; height: 100%;">
-                            <button id="btn-analyze-ai" onclick="triggerManualAIAnalysis()" style="height:100%; width:100%; background:var(--data-color); color:#000; font-weight:bold; padding:4px 10px; border:none; border-radius:6px; cursor:pointer; box-shadow:0 0 10px rgba(0,255,204,0.4); transition:all 0.2s; display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1.2;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">
-                                <span style="font-size:1.6vw; margin-bottom:2px;">🔍</span>
-                                <span style="font-size:clamp(12px,1.1vw,16px);">วิเคราะห์</span>
-                            </button>
-                        </div>
+                        <button id="btn-analyze-ai" onclick="triggerManualAIAnalysis()" style="flex:0 0 auto; width:100%; background:var(--data-color); color:#000; font-weight:bold; font-size:clamp(12px,1.1vw,17px); padding:8px 8px; border:none; border-radius:6px; cursor:pointer; box-shadow:0 0 10px rgba(0,255,204,0.4); transition:all 0.2s;" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">🔍 วิเคราะห์สภาพอากาศโดยละเอียด</button>
                     </div>
                 </div>
             </div>
