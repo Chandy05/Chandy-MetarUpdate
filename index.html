@@ -545,9 +545,10 @@
     flex: 1 1 auto !important;
     min-height: 0 !important;
     max-height: none !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
+    overflow: hidden !important;
     padding-bottom: 52px !important;
+    display: flex !important;
+    flex-direction: column !important;
 }
 
 /* Keep descendants unconstrained so the report container owns scrolling. */
@@ -555,12 +556,17 @@
     max-height: none !important;
 }
 #ai-report-content > .ai-report-tab-content {
-    flex: 0 0 auto !important;
-    min-height: auto !important;
+    display: flex !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
     max-height: none !important;
-    overflow: visible !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
     padding-right: 5px;
     padding-bottom: 10px;
+}
+#ai-report-content > .ai-report-tab-content.hide {
+    display: none !important;
 }
 .ai-report-main-tab {
     flex: 1;
@@ -2580,8 +2586,8 @@ function renderTafTimeline(tafRaw) {
             if (!summary || !pillars || !summaryButton || !pillarsButton) return;
 
             currentAiReportTab = showSummary ? 'summary' : 'pillars';
-            summary.style.display = showSummary ? 'flex' : 'none';
-            pillars.style.display = showSummary ? 'none' : 'flex';
+            summary.classList.toggle('hide', !showSummary);
+            pillars.classList.toggle('hide', showSummary);
             summaryButton.classList.toggle('active', showSummary);
             pillarsButton.classList.toggle('active', !showSummary);
             summaryButton.setAttribute('aria-selected', String(showSummary));
@@ -2920,41 +2926,84 @@ function renderTafTimeline(tafRaw) {
                 if(eng && eng.radar && !eng.radar.stale &&
                    (eng.radar.threatLevel === 'RED' || eng.radar.threatLevel === 'AMBER')) {
                     sP5_val = true;
-                    let rColor = eng.radar.threatLevel === 'RED' ? '#ff3333' : '#f39c12';
-                    let rIcon = eng.radar.threatLevel === 'RED' ? '🔴' : '🟡';
-                    let rLoc = eng.radar.threatLevel === 'RED'
-                        ? '📍 บริเวณสนามบิน (Terminal)' : '📍 บริเวณใกล้เคียง (Vicinity)';
-                    let rDesc = eng.radar.threatLevel === 'RED'
-                        ? 'กลุ่มฝนพุ่งเข้าชน/ตกทับสนามบิน' : 'เฝ้าระวังกลุ่มฝนระยะประชิด';
-                    let rDist = Number.isFinite(eng.radar.nearestRainNM)
-                        ? eng.radar.nearestRainNM.toFixed(1) : '--';
-                    let rDir = '';
-                    if(eng.radar.sectorsNM && Object.keys(eng.radar.sectorsNM).length > 0) {
+                    let rData = eng.radar;
+                    let rColor = rData.threatLevel === 'RED' ? '#ff3333' : '#f39c12';
+                    let rIcon = rData.threatLevel === 'RED' ? '🔴' : '🟡';
+                    let rLoc = rData.threatLevel === 'RED'
+                        ? '📍 บริเวณสนามบิน (Terminal)' : '📍 บริเวณใกล้เคียงสนามบิน (Vicinity)';
+                    let pk = eng.hour || (Array.isArray(eng.rows) ? eng.rows[0] : null);
+                    if(!pk) pk = { cape:null, gust:null, rain:null, maxPop:null,
+                        ceiling:null, wDir:null, wSpd:null };
+                    let rDesc = Number.isFinite(pk.cape)
+                        ? (pk.cape >= 1000 ? 'พายุฝนฟ้าคะนอง' : 'ฝนตกหนัก')
+                        : (rData.threatLevel === 'RED' ? 'ฝนตกหนัก' : 'ฝนตกปานกลาง-หนัก');
+                    if(rData.threatLevel === 'AMBER') rDesc = 'ฝนตกปานกลาง-หนัก';
+                    if(Number.isFinite(pk.gust) && pk.gust >= 25) rDesc += '+ลมแรง';
+
+                    let actionStr = 'คงที่';
+                    if(rData.rainAtTarget ||
+                       (Number.isFinite(rData.nearestRainNM) && rData.nearestRainNM <= 3)) {
+                        actionStr = 'ทับสนามบิน';
+                    } else if(rData.closing === true) {
+                        actionStr = 'เข้าหาสนามบิน';
+                    } else if(rData.closing === false) {
+                        actionStr = 'ออกจากสนามบิน';
+                    }
+
+                    let dirStr = '';
+                    if(rData.sectorsNM && Object.keys(rData.sectorsNM).length > 0) {
                         let minNM = Infinity, minSec = '';
-                        for(let k in eng.radar.sectorsNM) {
-                            if(eng.radar.sectorsNM[k] < minNM) {
-                                minNM = eng.radar.sectorsNM[k];
+                        for(let k in rData.sectorsNM) {
+                            if(rData.sectorsNM[k] < minNM) {
+                                minNM = rData.sectorsNM[k];
                                 minSec = k;
                             }
                         }
-                        let motion = String(eng.radar.motionStatus || '');
-                        let motionText = motion.includes('Moving Away') ? 'ออกห่าง' :
-                            (motion.includes('Closing') ? 'เข้าหาสนามบิน' : 'คงที่');
-                        rDir = `ทางทิศ ${minSec} เคลื่อนตัว${motionText}`;
+                        dirStr = `ทางทิศ ${minSec} `;
                     }
+                    let rDist = Number.isFinite(rData.nearestRainNM)
+                        ? rData.nearestRainNM.toFixed(1) : '--';
+                    let radarStr = `📡 กลุ่มฝนระยะ ${rDist} NM ${dirStr}เคลื่อนตัว ${actionStr}`;
+
+                    let rain = Number.isFinite(pk.rain) ? pk.rain : null;
+                    let rainForVisibility = rain === null ? 0 : rain;
+                    let pop = Number.isFinite(pk.maxPop) ? `${pk.maxPop}%` : 'N/A';
+                    let rainText = rain === null ? 'N/A' : `${rain.toFixed(1)} mm`;
+                    let visKm = Math.round((rainForVisibility > 10 ? 1500 : (rainForVisibility > 2.5 ? 3000 : (rainForVisibility > 0 ? 6000 : 10000)))/1000);
+                    let visStr = visKm < 5
+                        ? `<span style="color:#ff3333;">Vis: ${visKm} km</span>`
+                        : `Vis: ${visKm >= 10 ? '>10' : visKm} km`;
+                    let ceilStr = Number.isFinite(pk.ceiling) && pk.ceiling > 0
+                        ? `~${Math.round(pk.ceiling)} FT` : 'SCT/FEW';
+                    let wDirStr = String(Number.isFinite(pk.wDir) ? Math.round(pk.wDir) : 0).padStart(3, '0');
+                    let wSpdStr = String(Number.isFinite(pk.wSpd) ? Math.round(pk.wSpd) : 0).padStart(2, '0');
+                    let gustStr = '';
+                    if(Number.isFinite(pk.gust) && pk.gust >= 15) {
+                        gustStr = ` <span style="color:#ff3333; font-weight:bold;">G ${Math.round(pk.gust)} KT</span>`;
+                    } else if(Number.isFinite(pk.gust) && pk.gust > 0) {
+                        gustStr = ` <span style="color:#a0aec0;">G ${Math.round(pk.gust)} KT</span>`;
+                    }
+                    let wndStr = `ลม: ${wDirStr}/${wSpdStr} KT${gustStr}`;
+
                     radarEventHtml = `
-                    <div style="background:rgba(0,0,0,0.3); border-left:4px solid ${rColor}; padding:10px; border-radius:4px; margin-bottom:12px; font-size:1vw;">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
-                            <span style="color:${rColor}; font-weight:bold;">${rIcon} ขณะนี้ (LIVE) - สัญญาณจากเรดาร์</span>
-                        </div>
-                        <div style="color:#fff; font-weight:bold; font-size:1.1vw; margin-bottom:4px;">ลักษณะอากาศ: ${rDesc}</div>
-                        <div style="color:#a0aec0; font-size:0.9vw; margin-bottom:8px;">${rLoc}</div>
-                        <div style="color:#3498db; font-weight:bold; font-size:0.95vw; margin-bottom:10px;">📡 กลุ่มฝนระยะ ${rDist} NM ${rDir}</div>
-                        <div style="background:rgba(0,0,0,0.4); padding:8px; border-radius:4px; font-size:0.85vw; color:#e2e8f0; border:1px solid #2a3f5f; line-height:1.5;">
-                            <span style="color:#f39c12; font-weight:bold;">📝 เหตุผล (AI Note):</span><br>
-                            <span style="color:#a0aec0;">• แจ้งเตือนฉุกเฉินจากเรดาร์ (P5: ${eng.radar.threatLevel})</span>
-                        </div>
-                    </div>`;
+                        <div style="background:rgba(0,0,0,0.3); border-left:4px solid ${rColor}; padding:8px; border-radius:4px; margin-bottom:12px; font-size:1vw;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                                <span style="color:${rColor}; font-weight:bold;">${rIcon} ขณะนี้ (LIVE) - สัญญาณจากเรดาร์</span>
+                            </div>
+                            <div style="color:#fff; font-weight:bold; font-size:1.1vw; margin-bottom:2px;">ลักษณะอากาศ: ${rDesc}</div>
+                            <div style="color:#a0aec0; font-size:0.9vw; margin-bottom:6px;">${rLoc}</div>
+                            <div style="color:#3498db; font-weight:bold; font-size:0.95vw; margin-bottom:4px;">มีฝน ${pop} | ปริมาณ ${rainText}</div>
+                            <div style="color:#3498db; font-weight:bold; font-size:0.95vw; margin-bottom:8px;">${radarStr}</div>
+                            <div style="display:flex; justify-content:space-between; color:#a0aec0; font-size:0.9vw; margin-bottom:12px;">
+                                <span>${visStr}</span>
+                                <span style="color:#00ffcc;">เพดานเมฆ: ${ceilStr}</span>
+                                <span>${wndStr}</span>
+                            </div>
+                            <div style="background:rgba(0,0,0,0.4); padding:8px; border-radius:4px; font-size:0.85vw; color:#a0aec0; border:1px solid #2a3f5f; line-height:1.5;">
+                                <span style="color:#f39c12; font-weight:bold;">📝 เหตุผล (AI Note):</span>
+                                <div style="margin-top:4px; color:#e2e8f0;">• [P5 เรดาร์]: ตรวจพบกลุ่มฝนระยะ ${rDist} NM ${actionStr}</div>
+                            </div>
+                        </div>`;
                 }
 
                 // --- P1-P3 Model Forecast Events (Single Brain Logic) ---
@@ -3146,8 +3195,11 @@ function renderTafTimeline(tafRaw) {
                             let timeText = ev.start === ev.end ? ev.start : `${ev.start} - ${ev.end}`;
                             let pk = ev.peak.p3Breakdown;
                             let reqM = Math.ceil(pk.vCount * 0.5);
-                            let ceilText = ev.peak.ceiling ? `~${ev.peak.ceiling} FT (สภาพ BKN/OVC)` : 'ไม่มีเพดานเมฆชั้นต่ำ (SCT/FEW)';
-                            let spreadText = ev.peak.spread !== null ? `${ev.peak.spread.toFixed(1)} °C` : 'N/A';
+                            let ceilText = Number.isFinite(ev.peak.ceiling) && ev.peak.ceiling > 0
+                                ? `~${Math.round(ev.peak.ceiling)} FT (สภาพ BKN/OVC)`
+                                : 'ไม่มีเพดานเมฆชั้นต่ำ (SCT/FEW)';
+                            let spreadText = Number.isFinite(ev.peak.spread)
+                                ? `${ev.peak.spread.toFixed(1)} °C` : 'N/A';
 
                             p3Html += `
                             <div style="margin-bottom:12px; text-align:left; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; border-left:4px solid #ff3333;">
@@ -3374,13 +3426,13 @@ function renderTafTimeline(tafRaw) {
                     </div>
 
                     <!-- แท็บ 1: WX REPORT -->
-                    <div id="ai-tab-summary" class="ai-report-tab-content" role="tabpanel" aria-labelledby="btn-ai-tab-summary" style="display:${currentAiReportTab === 'summary' ? 'flex' : 'none'}; flex-direction:column; overflow-y:auto; padding-right:5px;">
+                    <div id="ai-tab-summary" class="ai-report-tab-content ${currentAiReportTab === 'summary' ? '' : 'hide'}" role="tabpanel" aria-labelledby="btn-ai-tab-summary" style="flex-direction:column; overflow-y:auto; padding-right:5px;">
                         <div style="color:#a0aec0; font-size:1vw; margin-bottom:8px; border-bottom:1px dashed #4a5568; padding-bottom:4px; position:sticky; top:0; background:rgba(20,30,48,0.95); z-index:10;">รายละเอียดแยกตามช่วงเวลา:</div>
                         ${eventHtml}
                     </div>
 
                     <!-- แท็บ 2: 5-PILLAR -->
-                    <div id="ai-tab-pillars" class="ai-report-tab-content" role="tabpanel" aria-labelledby="btn-ai-tab-pillars" style="display:${currentAiReportTab === 'pillars' ? 'flex' : 'none'}; flex-direction:column; overflow-y:auto; padding-right:5px;">
+                    <div id="ai-tab-pillars" class="ai-report-tab-content ${currentAiReportTab === 'pillars' ? '' : 'hide'}" role="tabpanel" aria-labelledby="btn-ai-tab-pillars" style="flex-direction:column; overflow-y:auto; padding-right:5px;">
                         ${tabsHtml}
                         <div style="flex:1 1 auto; min-height:0; background:rgba(0,0,0,0.3); border:1px solid #2a3f5f; border-radius:6px; padding:10px; margin-bottom:8px; overflow-y:auto;">
                             <!-- P1: MDL -->
@@ -5234,28 +5286,38 @@ function paint(res){
   } else {
     var lv=res.lvl;
     var ranges=[], rangeStart=null, rangeEnd=null, previousEventTime=null;
-    (res.rows||[]).forEach(function(row){
-      var rowTime = new Date(row.t);
-      var timestamp = rowTime.getTime();
-      var isRainPeriod = row.maxPop >= CFG.POP_MIN || row.rain >= 1.0;
-      if(!Number.isFinite(timestamp)) return;
-      if(isRainPeriod){
-        if(rangeStart===null || timestamp-previousEventTime!==3600000){
-          if(rangeStart!==null) ranges.push(rangeStart===rangeEnd?rangeStart:rangeStart+'-'+rangeEnd);
-          rangeStart = String(row.t).substring(11,16);
+    var isLiveOnly = res.r5 && res.n < 2;
+    if(isLiveOnly) {
+      ranges.push('ขณะนี้ (LIVE)');
+    } else {
+      (res.rows||[]).forEach(function(row){
+        var rowTime = new Date(row.t);
+        var timestamp = rowTime.getTime();
+        var isAlertHr = (row.p1 === true ? 1 : 0) +
+          (row.p2 === true ? 1 : 0) + (row.p3 === true ? 1 : 0) >= 2 ||
+          row.p3 === true;
+        if(!Number.isFinite(timestamp)) return;
+        if(isAlertHr){
+          var hrStr = String(row.t).substring(11,16);
+          var endDt = new Date(timestamp + 3600000);
+          var endStr = String(endDt.getHours()).padStart(2,'0') + ':' +
+            String(endDt.getMinutes()).padStart(2,'0');
+          if(rangeStart===null || timestamp-previousEventTime!==3600000){
+            if(rangeStart!==null) ranges.push(rangeStart+'-'+rangeEnd);
+            rangeStart = hrStr;
+          }
+          rangeEnd = endStr;
+          previousEventTime = timestamp;
+        } else if(rangeStart!==null){
+          ranges.push(rangeStart+'-'+rangeEnd);
+          rangeStart=null;
+          rangeEnd=null;
+          previousEventTime=null;
         }
-        rangeEnd = String(row.t).substring(11,16);
-        previousEventTime = timestamp;
-      } else if(rangeStart!==null){
-        ranges.push(rangeStart===rangeEnd?rangeStart:rangeStart+'-'+rangeEnd);
-        rangeStart=null;
-        rangeEnd=null;
-        previousEventTime=null;
-      }
-    });
-    if(rangeStart!==null) ranges.push(rangeStart===rangeEnd?rangeStart:rangeStart+'-'+rangeEnd);
-    var rangeStr = ranges.length ? ranges.join(', ') :
-      (res.hour ? String(res.hour.t).substring(11,16) : 'ไม่มีช่วงฝนที่เข้าเกณฑ์');
+      });
+      if(rangeStart!==null) ranges.push(rangeStart+'-'+rangeEnd);
+    }
+    var rangeStr = ranges.length ? ranges.join(', ') : 'ขณะนี้ (LIVE)';
     var severity = 'ปกติ';
     if(lv==='RED') severity = res.hour && res.hour.cape >= 1000 ? 'พายุฝนฟ้าคะนอง' : 'ฝนตกหนัก';
     else if(lv==='AMBER') severity = res.hour && res.hour.rain >= 1.0 ? 'ฝนปานกลาง' : 'ฝนเบา/เมฆฝนใกล้เคียง';
