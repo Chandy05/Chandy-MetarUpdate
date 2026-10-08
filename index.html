@@ -544,11 +544,10 @@
 #ai-report-content {
     flex: 1 1 auto !important;
     min-height: 0 !important;
-    max-height: none !important;
+    height: 100% !important;
+    position: relative !important;
     overflow: hidden !important;
-    padding-bottom: 52px !important;
-    display: flex !important;
-    flex-direction: column !important;
+    display: block !important;
 }
 
 /* Keep descendants unconstrained so the report container owns scrolling. */
@@ -556,14 +555,15 @@
     max-height: none !important;
 }
 #ai-report-content > .ai-report-tab-content {
-    display: flex !important;
-    flex: 1 1 auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
     padding-right: 5px;
-    padding-bottom: 10px;
+    padding-bottom: 52px !important;
 }
 #ai-report-content > .ai-report-tab-content.hide {
     display: none !important;
@@ -903,25 +903,25 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
                     CHANDY ATC BRIEFING : 
                     <select id="station-select" class="station-dropdown no-capture" data-html2canvas-ignore="true">
                         <optgroup label="สถานีกองข่าวอากาศ ทอ.">
-                            <option value="VTMD">VTMD (DONMUANG)</option>
-                            <option value="VTNC">VTNC (CHIANGMAI)</option>
-                            <option value="VTNP">VTNP (PHITSANULOK)</option>
-                            <option value="VTED">VTED (UDON)</option>
-                            <option value="VTEU">VTEU (UBON)</option>
-                            <option value="VTEN">VTEN (KORAT)</option>
-                            <option value="VTEZ">VTEZ (NAMPHONG)</option>
-                            <option value="VTMG">VTMG (KAOKIEO)</option>
-                            <option value="VTML">VTML (KOKEKATHIEM)</option>
-                            <option value="VTMM" selected>VTMM (MUANGKOM)</option>
-                            <option value="VTMK">VTMK (KAMPHAENGSAEN)</option>
-                            <option value="VTMW">VTMW (WATTHANA-NAKHON)</option>
-                            <option value="VTMU">VTMU (U-TAPHAO)</option>
-                            <option value="VTMH">VTMH (HUA-HIN)</option>
-                            <option value="VTMP">VTMP (PRACHUAP)</option>
                             <option value="VTDB">VTDB (SURATTHANI)</option>
                             <option value="VTDS">VTDS (HAT-YAI)</option>
                             <option value="VTDT">VTDT (BHO-THONG)</option>
+                            <option value="VTED">VTED (UDON)</option>
+                            <option value="VTEN">VTEN (KORAT)</option>
+                            <option value="VTEU">VTEU (UBON)</option>
+                            <option value="VTEZ">VTEZ (NAMPHONG)</option>
+                            <option value="VTMD">VTMD (DONMUANG)</option>
+                            <option value="VTMG">VTMG (KAOKIEO)</option>
+                            <option value="VTMH">VTMH (HUA-HIN)</option>
                             <option value="VTMI">VTMI (TAKHLI)</option>
+                            <option value="VTMK">VTMK (KAMPHAENGSAEN)</option>
+                            <option value="VTML">VTML (KOKEKATHIEM)</option>
+                            <option value="VTMM" selected>VTMM (MUANGKOM)</option>
+                            <option value="VTMP">VTMP (PRACHUAP)</option>
+                            <option value="VTMU">VTMU (U-TAPHAO)</option>
+                            <option value="VTMW">VTMW (WATTHANA-NAKHON)</option>
+                            <option value="VTNC">VTNC (CHIANGMAI)</option>
+                            <option value="VTNP">VTNP (PHITSANULOK)</option>
                         </optgroup>
                     </select>
                 </div>
@@ -2996,7 +2996,7 @@ function renderTafTimeline(tafRaw) {
                             <div style="color:#3498db; font-weight:bold; font-size:0.95vw; margin-bottom:8px;">${radarStr}</div>
                             <div style="display:flex; justify-content:space-between; color:#a0aec0; font-size:0.9vw; margin-bottom:12px;">
                                 <span>${visStr}</span>
-                                <span style="color:#00ffcc;">เพดานเมฆ: ${ceilStr}</span>
+                                <span style="color:#00ffcc;">ฐานเมฆ: ${ceilStr}</span>
                                 <span>${wndStr}</span>
                             </div>
                             <div style="background:rgba(0,0,0,0.4); padding:8px; border-radius:4px; font-size:0.85vw; color:#a0aec0; border:1px solid #2a3f5f; line-height:1.5;">
@@ -3086,7 +3086,7 @@ function renderTafTimeline(tafRaw) {
                         <div style="color:#3498db; font-weight:bold; font-size:0.95vw; margin-bottom:8px;">มีฝน ${pk.maxPop}% | ปริมาณ ${rainText}</div>
                         <div style="display:flex; justify-content:space-between; color:#a0aec0; font-size:0.9vw; margin-bottom:12px;">
                             <span>${visStr}</span>
-                            <span style="color:#00ffcc;">เพดานเมฆ: ${ceilStr}</span>
+                            <span style="color:#00ffcc;">ฐานเมฆ: ${ceilStr}</span>
                             <span>${wndStr}</span>
                         </div>
                         <div style="background:rgba(0,0,0,0.4); padding:8px; border-radius:4px; font-size:0.85vw; color:#e2e8f0; border:1px solid #2a3f5f; line-height:1.5;">
