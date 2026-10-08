@@ -2921,6 +2921,7 @@ function renderTafTimeline(tafRaw) {
                 // --- 2. จัดกลุ่มเหตุการณ์ (Event Breakdown Synced with 5-Pillars) ---
                 let eventHtml = '';
                 let currentEvent = null;
+                let isFirstEvent = true;
 
                 if(eng && Array.isArray(eng.rows)) eng.rows.forEach(r => {
                     let dt = new Date(r.t);
@@ -2934,15 +2935,11 @@ function renderTafTimeline(tafRaw) {
                         let timeStr = String(r.t).substring(11,16) + ' น.';
                         let visVal = Number.isFinite(r.visibility) ? r.visibility :
                             (r.rain > 10 ? 1500 : (r.rain > 2.5 ? 3000 : (r.rain > 0 ? 6000 : 10000)));
-                        let modelNames = []
-                            .concat(r.p2Breakdown && Array.isArray(r.p2Breakdown.m05) ? r.p2Breakdown.m05 : [])
-                            .concat(r.p3Breakdown && Array.isArray(r.p3Breakdown.m1000) ? r.p3Breakdown.m1000 : [])
-                            .concat(r.p3Breakdown && r.p3Breakdown.gustM ? [r.p3Breakdown.gustM] : [])
-                            .concat(r.mDict ? Object.keys(r.mDict).filter(m => r.mDict[m] && r.mDict[m].pass) : []);
-                        modelNames = [...new Set(modelNames)];
-
                         if (!currentEvent || currentEvent.type !== eventType) {
-                            if (currentEvent) eventHtml += renderEventRow(currentEvent);
+                            if (currentEvent) {
+                                eventHtml += renderEventRow(currentEvent, isFirstEvent);
+                                if (['THUNDERSTORM', 'RAIN', 'LIGHT_RAIN'].includes(currentEvent.type)) isFirstEvent = false;
+                            }
                             currentEvent = {
                                 type: eventType, start: timeStr, end: timeStr,
                                 maxProb: r.maxPop, maxRain: r.rain, minVis: visVal,
@@ -2950,7 +2947,7 @@ function renderTafTimeline(tafRaw) {
                                 spread: r.spread, ceiling: r.ceiling,
                                 wSpd: Number.isFinite(r.wSpd) ? r.wSpd : null,
                                 wDir: Number.isFinite(r.wDir) ? r.wDir : null,
-                                models: modelNames
+                                peak: r
                             };
                         } else {
                             currentEvent.end = timeStr;
@@ -2958,19 +2955,23 @@ function renderTafTimeline(tafRaw) {
                             if(r.rain > currentEvent.maxRain) currentEvent.maxRain = r.rain;
                             if(visVal < currentEvent.minVis) currentEvent.minVis = visVal;
                             if(Number.isFinite(r.gust) && r.gust > currentEvent.maxGust) currentEvent.maxGust = r.gust;
-                            if(Number.isFinite(r.wSpd) && r.wSpd > currentEvent.wSpd) {
+                            if(Number.isFinite(r.wSpd) && (!Number.isFinite(currentEvent.wSpd) || r.wSpd > currentEvent.wSpd)) {
                                 currentEvent.wSpd = r.wSpd;
                                 currentEvent.wDir = Number.isFinite(r.wDir) ? r.wDir : currentEvent.wDir;
                             }
                             if(r.ceiling !== null && Number.isFinite(r.ceiling) && (currentEvent.ceiling === null || r.ceiling < currentEvent.ceiling)) currentEvent.ceiling = r.ceiling;
-                            currentEvent.models = [...new Set(currentEvent.models.concat(modelNames))];
+                            let rScore = Number.isFinite(r._sc) ? r._sc :
+                                (r.p1 === true ? 4 : 0) + (r.p2 === true ? 2 : 0) + (r.p3 === true ? 1 : 0);
+                            let peakScore = Number.isFinite(currentEvent.peak._sc) ? currentEvent.peak._sc :
+                                (currentEvent.peak.p1 === true ? 4 : 0) + (currentEvent.peak.p2 === true ? 2 : 0) + (currentEvent.peak.p3 === true ? 1 : 0);
+                            if(rScore > peakScore) currentEvent.peak = r;
                         }
                     }
                 });
-                if (currentEvent) eventHtml += renderEventRow(currentEvent);
+                if (currentEvent) eventHtml += renderEventRow(currentEvent, isFirstEvent);
 
-                function renderEventRow(ev) {
-                    if(ev.type === 'CLEAR' || ev.type === 'VCSH' || ev.type === 'LIGHT_RAIN') return '';
+                function renderEventRow(ev, isFirst) {
+                    if(ev.type === 'CLEAR' || ev.type === 'VCSH') return '';
 
                     let timeText = (ev.start === ev.end) ? ev.start : `${ev.start} - ${ev.end}`;
                     let color = ev.type === 'THUNDERSTORM' ? '#ff3333' : '#f39c12';
@@ -2981,12 +2982,64 @@ function renderTafTimeline(tafRaw) {
                     let visStr = (ev.minVis < 5000) ? `<span style="color:#ff3333;">Vis: ${visKm} km</span>` : `Vis: ${visKm >= 10 ? '>10' : visKm} km`;
                     let ceilStr = ev.ceiling ? `${ev.ceiling} FT` : 'SCT/FEW';
                     let wDirStr = String(ev.wDir || 0).padStart(3, '0');
+                    let wSpdStr = String(Math.round(ev.wSpd || 0)).padStart(2, '0');
                     let gustStr = '';
-                    if(ev.maxGust > 0) {
-                        let isSevereGust = ev.maxGust >= 15;
-                        gustStr = ` <span style="color:${isSevereGust ? '#ff3333' : '#a0aec0'}; font-weight:${isSevereGust ? 'bold' : 'normal'};">G ${Math.round(ev.maxGust)} KT</span>`;
+                    if(ev.maxGust >= 15) {
+                        gustStr = ` <span style="color:#ff3333; font-weight:bold;">G ${Math.round(ev.maxGust)} KT</span>`;
+                    } else if(ev.maxGust > 0) {
+                        gustStr = ` <span style="color:#a0aec0;">G ${Math.round(ev.maxGust)} KT</span>`;
                     }
                     let wndStr = `ลม: ${wDirStr}/${wSpdStr} KT${gustStr}`;
+                    let radarStr = '';
+                    let radarNote = '';
+                    if(isFirst && eng && eng.radar &&
+                       (eng.radar.threatLevel === 'RED' || eng.radar.threatLevel === 'AMBER') &&
+                       !eng.radar.stale) {
+                        let rData = eng.radar;
+                        let actionStr = 'คงที่';
+                        if(rData.rainAtTarget || (Number.isFinite(rData.nearestRainNM) && rData.nearestRainNM <= 3)) {
+                            actionStr = 'ผ่านสนามบิน';
+                        } else if(rData.closing === true) {
+                            actionStr = 'เข้าหาสนามบิน';
+                        } else if(rData.closing === false) {
+                            actionStr = 'ออกจากสนามบิน';
+                        }
+                        let rDist = Number.isFinite(rData.nearestRainNM) ? rData.nearestRainNM.toFixed(1) : '--';
+                        let dirStr = '';
+                        if(rData.sectorsNM && Object.keys(rData.sectorsNM).length > 0) {
+                            let minNM = Infinity, minSec = '';
+                            for(let k in rData.sectorsNM) {
+                                if(rData.sectorsNM[k] < minNM) { minNM = rData.sectorsNM[k]; minSec = k; }
+                            }
+                            dirStr = `ทางทิศ ${minSec} `;
+                        }
+                        radarStr = `<div style="color:#3498db; font-weight:bold; font-size:0.95vw; margin-bottom:8px;">📡 กลุ่มฝนระยะ ${rDist} NM ${dirStr}เคลื่อนตัว ${actionStr}</div>`;
+                        radarNote = `<div style="margin-bottom:4px; color:#e2e8f0;">• [P5 เรดาร์]: ตรวจพบกลุ่มฝนระยะ ${rDist} NM ${actionStr}</div>`;
+                    }
+
+                    let modelNote = '';
+                    let pk = ev.peak;
+                    if(pk.p1 === true) {
+                        modelNote += `<div style="margin-bottom:4px; color:#e2e8f0;">• [P1 ความน่าจะเป็น]: โอกาสเกิดฝน ${ev.maxProb}% (เกณฑ์ความมั่นใจสูง)</div>`;
+                    } else if(ev.maxProb >= 30) {
+                        modelNote += `<div style="margin-bottom:4px; color:#e2e8f0;">• [P1 ความน่าจะเป็น]: โอกาสเกิดฝน ${ev.maxProb}% (ระดับเฝ้าระวัง)</div>`;
+                    }
+                    if(pk.p2 === true && pk.p2Breakdown) {
+                        let p2Reason = pk.p2Breakdown.c1 ? 'โมเดลส่วนใหญ่ทำนายฝนหนัก' :
+                            (pk.p2Breakdown.c3 ? `บางโมเดลให้ฝนสูงสุด ${Number(pk.p2Breakdown.max || 0).toFixed(1)} mm` :
+                                `ปริมาณฝนเฉลี่ย ${Number(pk.p2Breakdown.mean || 0).toFixed(1)} mm`);
+                        modelNote += `<div style="margin-bottom:4px; color:#e2e8f0;">• [P2 ปริมาณฝน]: ${p2Reason}</div>`;
+                    }
+                    if(pk.p3 === true && pk.p3Breakdown) {
+                        if(pk.p3Breakdown.gust >= 25) {
+                            modelNote += `<div style="margin-bottom:4px; color:#e2e8f0;">• [P3 อากาศแปรปรวน]: ลมกระโชกแรงอันตราย ${Math.round(pk.p3Breakdown.gust)} KT</div>`;
+                        } else if(pk.p3Breakdown.max >= 1000) {
+                            modelNote += `<div style="margin-bottom:4px; color:#e2e8f0;">• [P3 อากาศแปรปรวน]: พลังงานพายุ (CAPE) สูง ${Math.round(pk.p3Breakdown.max)} J/kg</div>`;
+                        }
+                    }
+                    if(!radarNote && !modelNote) {
+                        modelNote = '<div style="margin-bottom:4px; color:#e2e8f0;">• ระบบประเมินว่ามีความเสี่ยงสภาพอากาศในห้วงเวลานี้</div>';
+                    }
 
                     return `<div style="background:rgba(0,0,0,0.3); border-left:4px solid ${color}; padding:8px; border-radius:4px; margin-bottom:12px; font-size:1vw;">
                                 <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
@@ -2995,39 +3048,16 @@ function renderTafTimeline(tafRaw) {
                                 <div style="color:#fff; font-weight:bold; font-size:1.1vw; margin-bottom:2px;">ลักษณะอากาศ: ${desc}</div>
                                 <div style="color:#a0aec0; font-size:0.9vw; margin-bottom:6px;">${locText}</div>
                                 <div style="color:#3498db; font-weight:bold; font-size:0.95vw; margin-bottom:4px;">มีฝน ${ev.maxProb}% | ปริมาณ ${ev.maxRain.toFixed(1)} mm</div>
-                                <div style="display:flex; justify-content:space-between; color:#a0aec0; font-size:0.9vw; margin-bottom:8px;">
+                                ${radarStr}
+                                <div style="display:flex; justify-content:space-between; color:#a0aec0; font-size:0.9vw; margin-bottom:12px;">
                                     <span>${visStr}</span>
                                     <span style="color:#00ffcc;">เพดานเมฆ: ${ceilStr}</span>
                                     <span>${wndStr}</span>
                                 </div>
+                                <div style="background:rgba(0,0,0,0.4); padding:8px; border-radius:4px; font-size:0.85vw; color:#a0aec0; border:1px solid #2a3f5f; line-height:1.5;">
+                                    <span style="color:#f39c12; font-weight:bold;">📝 เหตุผล (AI Note):</span>${radarNote}${modelNote}
+                                </div>
                             </div>`;
-                }
-
-                let radarEventHtml = '';
-                if(eng && eng.radar && !eng.radar.stale &&
-                   (eng.radar.threatLevel === 'RED' || eng.radar.threatLevel === 'AMBER')) {
-                    let rColor = eng.radar.threatLevel === 'RED' ? '#ff3333' : '#f39c12';
-                    let rIcon = eng.radar.threatLevel === 'RED' ? '🔴' : '🟡';
-                    let rLoc = eng.radar.threatLevel === 'RED' ? '📍 บริเวณสนามบิน (Terminal)' : '📍 บริเวณใกล้เคียง (Vicinity)';
-                    let rDesc = eng.radar.threatLevel === 'RED' ? 'กลุ่มฝนพุ่งเข้าชน/ตกทับสนามบิน' : 'เฝ้าระวังกลุ่มฝนระยะประชิด';
-                    let rDist = Number.isFinite(eng.radar.nearestRainNM) ? eng.radar.nearestRainNM.toFixed(1) : '--';
-                    let rDir = '';
-                    if(eng.radar.sectorsNM && Object.keys(eng.radar.sectorsNM).length > 0) {
-                        let minNM = Infinity, minSec = '';
-                        for(let k in eng.radar.sectorsNM) {
-                            if(eng.radar.sectorsNM[k] < minNM) { minNM = eng.radar.sectorsNM[k]; minSec = k; }
-                        }
-                        rDir = `ทางทิศ ${minSec} เคลื่อนตัว ${eng.radar.motionStatus || 'ไม่แน่ชัด'}`;
-                    }
-                    radarEventHtml = `
-                    <div style="background:rgba(0,0,0,0.3); border-left:4px solid ${rColor}; padding:8px; border-radius:4px; margin-bottom:12px; font-size:1vw;">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                            <span style="color:${rColor}; font-weight:bold;">${rIcon} ขณะนี้ (LIVE) - สัญญาณจากเรดาร์</span>
-                        </div>
-                        <div style="color:#fff; font-weight:bold; font-size:1.1vw; margin-bottom:2px;">ลักษณะอากาศ: ${rDesc}</div>
-                        <div style="color:#a0aec0; font-size:0.9vw; margin-bottom:6px;">${rLoc}</div>
-                        <div style="color:#3498db; font-weight:bold; font-size:0.95vw; margin-bottom:4px;">📡 กลุ่มฝนระยะ ${rDist} NM ${rDir}</div>
-                    </div>`;
                 }
 
                 let sDateStr = `${reqStart.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][reqStart.getMonth()]} ${reqStart.getFullYear()+543}`;
@@ -3049,20 +3079,38 @@ function renderTafTimeline(tafRaw) {
                     alertTitle=overallMaxProb>=60?'🔴 การแจ้งเตือนสภาพอากาศ (WEATHER ALERT)':
                         (overallMaxProb>=30?'🟡 เฝ้าระวังกลุ่มฝน (ADVISORY)':'🟢 การพยากรณ์สภาพอากาศ (CLEAR)');
                 }
-                let worstHr = eng && Array.isArray(eng.rows) ? eng.rows.reduce((best, row) => {
-                    let rowScore = Number.isFinite(row._sc) ? row._sc :
-                        (row.p1 === true ? 4 : 0) + (row.p2 === true ? 2 : 0) + (row.p3 === true ? 1 : 0);
-                    let bestScore = best ? (Number.isFinite(best._sc) ? best._sc :
-                        (best.p1 === true ? 4 : 0) + (best.p2 === true ? 2 : 0) + (best.p3 === true ? 1 : 0)) : -1;
-                    return !best || rowScore > bestScore ? row : best;
-                }, null) : null;
-                let engineDetText = worstHr
-                    ? `AGREE ${worstHr.agree}/${window.ATC_CFG ? window.ATC_CFG.MODELS.length : 'N/A'} | POP ${worstHr.maxPop}% | RAIN ${Number(worstHr.rain || 0).toFixed(1)}mm`
-                    : `AGREE N/A | POP ${overallMaxProb}% | RAIN ${maxRain.toFixed(1)}mm`;
-                if(eng && eng.radar) {
-                    engineDetText += ` | RDR: ${eng.radar.dataStatus || 'UNKNOWN'} valid:${eng.radar.validDataPct != null ? Number(eng.radar.validDataPct).toFixed(0) : 0}%`;
-                } else {
-                    engineDetText += ' | RDR: N/A';
+                let engineDetText = 'AGREE N/A | POP N/A | RAIN N/A | RDR: N/A';
+                if(eng && Array.isArray(eng.rows) && eng.rows.length > 0) {
+                    let firstBlockPeak = null;
+                    let inBlock = false;
+                    let firstRangeRow = null;
+                    for(let i = 0; i < eng.rows.length; i++) {
+                        let row = eng.rows[i];
+                        let rowDate = new Date(row.t);
+                        if(rowDate < reqStart || rowDate > reqEnd) {
+                            if(inBlock && rowDate > reqEnd) break;
+                            continue;
+                        }
+                        if(!firstRangeRow) firstRangeRow = row;
+                        let isAlert = row.p1 === true || row.p2 === true || row.p3 === true;
+                        if(isAlert) {
+                            inBlock = true;
+                            let rowScore = Number.isFinite(row._sc) ? row._sc :
+                                (row.p1 === true ? 4 : 0) + (row.p2 === true ? 2 : 0) + (row.p3 === true ? 1 : 0);
+                            let peakScore = firstBlockPeak
+                                ? (Number.isFinite(firstBlockPeak._sc) ? firstBlockPeak._sc :
+                                    (firstBlockPeak.p1 === true ? 4 : 0) + (firstBlockPeak.p2 === true ? 2 : 0) + (firstBlockPeak.p3 === true ? 1 : 0))
+                                : -1;
+                            if(!firstBlockPeak || rowScore > peakScore) firstBlockPeak = row;
+                        } else if(inBlock) {
+                            break;
+                        }
+                    }
+                    if(!firstBlockPeak) firstBlockPeak = firstRangeRow || eng.rows[0];
+                    engineDetText = `AGREE ${firstBlockPeak.agree}/${window.ATC_CFG ? window.ATC_CFG.MODELS.length : 'N/A'} | POP ${firstBlockPeak.maxPop}% | RAIN ${Number(firstBlockPeak.rain || 0).toFixed(1)} mm`;
+                    if(eng.radar) {
+                        engineDetText += ` | RDR: ${eng.radar.dataStatus || 'UNKNOWN'} valid:${eng.radar.validDataPct != null ? Number(eng.radar.validDataPct).toFixed(0) : 0}%`;
+                    }
                 }
                 let detailsHtml = `<div style="text-align:center; font-size:1vw; color:#e2e8f0; background:rgba(0,0,0,0.5); padding:6px; border-radius:4px; margin-bottom:8px; border:1px solid #2a3f5f; font-family:'Consolas', monospace; letter-spacing:0.5px;">${engineDetText}</div>`;
                 let sP1 = eng && eng.hour ? eng.hour.p1 : 'UNK';
@@ -3072,22 +3120,30 @@ function renderTafTimeline(tafRaw) {
                 let sP5_val = (eng && eng.radar && typeof eng.radar.meetsCriterion === 'boolean')
                     ? eng.radar.meetsCriterion : 'UNK';
 
-                let aiReasons = [];
-                if (eng) {
-                    if (sP1 === true) aiReasons.push('โมเดลคาดการณ์แนวโน้มฝนตก (P1)');
-                    if (sP2 === true) aiReasons.push('คาดการณ์ปริมาณฝนตกหนัก (P2)');
-                    if (sP3 === true) aiReasons.push('ดัชนีอากาศแปรปรวนสูง/ลมกระโชกแรง (P3)');
-                    if (sP4_val === true) aiReasons.push('นักพยากรณ์คาดการณ์พายุ/ฝนใน TAF (P4)');
-                    if (sP5_val === true) aiReasons.push('เรดาร์ตรวจพบกลุ่มฝนระยะประชิด (P5)');
+                if(!eventHtml && eng && eng.radar && !eng.radar.stale &&
+                   (eng.radar.threatLevel === 'RED' || eng.radar.threatLevel === 'AMBER')) {
+                    let radarLevel = eng.radar.threatLevel;
+                    let radarColor = radarLevel === 'RED' ? '#ff3333' : '#f39c12';
+                    let radarDistance = Number.isFinite(eng.radar.nearestRainNM)
+                        ? `${eng.radar.nearestRainNM.toFixed(1)} NM` : 'ไม่ทราบระยะ';
+                    let radarDirection = '';
+                    if(eng.radar.sectorsNM && Object.keys(eng.radar.sectorsNM).length > 0) {
+                        let nearestSector = Object.keys(eng.radar.sectorsNM)
+                            .reduce((best, sector) =>
+                                eng.radar.sectorsNM[sector] < eng.radar.sectorsNM[best] ? sector : best);
+                        radarDirection = ` จากทิศ ${nearestSector}`;
+                    }
+                    let radarAction = eng.radar.rainAtTarget ? 'ฝนตกทับสนามบิน' :
+                        (eng.radar.closing === true ? 'เคลื่อนเข้าหาสนามบิน' :
+                            (eng.radar.closing === false ? 'เคลื่อนออกจากสนามบิน' : 'ทิศทางยังไม่ชัดเจน'));
+                    eventHtml = `<div style="background:rgba(0,0,0,0.3); border-left:4px solid ${radarColor}; padding:12px; border-radius:4px; margin-bottom:12px; font-size:1vw;">
+                        <div style="color:${radarColor}; font-weight:bold;">${radarLevel === 'RED' ? '🔴' : '🟡'} LIVE: ตรวจพบสัญญาณกลุ่มฝนจากเรดาร์</div>
+                        <div style="color:#e2e8f0; margin-top:6px;">กลุ่มฝนระยะ ${radarDistance}${radarDirection} — ${radarAction}</div>
+                        <div style="color:#a0aec0; margin-top:6px;">• [P5 เรดาร์]: ${eng.radar.motionStatus || 'ไม่แน่ชัด'} (${radarLevel})</div>
+                    </div>`;
+                } else if(!eventHtml) {
+                    eventHtml = `<div style="text-align:center; color:#00cc66; font-size:1.2vw; padding:20px;">✅ ไม่มีแนวโน้มฝนตก หรือสภาพอากาศเลวร้ายในห้วงเวลานี้</div>`;
                 }
-                let masterAiNote = aiReasons.length > 0
-                    ? `<div style="background:rgba(0,0,0,0.6); padding:10px; border-radius:6px; border:1px solid #2a3f5f; text-align:left; margin-bottom:15px;">
-                        <div style="color:#f39c12; font-size:0.9vw; margin-bottom:4px; font-weight:bold;">🧠 สรุปเหตุผลการแจ้งเตือน (AI Note):</div>
-                        <div style="color:#e2e8f0; font-size:0.85vw; line-height:1.5;">• ระบบตรวจพบความเสี่ยงจาก: ${aiReasons.join(', ')}</div>
-                       </div>`
-                    : '';
-                eventHtml = masterAiNote + radarEventHtml + eventHtml;
-                if(!eventHtml) eventHtml = `<div style="text-align:center; color:#00cc66; font-size:1.2vw; padding:20px;">✅ ไม่มีแนวโน้มฝนตก หรือสภาพอากาศเลวร้ายในห้วงเวลานี้</div>`;
 
                 // Helper function for UI Color Coding
                 const fmtVal = (pass, actual, models, ref) => {
