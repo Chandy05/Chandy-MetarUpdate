@@ -1986,17 +1986,29 @@ function renderTafTimeline(tafRaw) {
         function updateTafWindArrow() {
             if (!tafMap) return;
 
-            const w5k = typeof uwState !== 'undefined' && uwState.rows
-                ? uwState.rows.find(r => r.ft === 5000 || r.hdr === '5K')
-                : null;
-            if (!w5k || !Number.isFinite(w5k.dir) ||
-                !Number.isFinite(w5k.spd) || w5k.spd < 2) {
+            let eng = window.ATC_ALERT_ENGINE ? window.ATC_ALERT_ENGINE.last : null;
+            let cape = eng && eng.hour && eng.hour.cape != null ? eng.hour.cape : 0;
+            let targetAlt = cape >= 1000 ? 10000 : 5000;
+            let altLabel = cape >= 1000 ? '10K' : '5K';
+
+            let steeringWind = null;
+            if (typeof uwState !== 'undefined' && uwState.rows) {
+                steeringWind = uwState.rows.find(r => r.ft === targetAlt || r.hdr === altLabel);
+                if (!steeringWind) {
+                    steeringWind = uwState.rows.find(r => r.ft === 5000 || r.hdr === '5K');
+                    altLabel = '5K';
+                }
+            }
+
+            if (!steeringWind || !Number.isFinite(steeringWind.dir) ||
+                !Number.isFinite(steeringWind.spd) || steeringWind.spd < 2) {
                 if (tafWindArrow) {
                     tafMap.removeLayer(tafWindArrow);
                     tafWindArrow = null;
                 }
                 return;
             }
+            const w5k = steeringWind;
 
             const target = getTarget();
             if (!target || !Number.isFinite(target.lat) ||
@@ -2015,8 +2027,9 @@ function renderTafTimeline(tafRaw) {
                                 <path d="M12 2L12 22M12 22L5 15M12 22L19 15" stroke="#f39c12" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
                             </svg>
                         </div>
-                        <div style="position:absolute;left:${labelX}px;top:${labelY}px;transform:translate(-50%,-50%);color:#f39c12;font-weight:bold;font-size:13px;text-shadow:0 0 5px rgba(243,156,18,0.8);white-space:nowrap;">
-                            ${w5k.spd} KT
+                        <div style="position:absolute;left:${labelX}px;top:${labelY}px;transform:translate(-50%,-50%);color:#f39c12;font-weight:bold;font-size:13px;text-shadow:0 0 5px rgba(243,156,18,0.8);white-space:nowrap;display:flex;flex-direction:column;align-items:center;">
+                            <span>${w5k.spd} KT</span>
+                            <span style="font-size:10px; color:#00ffcc;">${altLabel} STEERING</span>
                         </div>
                     </div>
                 `,
@@ -2987,7 +3000,105 @@ function renderTafTimeline(tafRaw) {
                     sP5 = 'UNK';
                   }
                 }
-                
+
+                // Helper function for UI Color Coding
+                const fmtVal = (pass, actual, models, ref) => {
+                    let mStr = (models && models.length > 0) ? ` <span style="color:#3498db;">[${models}]</span>` : '';
+                    return `<span style="color:${pass ? '#00cc66' : '#ff5555'}; font-weight:bold;">${actual}</span>${mStr} <span style="color:#718096; font-size:0.8vw; font-weight:normal;">(เกณฑ์: ${ref})</span>`;
+                };
+
+                let p2Html = '';
+                let p3Html = '';
+                if(eng && eng.rows) {
+                    let p2Events = [], p3Events = [];
+                    let curP2 = null, curP3 = null;
+
+                    eng.rows.forEach(r => {
+                        let dt = new Date(r.t);
+                        if (dt >= reqStart && dt <= reqEnd) {
+                            let timeStr = String(r.t).substring(11,16) + ' น.';
+
+                            if(r.p2 === true) {
+                                if(!curP2) curP2 = { start: timeStr, end: timeStr, peak: r };
+                                else {
+                                    curP2.end = timeStr;
+                                    if(r.p2Breakdown.max > curP2.peak.p2Breakdown.max) curP2.peak = r;
+                                }
+                            } else if (curP2) {
+                                p2Events.push(curP2);
+                                curP2 = null;
+                            }
+
+                            if(r.p3 === true) {
+                                if(!curP3) curP3 = { start: timeStr, end: timeStr, peak: r };
+                                else {
+                                    curP3.end = timeStr;
+                                    if(r.p3Breakdown.max > curP3.peak.p3Breakdown.max) curP3.peak = r;
+                                }
+                            } else if (curP3) {
+                                p3Events.push(curP3);
+                                curP3 = null;
+                            }
+                        }
+                    });
+                    if(curP2) p2Events.push(curP2);
+                    if(curP3) p3Events.push(curP3);
+
+                    if(p2Events.length > 0) {
+                        p2Events.forEach(ev => {
+                            let timeText = ev.start === ev.end ? ev.start : `${ev.start} - ${ev.end}`;
+                            let pk = ev.peak.p2Breakdown;
+                            let reqM = Math.ceil(pk.vCount * 0.5);
+                            p2Html += `
+                            <div style="margin-bottom:12px; text-align:left; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; border-left:4px solid #3498db;">
+                                <div style="color:#00ffcc; font-weight:bold; font-size:1vw; border-bottom:1px dashed #2a3f5f; padding-bottom:5px; margin-bottom:6px;">⏱️ ${timeText}</div>
+                                <div style="font-size:0.95vw; line-height:1.5; color:#e2e8f0; font-family:'Consolas', monospace;">
+                                    <div>${pk.c1 ? '✅' : '❌'} 1. เกณฑ์ฉันทามติ (โมเดลเกินครึ่งให้ฝน >= 0.5 mm/hr)</div>
+                                    <div style="margin-left:22px; margin-bottom:4px;">ค่าที่ได้: ${fmtVal(pk.c1, pk.m05.length + ' จาก ' + pk.vCount + ' โมเดล', pk.m05.join(', '), '>= '+reqM+' โมเดล')}</div>
+                                    <div>${pk.c2 ? '✅' : '❌'} 2. เกณฑ์ฝนเฉลี่ย (เฉลี่ยทุกโมเดล >= 0.3 mm/hr)</div>
+                                    <div style="margin-left:22px; margin-bottom:4px;">ค่าที่ได้: ${fmtVal(pk.c2, pk.mean.toFixed(2) + ' mm/hr', null, '>= 0.3 mm/hr')}</div>
+                                    <div>${pk.c3 ? '✅' : '❌'} 3. เกณฑ์พายุรุนแรง (มีโมเดลให้ฝน >= 2.5 mm/hr)</div>
+                                    <div style="margin-left:22px; margin-bottom:6px;">ค่าที่ได้: ${fmtVal(pk.c3, pk.max.toFixed(2) + ' mm/hr', pk.maxM, '>= 2.5 mm/hr')}</div>
+                                </div>
+                                <div style="font-size:0.9vw; font-weight:bold; color:#00cc66;">📌 สรุป: ผ่านเกณฑ์ (P2 สนับสนุนการแจ้งเตือน)</div>
+                            </div>`;
+                        });
+                    } else {
+                        p2Html = `<div style="color:#00cc66; font-size:1vw; margin-top:20px; text-align:center;">✅ ไม่มีห้วงเวลาใดเข้าเกณฑ์ความเสี่ยงปริมาณฝน</div>`;
+                    }
+
+                    if(p3Events.length > 0) {
+                        p3Events.forEach(ev => {
+                            let timeText = ev.start === ev.end ? ev.start : `${ev.start} - ${ev.end}`;
+                            let pk = ev.peak.p3Breakdown;
+                            let reqM = Math.ceil(pk.vCount * 0.5);
+                            let ceilText = ev.peak.ceiling ? `~${ev.peak.ceiling} FT (สภาพ BKN/OVC)` : 'ไม่มีเพดานเมฆชั้นต่ำ (SCT/FEW)';
+                            let spreadText = ev.peak.spread !== null ? `${ev.peak.spread.toFixed(1)} °C` : 'N/A';
+
+                            p3Html += `
+                            <div style="margin-bottom:12px; text-align:left; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; border-left:4px solid #ff3333;">
+                                <div style="color:#00ffcc; font-weight:bold; font-size:1vw; border-bottom:1px dashed #2a3f5f; padding-bottom:5px; margin-bottom:6px;">⏱️ ${timeText}</div>
+                                <div style="font-size:0.95vw; line-height:1.5; color:#e2e8f0; font-family:'Consolas', monospace;">
+                                    <div>${pk.c1 ? '✅' : '❌'} 1. เกณฑ์ฉันทามติพลังงานพายุ (โมเดล >= 50% ให้ CAPE >= 1000 J/kg)</div>
+                                    <div style="margin-left:22px; margin-bottom:4px;">ค่าที่ได้: ${fmtVal(pk.c1, pk.m1000.length + ' จาก ' + pk.vCount + ' โมเดล', pk.m1000.join(', '), '>= '+reqM+' โมเดล')}</div>
+                                    <div>${pk.c2 ? '✅' : '❌'} 2. เกณฑ์พลังงานสุดขั้ว (มีโมเดลให้ CAPE >= 2000 J/kg)</div>
+                                    <div style="margin-left:22px; margin-bottom:4px;">ค่าที่ได้: ${fmtVal(pk.c2, pk.max.toFixed(0) + ' J/kg', pk.maxM, '>= 2000 J/kg')}</div>
+                                    <div>${pk.c3 ? '✅' : '❌'} 3. เกณฑ์ลมกระโชกแรงอันตราย (มีโมเดลให้ Gust >= 25 KT)</div>
+                                    <div style="margin-left:22px; margin-bottom:6px;">ค่าที่ได้: ${fmtVal(pk.c3, pk.gust.toFixed(1) + ' KT', pk.gustM, '>= 25 KT')}</div>
+                                </div>
+                                <div style="font-size:0.9vw; font-weight:bold; color:#00cc66;">📌 สรุป: ผ่านเกณฑ์ (P3 สนับสนุนการแจ้งเตือนพายุ/ลมแรง)</div>
+                                <div style="margin-top:8px; padding-top:8px; border-top:1px dashed #2a3f5f; font-size:0.85vw; color:#a0aec0;">
+                                    [ ข้อมูลสนับสนุนทัศนวิสัยการบิน ณ ชั่วโมงพีค ]<br>
+                                    • เพดานเมฆประเมิน (Est. Ceiling): <span style="color:#fff;">${ceilText}</span><br>
+                                    • ส่วนต่างอุณหภูมิ (T-Td Spread): <span style="color:#fff;">${spreadText}</span>
+                                </div>
+                            </div>`;
+                        });
+                    } else {
+                        p3Html = `<div style="color:#00cc66; font-size:1vw; margin-top:20px; text-align:center;">✅ ไม่มีห้วงเวลาใดเข้าเกณฑ์ความเสี่ยงพายุ/ลมแรง</div>`;
+                    }
+                }
+
                 function mkTabBtn(id, label, ok) {
                     let bg = (ok===true)?'#1e7a3c':(ok==='UNK'?'#7a4b00':'#8b0000');
                     let col = (ok===true)?'#9BFFB0':(ok==='UNK'?'#ffe08a':'#ffd9d9');
@@ -3018,55 +3129,36 @@ function renderTafTimeline(tafRaw) {
                 ];
                 let modelStatusOk = Object.create(null);
                 models.forEach(m => { modelStatusOk[m.id] = null; });
-                const modelPopThreshold = window.ATC_CFG &&
-                    Number.isFinite(window.ATC_CFG.POP_MIN)
-                    ? window.ATC_CFG.POP_MIN : 60;
                 if(eng && eng.hour && eng.hour.mDict) {
                     models.forEach(m => {
-                        const pop = eng.hour.mDict[m.id];
-                        if(Number.isFinite(pop)) {
-                            modelStatusOk[m.id] = pop >= modelPopThreshold;
+                        const mData = eng.hour.mDict[m.id];
+                        if(mData && mData.pop !== null) {
+                            modelStatusOk[m.id] = mData.pass;
                         }
                     });
-                }
-                if(eng && eng.hour && eng.hour.t && data && data.hourly &&
-                   Array.isArray(data.hourly.time) &&
-                   modelStatusOk[currentAiModel] === null) {
-                    let targetIndex = data.hourly.time.indexOf(eng.hour.t);
-                    if(targetIndex < 0) {
-                        const targetTime = Date.parse(eng.hour.t);
-                        if(Number.isFinite(targetTime)) {
-                            targetIndex = data.hourly.time.findIndex(function(time) {
-                                return Date.parse(time) === targetTime;
-                            });
-                        }
-                    }
-                    if(targetIndex >= 0) {
-                        const selectedModelProb =
-                            data.hourly['precipitation_probability_' + currentAiModel] ||
-                            data.hourly.precipitation_probability;
-                        const pop = selectedModelProb && selectedModelProb[targetIndex];
-                        if(Number.isFinite(pop)) {
-                            modelStatusOk[currentAiModel] = pop >= modelPopThreshold;
-                        }
-                    }
                 }
                 let modelBtns = `<div style="display:flex; gap:5px; margin-bottom:10px;">`;
                 models.forEach(m => {
                     let isAct = m.id === currentAiModel;
                     let mStatus = modelStatusOk[m.id];
                     
-                    // Once the engine has a result, only models that explicitly pass remain non-failed.
-                    if (eng && mStatus !== true) {
+                    if (eng && mStatus !== true && mStatus !== null) {
                         mStatus = false;
                     }
 
-                    let textColor = mStatus === false ? '#ff5555' :
-                        (isAct ? '#00ffcc' : (mStatus === true ? '#a0aec0' : '#718096'));
+                    let isDataMissing = (eng && eng.hour && eng.hour.mDict && (!eng.hour.mDict[m.id] || eng.hour.mDict[m.id].pop === null));
+
+                    let textColor = isDataMissing ? '#4a5568' :
+                                    (mStatus === false ? '#ff5555' :
+                                    (isAct ? '#00ffcc' : (mStatus === true ? '#a0aec0' : '#718096')));
                     let bgColor = isAct ? '#2a3f5f' : '#0b131e';
                     if(mStatus === false && isAct) bgColor = 'rgba(255,85,85,0.2)';
-                    let borderColor = isAct ? '#00ffcc' : '#4a5568';
-                    modelBtns += `<button onclick="changeAiModel('${m.id}')" style="flex:1; background:${bgColor}; color:${textColor}; border:1px solid ${borderColor}; border-radius:4px; padding:4px; cursor:pointer; font-weight:bold; font-size:0.9vw; transition:0.2s;">${m.name}</button>`;
+
+                    let borderColor = isDataMissing ? '#1a2a40' : (isAct ? '#00ffcc' : '#4a5568');
+                    let textStyle = isDataMissing ? 'text-decoration: line-through; pointer-events: none;' : '';
+                    let cursorStyle = isDataMissing ? 'not-allowed' : 'pointer';
+
+                    modelBtns += `<button onclick="changeAiModel('${m.id}')" style="flex:1; background:${bgColor}; color:${textColor}; border:1px solid ${borderColor}; border-radius:4px; padding:4px; cursor:${cursorStyle}; font-weight:bold; font-size:0.9vw; transition:0.2s; ${textStyle}">${m.name}</button>`;
                 });
                 modelBtns += `</div>`;
 
@@ -3078,54 +3170,111 @@ function renderTafTimeline(tafRaw) {
                     if(spread < minSpread) minSpread = spread; 
                 });
                 
-                // P4 TAF Highlight
-                let rawTafForP4 = extractWxData(cachedTafText, locName, 'TAF') || "NO TAF DATA AVAILABLE FOR THIS STATION";
-                let hlTaf = rawTafForP4.replace(/\b(TSRA|\+SHRA|SHRA|TS|RA|CB|TCU|VCTS|VCSH)\b/g, '<span style="background:#ff3333; color:#fff; padding:0 4px; border-radius:3px; box-shadow:0 0 5px #ff0000;">$1</span>');
+                // P4 TAF Highlight & Logic UI
+                let p4Html = '';
+                let targetInfo = window.__ATC_TARGET__ && typeof window.__ATC_TARGET__.get === 'function'
+                    ? window.__ATC_TARGET__.get() : null;
+                let isStation = (targetInfo && (targetInfo.source === 'station' || targetInfo.source === 'default'));
+                let stCode = isStation
+                    ? (targetInfo.stationCode || (document.getElementById('station-select') && document.getElementById('station-select').value))
+                    : null;
 
-                // P5 Radar UI Update (Sector & Trend)
+                if (!isStation) {
+                    p4Html = `<div style="color:#f39c12; font-size:1.1vw; margin-top:20px; text-align:center; background:rgba(243,156,18,0.1); padding:15px; border-radius:6px; border:1px solid #f39c12;">⚠️ พื้นที่เป้าหมายไม่ใช่สนามบิน/สถานีตรวจอากาศ<br><span style="font-size:0.9vw; color:#a0aec0;">(ระบบจะไม่นำข้อมูล TAF มาคำนวณร่วม และอ้างอิงจากโมเดล NWP เป็นหลัก)</span></div>`;
+                } else {
+                    let rawTafForP4 = stCode ? extractWxData(cachedTafText, stCode, 'TAF') : null;
+                    if (!rawTafForP4 || rawTafForP4.length < 20) {
+                        p4Html = `<div style="color:#ff5555; font-size:1.1vw; margin-top:20px; text-align:center; background:rgba(255,85,85,0.1); padding:15px; border-radius:6px; border:1px solid #ff5555;">⚠️ ไม่มีข้อมูล TAF สำหรับสถานี ${stCode || 'ไม่ระบุ'} ในระบบขณะนี้<br><span style="font-size:0.9vw; color:#a0aec0;">(ระบบประเมินจากข้อมูลโมเดล NWP และเรดาร์เป็นหลัก)</span></div>`;
+                    } else {
+                        let rainMatch = rawTafForP4.match(/(?:\+SHRA|\+RA|-RA|\b(?:TSRA|SHRA|TS|RA|VCTS|DZ)\b)/g);
+                        let rainPass = rainMatch && rainMatch.length > 0;
+                        let rainList = rainPass ? [...new Set(rainMatch)].join(', ') : '';
+
+                        let cbMatch = rawTafForP4.match(/\b(CB|TCU)\b/g);
+                        let cbPass = cbMatch && cbMatch.length > 0;
+                        let cbList = cbPass ? [...new Set(cbMatch)].join(', ') : '';
+
+                        let timeMatch = rawTafForP4.match(/\b\d{6}Z\s+(\d{4})\/(\d{4})\b/);
+                        let timeText = timeMatch ? `อ้างอิง TAF: ${timeMatch[1]}/${timeMatch[2]}` : `ตรวจพบ TAF ของ ${stCode}`;
+                        let p4Overall = rainPass || cbPass;
+                        let hlTaf = rawTafForP4.replace(/(\+SHRA|\+RA|-RA|\b(?:TSRA|SHRA|TS|RA|VCTS|DZ|CB|TCU)\b)/g, '<span style="background:#ff3333; color:#fff; padding:0 4px; border-radius:3px; box-shadow:0 0 5px #ff0000;">$1</span>');
+
+                        p4Html = `
+                        <div style="margin-bottom:12px; text-align:left; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; border-left:4px solid ${p4Overall ? '#00cc66' : '#718096'};">
+                            <div style="font-size:0.95vw; line-height:1.6; color:#e2e8f0; font-family:'Consolas', monospace;">
+                                <div>✅ 1. การตรวจสอบพื้นที่และข้อมูล (Validity)</div>
+                                <div style="margin-left:22px; margin-bottom:6px;">สถานะ: <span style="color:#00cc66; font-weight:bold;">ใช้งานได้</span> <span style="color:#718096; font-size:0.8vw;">(${timeText})</span></div>
+
+                                <div>${rainPass ? '✅' : '❌'} 2. เกณฑ์คาดการณ์ฝน/พายุ (ตรวจพบรหัส RA, TS, SH, VCTS)</div>
+                                <div style="margin-left:22px; margin-bottom:6px;">สถานะ: <span style="color:${rainPass ? '#00cc66' : '#ff5555'}; font-weight:bold;">${rainPass ? 'พบรหัสกลุ่มฝน ['+rainList+']' : 'ไม่พบรหัสกลุ่มฝน'}</span></div>
+
+                                <div>${cbPass ? '✅' : '❌'} 3. เกณฑ์เมฆพายุฟ้าคะนอง (ตรวจพบรหัสเมฆ CB, TCU)</div>
+                                <div style="margin-left:22px; margin-bottom:6px;">สถานะ: <span style="color:${cbPass ? '#ff5555' : '#00cc66'}; font-weight:bold;">${cbPass ? 'พบรหัสเมฆพายุ ['+cbList+']' : 'ไม่พบรหัสเมฆพายุ'}</span></div>
+                            </div>
+                            <div style="font-size:0.9vw; font-weight:bold; color:${p4Overall ? '#00cc66' : '#718096'}; margin-top:5px;">📌 สรุป: ${p4Overall ? 'ผ่านเกณฑ์ (P4 สนับสนุนการแจ้งเตือน)' : 'ไม่ผ่านเกณฑ์ (ไม่มีคาดการณ์พายุ/ฝนใน TAF)'}</div>
+                        </div>
+                        <div style="margin-top:15px; background:rgba(0,0,0,0.6); padding:10px; border-radius:6px; border:1px solid #2a3f5f; text-align:left;">
+                            <div style="color:#a0aec0; font-size:0.9vw; margin-bottom:6px; border-bottom:1px dashed #4a5568; padding-bottom:4px;">ข้อความ TAF ต้นฉบับ (Highlighted)</div>
+                            <div style="font-family:'Consolas', monospace; font-size:1vw; color:#e2e8f0; line-height:1.5; white-space:pre-wrap;">${hlTaf}</div>
+                        </div>`;
+                    }
+                }
+
+                // P5 Radar UI Update (Real-time Checklist)
                 let rData = eng && eng.radar ? eng.radar : null;
                 let rText = (function(){
-                  if(!rData) return '<div style="color:#a0aec0;">📡 รอรับข้อมูลจากเซิร์ฟเวอร์เรดาร์...</div>';
-                  if(rData.dataStatus === 'UNKNOWN') return '<div style="color:#f39c12;">คำนวณไม่ได้: '+(rData.why||'ไม่มีข้อมูล')+'</div>';
-                  var lines = [];
-                  if(rData.threatLevel === 'RED') {
-                     if(typeof rData.nearestRainNM === 'number' && rData.nearestRainNM <= 5) lines.push('<div style="color:#ff3333; font-weight:bold; font-size:1.2vw; margin-bottom:8px;">⚠️ ฝนตกเหนือสนาม (&le; 5 NM)</div>');
-                     else lines.push('<div style="color:#ff3333; font-weight:bold; font-size:1.2vw; margin-bottom:8px;">⚠️ เฝ้าระวังฝนระยะประชิด (5-10 NM)</div>');
-                  } else if(rData.threatLevel === 'AMBER') {
-                     if(typeof rData.nearestRainNM === 'number' && rData.nearestRainNM <= 10) lines.push('<div style="color:#f39c12; font-weight:bold; font-size:1.1vw; margin-bottom:8px;">☁️ ฝนบริเวณใกล้เคียง (VC: 5-10 NM)</div>');
-                     else lines.push('<div style="color:#f39c12; font-weight:bold; font-size:1.1vw; margin-bottom:8px;">☁️ พบกลุ่มฝนระยะไกล (10-20 NM)</div>');
-                  } else {
-                     lines.push('<div style="color:#00cc66; font-weight:bold; font-size:1.1vw; margin-bottom:8px;">✅ ไม่พบกลุ่มฝนในรัศมี 20 NM</div>');
-                  }
+                  if(!rData) return '<div style="color:#a0aec0; text-align:center; padding:20px;">📡 รอรับข้อมูลจากเซิร์ฟเวอร์เรดาร์...</div>';
+                  if(rData.dataStatus === 'UNKNOWN') return '<div style="color:#ff5555; text-align:center; padding:20px;">⚠️ ระบบเรดาร์ขัดข้อง: '+(rData.why||'ไม่มีข้อมูล')+'</div>';
+
+                  const fmt = (pass, actual, ref) => `<span style="color:${pass ? '#00cc66' : '#ff5555'}; font-weight:bold;">${actual}</span> <span style="color:#718096; font-size:0.8vw;">(เกณฑ์: ${ref})</span>`;
+                  var c1_pass = !rData.stale;
+                  var ageText = rData.ageMin !== null ? rData.ageMin + ' นาทีที่แล้ว' : 'ไม่ทราบเวลา';
+                  var hasRainDistance = Number.isFinite(rData.nearestRainNM);
+                  var distNM = hasRainDistance ? rData.nearestRainNM.toFixed(1) : '--';
+                  var c2_pass = hasRainDistance && rData.nearestRainNM <= 5;
+                  var c3_pass = hasRainDistance && rData.nearestRainNM <= 20;
+                  var dirStr = '';
                   if(rData.sectorsNM && Object.keys(rData.sectorsNM).length > 0) {
-                     var minNM = Infinity;
-                     var minSec = '';
-                     var allSecs = [];
-                     for(var k in rData.sectorsNM) {
-                         allSecs.push(k);
-                         if(rData.sectorsNM[k] < minNM) { minNM = rData.sectorsNM[k]; minSec = k; }
-                     }
-                     var movTxt = rData.movVector ? ' ' + rData.movVector : '';
-                     lines.push('<div style="color:#fff; font-size:1.1vw;">📍 กลุ่มฝนใกล้สุดอยู่ห่างจากสถานี <span style="color:#ff3333; font-weight:bold;">' + minNM + ' NM</span> ทางทิศ <span style="color:#00ffcc; font-weight:bold;">' + minSec + movTxt + '</span></div>');
-                     if(allSecs.length > 1) {
-                         lines.push('<div style="color:#a0aec0; font-size:0.95vw; margin-top:2px;">☁️ แนวฝนพาดผ่านทิศ: ' + allSecs.join(', ') + '</div>');
-                     }
+                    var minNM = Infinity, minSec = '';
+                    for(var k in rData.sectorsNM) {
+                      if(rData.sectorsNM[k] < minNM) { minNM = rData.sectorsNM[k]; minSec = k; }
+                    }
+                    dirStr = 'ทางทิศ ' + minSec + ' เคลื่อนตัวไปทาง ' +
+                      (rData.movVector ? rData.movVector.replace('MOV ', '') : 'ไม่แน่ชัด');
                   }
-                  if(rData.motionStatus) {
-                     var mColor = (rData.motionStatus.includes('เข้าใกล้') || rData.motionStatus.includes('OVERHEAD')) ? '#ff3333' : '#f1c40f';
-                     lines.push('<div style="color:#a0aec0; font-size:1vw; margin-top:6px;">🔄 แนวโน้ม: <span style="color:'+mColor+'; font-weight:bold;">' + rData.motionStatus + '</span></div>');
+
+                  var summaryColor = '#00cc66';
+                  var summaryText = 'ผ่านเกณฑ์ (GREEN - ปกติ ไม่พบกลุ่มฝนในรัศมี 20 NM)';
+                  if(rData.threatLevel === 'RED') {
+                    summaryColor = '#ff5555';
+                    summaryText = 'ผ่านเกณฑ์ (RED - อันตราย ฝนตก/พุ่งเข้าสนามบิน)';
+                  } else if(rData.threatLevel === 'AMBER') {
+                    summaryColor = '#f39c12';
+                    summaryText = 'ผ่านเกณฑ์ (AMBER - เฝ้าระวังกลุ่มฝนระยะประชิด)';
                   }
-                  if(rData.etaStr && rData.etdStr) {
-                     lines.push('<div style="color:#f39c12; font-size:0.95vw; margin-top:8px;">⏱️ คาดว่าจะเข้าเขต 5 NM เวลา <span style="color:#fff; font-weight:bold;">' + rData.etaStr + ' น.</span> (สิ้นสุดประมาณ ' + rData.etdStr + ' น.)</div>');
-                     lines.push('<div style="color:#718096; font-size:0.8vw;">*อ้างอิง' + (rData.steeringSource || 'ความเร็วประเมิน') + ': ' + rData.steeringSpd + ' KT / ขนาดก้อนฝนโดยประมาณ: ' + rData.stormDiameterNM.toFixed(1) + ' NM</div>');
-                  } else if(rData.etdStr && rData.nearestRainNM !== null && rData.nearestRainNM <= 5) {
-                     lines.push('<div style="color:#f39c12; font-size:0.95vw; margin-top:8px;">⏱️ คาดว่าฝนจะพ้นเขต 5 NM เวลา <span style="color:#fff; font-weight:bold;">' + rData.etdStr + ' น.</span></div>');
-                     lines.push('<div style="color:#718096; font-size:0.8vw;">*อ้างอิง' + (rData.steeringSource || 'ความเร็วประเมิน') + ': ' + rData.steeringSpd + ' KT / ขนาดก้อนฝนโดยประมาณ: ' + rData.stormDiameterNM.toFixed(1) + ' NM</div>');
-                  }
-                  if(rData.ageMin != null) {
-                     lines.push('<div style="color:#718096; font-size:0.8vw; margin-top:8px;">(เรดาร์อัปเดต '+rData.ageMin+' นาทีที่แล้ว)</div>');
-                  }
-                  return lines.join('');
+
+                  return `
+                  <div style="text-align:left; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; border-left:4px solid ${summaryColor};">
+                      <div style="font-size:0.95vw; line-height:1.6; color:#e2e8f0; font-family:'Consolas', monospace;">
+                          <div>${c1_pass ? '✅' : '❌'} 1. ความสดใหม่ของข้อมูล (Data Freshness)</div>
+                          <div style="margin-left:22px; margin-bottom:4px;">อัปเดตเมื่อ: ${fmt(c1_pass, ageText, '<= 20 นาที')}</div>
+                          <div>${c2_pass ? '🚨' : '✅'} 2. ระยะภัยต่อสนามบิน (Terminal Threat)</div>
+                          <div style="margin-left:22px; margin-bottom:4px;">ระยะใกล้สุด: ${fmt(!c2_pass, distNM + ' NM', '> 5 NM')}</div>
+                          <div>${c3_pass ? '⚠️' : '✅'} 3. กลุ่มฝนในบริเวณใกล้เคียง (Vicinity)</div>
+                          <div style="margin-left:22px; margin-bottom:4px;">ระยะใกล้สุด: ${fmt(!c3_pass, distNM + ' NM', '> 20 NM')}</div>
+                          <div>${rData.closing === true ? '🚨' : '✅'} 4. แนวโน้มการเคลื่อนตัว (Motion Trend)</div>
+                          <div style="margin-left:22px; margin-bottom:6px;">สถานะ: <span style="color:${rData.closing === true ? '#ff5555' : '#00cc66'}; font-weight:bold;">${rData.motionStatus || 'ไม่แน่ชัด'}</span></div>
+                      </div>
+                      <div style="font-size:0.9vw; font-weight:bold; color:${summaryColor}; margin-top:5px;">📌 สรุปภัยคุกคาม: ${summaryText}</div>
+                  </div>
+                  <div style="margin-top:15px; background:rgba(0,0,0,0.6); padding:10px; border-radius:6px; border:1px solid #2a3f5f; text-align:left;">
+                      <div style="color:#a0aec0; font-size:0.9vw; margin-bottom:6px; border-bottom:1px dashed #4a5568; padding-bottom:4px;">[ ข้อมูลวิเคราะห์ทิศทางและเวลา (Advanced Radar Data) ]</div>
+                      <div style="font-family:'Consolas', monospace; font-size:1vw; color:#e2e8f0; line-height:1.5;">
+                          • 📍 กลุ่มฝนใกล้สุดอยู่ห่าง ${distNM} NM ${dirStr}<br>
+                          • ⏱️ คาดว่าฝนจะเข้าเขต 5 NM: ${rData.etaStr ? 'เวลา ' + rData.etaStr + ' น. (ETA)' : 'ไม่สามารถประเมินเวลาได้'}<br>
+                          &nbsp;&nbsp;<span style="font-size:0.8vw; color:#718096;">(อ้างอิงความเร็วเคลื่อนตัว: ~${rData.steeringSpd || '--'} KT จาก${rData.steeringSource || 'เรดาร์'})</span>
+                      </div>
+                  </div>`;
                 })();
 
                 let html = `<div style="background: rgba(20, 30, 48, 0.8); border: 2px solid ${alertColor}; border-radius: 8px; padding: 15px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); height: 100%; display: flex; flex-direction: column;">
@@ -3163,24 +3312,29 @@ function renderTafTimeline(tafRaw) {
                             </div>
 
                             <!-- P2: RAIN -->
-                            <div id="content-P2" class="pillar-pane ${currentPillarTab === 'P2' ? '' : 'hide'}" style="text-align:center; line-height:1.8;">
-                                <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px;">ข้อมูลปริมาณฝน (Rain Rate)</div>
-                                <div style="font-size:1.1vw;">ฝนตกสูงสุด (Max Rate): <span style="color:${maxRain > 2.5 ? '#ff3333' : '#00cc66'}; font-weight:bold; font-size:1.3vw;">${maxRain.toFixed(1)} mm/h</span></div>
-                                <div style="font-size:1.1vw;">ปริมาณฝนสะสมรวม: <span style="color:#3498db; font-weight:bold; font-size:1.3vw;">${totalRainAcc.toFixed(1)} mm</span></div>
+                            <div id="content-P2" class="pillar-pane ${currentPillarTab === 'P2' ? '' : 'hide'}" style="line-height:1.6;">
+                                <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px; text-align:center;">แจกแจงเกณฑ์ P2 ในห้วงเวลาที่มีความเสี่ยง</div>
+
+                                ${p2Html}
+
+                                <div style="margin-top:15px; background:rgba(0,0,0,0.6); padding:10px; border-radius:6px; border:1px solid #2a3f5f; text-align:center;">
+                                    <div style="color:#a0aec0; font-size:0.9vw; margin-bottom:4px;">ภาพรวมตลอดห้วงเวลาพยากรณ์</div>
+                                    <div style="font-size:1.1vw;">ปริมาณฝนสะสมรวมทั้งหมด: <span style="color:#3498db; font-weight:bold; font-size:1.4vw;">${totalRainAcc.toFixed(1)} mm</span></div>
+                                    <div style="color:#718096; font-size:0.8vw; margin-top:2px;">(รวมปริมาณฝนทุกระดับตลอดห้วงเวลา)</div>
+                                </div>
                             </div>
 
                             <!-- P3: SVR -->
-                            <div id="content-P3" class="pillar-pane ${currentPillarTab === 'P3' ? '' : 'hide'}" style="text-align:center; line-height:1.8;">
-                                <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px;">ดัชนีอากาศแปรปรวน (Severe Weather Index)</div>
-                                <div style="font-size:1vw;">พลังงานพายุ (CAPE): <span style="color:${maxCape > 1000 ? '#ff3333' : '#00cc66'}; font-weight:bold;">${maxCape.toFixed(0)} J/kg</span></div>
-                                <div style="font-size:1vw;">ส่วนต่าง T-Td (Spread): <span style="color:${minSpread <= 3 ? '#ff3333' : '#00cc66'}; font-weight:bold;">${minSpread}°C</span></div>
-                                <div style="font-size:1vw;">ฐานเมฆต่ำสุด (Est. LCL): <span style="color:#00ffcc; font-weight:bold;">~${Math.max(200, minSpread * 400)} FT</span></div>
+                            <div id="content-P3" class="pillar-pane ${currentPillarTab === 'P3' ? '' : 'hide'}" style="line-height:1.6;">
+                                <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px; text-align:center;">แจกแจงเกณฑ์ P3 ในห้วงเวลาที่มีความเสี่ยง</div>
+
+                                ${p3Html}
                             </div>
 
                             <!-- P4: TAF -->
-                            <div id="content-P4" class="pillar-pane ${currentPillarTab === 'P4' ? '' : 'hide'}">
-                                <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px;">ข้อความพยากรณ์การบิน (Aviation TAF)</div>
-                                <div style="font-family:'Consolas', monospace; font-size:1.1vw; color:#e2e8f0; line-height:1.5;">${hlTaf}</div>
+                            <div id="content-P4" class="pillar-pane ${currentPillarTab === 'P4' ? '' : 'hide'}" style="line-height:1.6;">
+                                <div style="color:#a0aec0; font-size:1vw; font-weight:bold; border-bottom:1px dashed #4a5568; padding-bottom:5px; margin-bottom:10px; text-align:center;">แจกแจงเกณฑ์ P4 (การคาดการณ์จากนักพยากรณ์)</div>
+                                ${p4Html}
                             </div>
 
                             <!-- P5: RDR -->
@@ -4472,41 +4626,99 @@ function target(){
 
 /* ---------- เสา 1-3 : โมเดลหลายตัว ---------- */
 function pick(H,base,m,i){
-  var a=H[base+'_'+m]||H[base];
+  var a=H[base+'_'+m]; // Remove fallback to prevent double counting
   return (a&&a[i]!=null)?a[i]:null;
 }
 function modelUrl(lat,lon){
   return 'https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+
-    '&hourly=precipitation_probability,precipitation,cape,temperature_2m,dewpoint_2m'+
-    '&models='+CFG.MODELS.join(',')+'&timezone=auto&forecast_days=2';
+    '&hourly=precipitation_probability,precipitation,cape,temperature_2m,dewpoint_2m,windspeed_10m,windgusts_10m,visibility,cloud_cover_low'+
+    '&models='+CFG.MODELS.join(',')+'&timezone=Asia/Bangkok&forecast_days=2';
 }
 function evalModels(d){
   var H=(d&&d.hourly)||{}, T=H.time||[], rows=[], now=Date.now(), i,j;
   for(i=0;i<T.length;i++){
-    var ts=new Date(T[i]).getTime(), lead=(ts-now)/3600000;
+    var ts = new Date(T[i] + '+07:00').getTime();
+    if(isNaN(ts)) ts = new Date(T[i]).getTime();
+
+    var lead=(ts-now)/3600000;
     if(lead<-0.6||lead>CFG.HORIZON) continue;
-    var pops=[],rains=[],capes=[],spd=[],mDict={};
+
+    var pops=[], rains=[], capes=[], spd=[], mDict={}, agreeCount=0;
+    var validModelsCount = 0, validRainCount = 0, validCapeCount = 0, rainSum = 0;
+    var p2Models05 = [], p2MaxRain = 0, p2MaxRainModel = "";
+    var p3Models1000 = [], p3MaxCape = 0, p3MaxCapeModel = "", p3MaxGust = 0, p3MaxGustModel = "";
+    var cclVal = 0;
+
     for(j=0;j<CFG.MODELS.length;j++){
       var m=CFG.MODELS[j];
+      var mCleanName = m.replace('_seamless', '').replace('_ifs025', '').replace('_global', '').toUpperCase();
+
       var p=pick(H,'precipitation_probability',m,i);
       var r=pick(H,'precipitation',m,i);
       var c=pick(H,'cape',m,i);
       var t1=pick(H,'temperature_2m',m,i), td=pick(H,'dewpoint_2m',m,i);
-      mDict[m]=Number.isFinite(p)?p:null;
-      if(p!=null) pops.push(p);
-      if(r!=null) rains.push(r);
-      if(c!=null) capes.push(c);
-      if(t1!=null&&td!=null) spd.push(t1-td);
+      var g=pick(H,'windgusts_10m',m,i);
+      var ccl=pick(H,'cloud_cover_low',m,i);
+
+      if(ccl != null && cclVal === 0) cclVal = ccl;
+
+      if(p != null) { pops.push(p); validModelsCount++; }
+      if(t1 != null && td != null) spd.push(t1-td);
+
+      var modelPass = false;
+      if (p != null && r != null) {
+        if (p >= 60 && r >= 0.5) { modelPass = true; }
+        else if (p >= 40 && r >= 1.0) { modelPass = true; }
+        else if (p >= 30 && r >= 1.0 && c >= 1200) { modelPass = true; }
+      }
+      if (modelPass) agreeCount++;
+      mDict[m] = { pop: p != null ? p : null, pass: modelPass };
+
+      if (r != null) {
+        rains.push(r);
+        rainSum += r;
+        validRainCount++;
+        if(r >= 0.5) p2Models05.push(mCleanName);
+        if(r >= p2MaxRain) { p2MaxRain = r; p2MaxRainModel = mCleanName; }
+      }
+
+      if (c != null) {
+        capes.push(c);
+        validCapeCount++;
+        if(c >= 1000) p3Models1000.push(mCleanName);
+        if(c >= p3MaxCape) { p3MaxCape = c; p3MaxCapeModel = mCleanName; }
+      }
+      if (g != null) {
+        var gustKt = g / 1.852;
+        if(gustKt >= p3MaxGust) { p3MaxGust = gustKt; p3MaxGustModel = mCleanName; }
+      }
     }
+
     if(!pops.length) continue;
-    var agree=pops.filter(function(v){return v>=CFG.POP_MIN;}).length;
-    var maxRain=rains.length?Math.max.apply(null,rains):0;
-    var maxCape=capes.length?Math.max.apply(null,capes):null;
+
+    var requiredAgree = Math.ceil(validModelsCount * 0.5);
+    var p1Result = (validModelsCount > 0) ? (agreeCount >= requiredAgree) : null;
+
+    var p2Mean = validRainCount > 0 ? (rainSum / validRainCount) : 0;
+    var p2_c1 = (validRainCount > 0) && (p2Models05.length >= Math.ceil(validRainCount * 0.5));
+    var p2_c2 = p2Mean >= 0.3;
+    var p2_c3 = p2MaxRain >= 2.5;
+    var p2Result = p2_c1 || p2_c2 || p2_c3;
+
+    var p3_c1 = (validCapeCount > 0) && (p3Models1000.length >= Math.ceil(validCapeCount * 0.5));
+    var p3_c2 = p3MaxCape >= 2000;
+    var p3_c3 = p3MaxGust >= 25;
+    var p3Result = p3_c1 || p3_c2 || p3_c3;
+
     var minSpd=spd.length?Math.min.apply(null,spd):null;
-    rows.push({ t:T[i], lead:lead, agree:agree, mDict:mDict,
-      maxPop:Math.max.apply(null,pops), rain:maxRain, cape:maxCape, spread:minSpd,
-      p1:agree>=CFG.AGREE, p2:maxRain>=CFG.RAIN_MIN,
-      p3:((maxCape!=null&&maxCape>=CFG.CAPE_MIN)||(minSpd!=null&&minSpd<=CFG.SPREAD_MAX)) });
+    var estCeiling = (cclVal > 50 && minSpd !== null) ? Math.max(200, Math.round(minSpd * 400)) : null;
+
+    rows.push({ t:T[i], lead:lead, agree:agreeCount, mDict:mDict,
+      maxPop:Math.max.apply(null,pops), rain:p2MaxRain, cape:p3MaxCape, spread:minSpd, ceiling:estCeiling, gust:p3MaxGust,
+      p1:p1Result, p2:p2Result, p3:p3Result,
+      p2Breakdown: { c1: p2_c1, c2: p2_c2, c3: p2_c3, m05: p2Models05, mean: p2Mean, max: p2MaxRain, maxM: p2MaxRainModel, vCount: validRainCount },
+      p3Breakdown: { c1: p3_c1, c2: p3_c2, c3: p3_c3, m1000: p3Models1000, max: p3MaxCape, maxM: p3MaxCapeModel, gust: p3MaxGust, gustM: p3MaxGustModel, vCount: validCapeCount }
+    });
   }
   return rows;
 }
@@ -4515,13 +4727,19 @@ function evalModels(d){
 function tafPillar(){
   var st = window.__ATC_TARGET__ && typeof window.__ATC_TARGET__.get === 'function'
     ? window.__ATC_TARGET__.get() : null;
-  var stCode = st && st.stationCode ? st.stationCode :
+  if(!st || (st.source !== 'station' && st.source !== 'default')) {
+    return { status:'UNKNOWN', meets:null, why:'พื้นที่เป้าหมายไม่ใช่สถานีหลัก (ไม่สามารถใช้ TAF ได้)' };
+  }
+
+  var stCode = st.stationCode ||
     (document.getElementById('station-select') ? document.getElementById('station-select').value : null);
-  if(!window.cachedTafText || !stCode) return { status:'UNKNOWN', meets:null, why:'ไม่มีข้อมูล TAF ในระบบ หรือไม่ระบุสถานี' };
+  if(!window.cachedTafText || !stCode) return { status:'UNKNOWN', meets:null, why:'ไม่มีข้อมูล TAF ในระบบ' };
+
   var s = window.extractWxData ? window.extractWxData(window.cachedTafText, stCode, 'TAF') : null;
-  if(!s || s.length < 20) return { status:'UNKNOWN', meets:null, why:'ไม่พบ TAF สำหรับสถานี ' + stCode };
-  var hit = /(TEMPO|BECMG|PROB30|PROB40|FM\d{6})[\s\S]{0,70}?(TSRA|\+SHRA|SHRA|TS|RA)\b/.test(s);
-  return { status: hit?'PASS':'FAIL', meets:hit, why:hit?'พบ TSRA/SHRA/TS ใน TAF ของ '+stCode:'ไม่พบกลุ่มฝนใน TAF ของ '+stCode };
+  if(!s || s.length < 20) return { status:'UNKNOWN', meets:null, why:'ไม่พบข้อมูล TAF สำหรับสถานี ' + stCode };
+  var hit = /(?:\+SHRA|\+RA|-RA|\b(?:TSRA|SHRA|TS|RA|VCTS|DZ|CB|TCU)\b)/.test(s);
+  return { status: hit?'PASS':'FAIL', meets:hit, raw:s,
+    why: hit?'พบรหัสกลุ่มฝนหรือเมฆพายุ ใน TAF ของ '+stCode:'ไม่พบกลุ่มฝนหรือพายุใน TAF ของ '+stCode };
 }
 
 /* ---------- Helper: normalize boolean pillar (UNKNOWN = null) ---------- */
@@ -4587,13 +4805,12 @@ function frameScan(host,path,lat,lon){
                frameRaw:null };
     }
     var rainPx=0, validPx=0, circlePx=0;
-    var sx=0, sy=0;
     var nearestDistPx = Infinity;
     var rtR2 = CFG.RAIN_AT_TARGET_RADIUS_PX * CFG.RAIN_AT_TARGET_RADIUS_PX;
     var rainAtTarget = false;
     var sectorMapPx = { E:Infinity, SE:Infinity, S:Infinity, SW:Infinity, W:Infinity, NW:Infinity, N:Infinity, NE:Infinity };
     var secNames = ["E","SE","S","SW","W","NW","N","NE"];
-    var px, py, dx, dy, dx2dy2, o, rC, gC, bC, aC, gray;
+    var px, py, dx, dy, dx2dy2, o, rC, gC, bC, aC;
     for(py=0;py<size;py++){
       for(px=0;px<size;px++){
         dx=px-r; dy=py-r;
@@ -4602,19 +4819,20 @@ function frameScan(host,path,lat,lon){
         circlePx++;
         o=(py*size+px)*4;
         aC=d[o+3];
-        if(aC < 40) continue;
+        if(aC < 85) continue;
         validPx++;
         rC=d[o]; gC=d[o+1]; bC=d[o+2];
-        gray=(rC+gC+bC)/3;
-        if(gray>=CFG.RADAR_GRAY){
-          rainPx++; sx+=dx; sy+=dy;
-          if(dx2dy2 <= nearestDistPx) nearestDistPx = dx2dy2;
-          if(dx2dy2 <= rtR2) rainAtTarget = true;
-          var ang = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
-          var secIdx = Math.round(ang / 45) % 8;
-          var sName = secNames[secIdx];
-          if(dx2dy2 < sectorMapPx[sName]) sectorMapPx[sName] = dx2dy2;
-        }
+        var maxC = Math.max(rC, gC, bC);
+        var minC = Math.min(rC, gC, bC);
+        if(maxC - minC < 25 || maxC > 240 || maxC < 80) continue;
+
+        rainPx++;
+        if(dx2dy2 <= nearestDistPx) nearestDistPx = dx2dy2;
+        if(dx2dy2 <= rtR2) rainAtTarget = true;
+        var ang = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+        var secIdx = Math.round(ang / 45) % 8;
+        var sName = secNames[secIdx];
+        if(dx2dy2 < sectorMapPx[sName]) sectorMapPx[sName] = dx2dy2;
       }
     }
     var kmpp = mpp(lat,z)/1000;
@@ -4635,8 +4853,6 @@ function frameScan(host,path,lat,lon){
     } else {
       status='OK'; why='';
     }
-    var cx = rainPx > 0 ? sx/rainPx : null;
-    var cy = rainPx > 0 ? sy/rainPx : null;
     return {
       dataStatus: status, why: why,
       coveragePct: +cov.toFixed(2),
@@ -4644,8 +4860,6 @@ function frameScan(host,path,lat,lon){
       rainAtTarget: rainAtTarget,
       nearestRainNM: nearestNM!==null ? +nearestNM.toFixed(1) : null,
       sectorsNM: sectorsNM,
-      cx: cx,
-      cy: cy,
       tileInfo: { total: totalTiles, ok: loadedTiles, fail: failedTiles },
       frameRaw: { rainPx:rainPx, validPx:validPx, circlePx:circlePx, rPx:r, kmpp:kmpp }
     };
@@ -4696,58 +4910,53 @@ function radarPillar(lat,lon){
           var rainHere = !!b.rainAtTarget;
           var b_nr = b.nearestRainNM;
           var a_nr = a && a.dataStatus==='OK' ? a.nearestRainNM : null;
+          var frameDeltaHours = (fN.time - fP.time) / 3600;
+          var speedDiffKt = null;
           var closing = null;
-          if(a_nr !== null && b_nr !== null){
-            closing = (b_nr < a_nr - 0.2);
+          if(a_nr !== null && b_nr !== null &&
+             Number.isFinite(frameDeltaHours) && frameDeltaHours > 0){
+            speedDiffKt = (a_nr - b_nr) / frameDeltaHours;
+            if(speedDiffKt > 1.5) closing = true;
+            else if(speedDiffKt < -1.5) closing = false;
           } else if(rainHere){
             closing = true;
           }
-          var movStr = '';
-          if(a && a.dataStatus === 'OK' &&
-             Number.isFinite(a.cx) && Number.isFinite(a.cy) &&
-             Number.isFinite(b.cx) && Number.isFinite(b.cy)){
-            var vecX = b.cx - a.cx;
-            var vecY = b.cy - a.cy;
-            var distMoved = Math.sqrt(vecX*vecX + vecY*vecY);
-            if(distMoved < 1){
-              movStr = 'STNR (ทรงตัว)';
-            } else {
-              var angle = (Math.atan2(vecX, -vecY) * 180 / Math.PI + 360) % 360;
+
+          var steeringSpd = null;
+          var steeringSource = 'เรดาร์ระยะขอบ';
+          var movStr = 'STNR';
+          var eng = window.ATC_ALERT_ENGINE ? window.ATC_ALERT_ENGINE.last : null;
+          var cape = eng && eng.hour && eng.hour.cape != null ? eng.hour.cape : 0;
+          var altLevel = cape >= 1000 ? 10000 : 5000;
+          var altLabel = cape >= 1000 ? '10K' : '5K';
+
+          if(typeof uwState !== 'undefined' && uwState.rows){
+            var w = uwState.rows.find(function(r){
+              return r.ft === altLevel || r.hdr === altLabel;
+            });
+            if(!w) w = uwState.rows.find(function(r){
+              return r.ft === 5000 || r.hdr === '5K';
+            });
+
+            if(w && Number.isFinite(w.dir) && Number.isFinite(w.spd)){
+              steeringSpd = w.spd;
+              steeringSource = 'ทิศทางลม ' + w.ft + ' ft';
+              var stormHeading = (w.dir + 180) % 360;
               var dirs = ['N','NE','E','SE','S','SW','W','NW'];
-              var dirIdx = Math.round(angle / 45) % 8;
+              var dirIdx = Math.round(stormHeading / 45) % 8;
               movStr = 'MOV ' + dirs[dirIdx];
             }
           }
-          var motionStatus = 'ทรงตัว / ออกห่าง';
-          if(movStr === 'STNR (ทรงตัว)') motionStatus = 'STNR (ทรงตัว) - ไม่เข้าใกล้สนาม';
-          else if(movStr){
-            motionStatus = movStr + (closing === true
-              ? ' - เคลื่อนเข้าใกล้สนาม'
-              : ' - เคลื่อนตัวออกห่าง');
-          } else if(closing === true){
-            motionStatus = 'เคลื่อนเข้าใกล้สนาม';
-          }
-          if(rainHere) motionStatus = 'OVERHEAD (ตกเหนือสนาม)';
 
-          var steeringSpd = null;
-          var steeringSource = '';
-          if(typeof uwState !== 'undefined' && uwState.rows){
-            var w5k = uwState.rows.find(function(r){
-              return r.ft === 5000 || r.hdr === '5K';
-            });
-            if(w5k && Number.isFinite(w5k.spd) && w5k.spd > 0){
-              steeringSpd = w5k.spd;
-              steeringSource = 'ลม 5000 ft';
-            }
+          if(speedDiffKt !== null && speedDiffKt > 0 &&
+             (!steeringSpd || steeringSpd < speedDiffKt)){
+            steeringSpd = speedDiffKt;
+            steeringSource = 'ความเร็วขอบเรดาร์';
           }
-          var frameDeltaHours = (fN.time - fP.time) / 3600;
-          if((!Number.isFinite(steeringSpd) || steeringSpd <= 0) &&
-             closing === true && a_nr !== null && b_nr !== null &&
-             Number.isFinite(frameDeltaHours) && frameDeltaHours > 0){
-            steeringSpd = (a_nr - b_nr) / frameDeltaHours;
-            if(steeringSpd > 0) steeringSource = 'แนวโน้มจากเรดาร์';
-            else steeringSpd = null;
-          }
+          var motionStatus = 'ทรงตัว หรือไม่ชัดเจน';
+          if(closing === true) motionStatus = 'เคลื่อนเข้าใกล้สนาม (Closing)';
+          else if(closing === false) motionStatus = 'เคลื่อนตัวออกห่าง (Moving Away)';
+          if(rainHere) motionStatus = 'ฝนตกทับสนามบิน (Overhead)';
 
           var stormDiameterNM = null;
           if(b.frameRaw && Number.isFinite(b.frameRaw.rainPx) &&
@@ -4889,6 +5098,7 @@ function renderPillarDash(res){
 }
 
 function paint(res){
+  if(typeof updateTafWindArrow === 'function') updateTafWindArrow();
   var b=$('ai-alert-banner'); if(!b) return;
   if(obs) obs.disconnect();
   b.classList.remove('atc-lv-red','atc-lv-amber','atc-lv-green');
@@ -4930,6 +5140,10 @@ function paint(res){
     var severity = 'ปกติ';
     if(lv==='RED') severity = res.hour && res.hour.cape >= 1000 ? 'พายุฝนฟ้าคะนอง' : 'ฝนตกหนัก';
     else if(lv==='AMBER') severity = res.hour && res.hour.rain >= 1.0 ? 'ฝนปานกลาง' : 'ฝนเบา/เมฆฝนใกล้เคียง';
+    var hasSevereGust = res.rows && res.rows.some(function(r) { return r.gust >= 25 && (r.p2 || r.p3); });
+    if (hasSevereGust && lv !== 'GREEN') {
+        severity += '+ลมแรง';
+    }
     var head = lv==='RED' ? '🔴 WX ALERT: แจ้งเตือน '+severity :
       (lv==='AMBER' ? '🟡 WX ADVISORY: เฝ้าระวัง '+severity : '🟢 NO SIGNIFICANT WX: '+severity);
     var leadText='';
