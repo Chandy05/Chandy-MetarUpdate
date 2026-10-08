@@ -2897,78 +2897,85 @@ function renderTafTimeline(tafRaw) {
                 timeRowHtml += `</div>`; rainRowHtml += `</div>`; probRowHtml += `</div>`;
                 let barHtml = `<div style="display:flex; flex-direction:column; width:100%; border-radius:4px; overflow:hidden; border:1px solid #4a5568; margin-bottom:12px;">${timeRowHtml}${rainRowHtml}${probRowHtml}</div>`;
 
-                // --- 2. จัดกลุ่มเหตุการณ์ (Event Breakdown) ---
-                let eventHtml = '';
-                let currentEvent = null;
-
-                hourlyData.forEach(h => {
-                    let eventType = 'CLEAR';
-                    if (h.prob >= 60) {
-                        if (h.cape > 1000) eventType = 'THUNDERSTORM';
-                        else if (h.rain > 2.5) eventType = 'RAIN';
-                        else eventType = 'LIGHT_RAIN';
-                    } else if (h.prob >= 30) {
-                        eventType = 'VCSH';
-                    }
-
-                    if (!currentEvent || currentEvent.type !== eventType) {
-                        if (currentEvent) eventHtml += renderEventRow(currentEvent);
-                        currentEvent = { type: eventType, start: h.timeStr, end: h.timeStr, maxProb: h.prob, maxRain: h.rain, minVis: h.vis, maxGust: h.wGust, wSpd: h.wSpd, wDir: h.wDir, minLcl: h.lcl };
-                    } else {
-                        currentEvent.end = h.timeStr;
-                        if(h.prob > currentEvent.maxProb) currentEvent.maxProb = h.prob;
-                        if(h.rain > currentEvent.maxRain) currentEvent.maxRain = h.rain;
-                        if(h.vis < currentEvent.minVis) currentEvent.minVis = h.vis;
-                        if(h.wGust > currentEvent.maxGust) currentEvent.maxGust = h.wGust;
-                        if(h.lcl < currentEvent.minLcl) currentEvent.minLcl = h.lcl;
-                    }
-                });
-                if (currentEvent) eventHtml += renderEventRow(currentEvent);
-
-                function renderEventRow(ev) {
-                    let timeText = (ev.start === ev.end) ? ev.start : `${ev.start}-${ev.end}`;
-                    let color = '#a0aec0', desc = 'ไม่มีฝน', icon = '🟢';
-                    
-                    if(ev.type === 'THUNDERSTORM') { color = '#ff3333'; desc = 'พายุฝนฟ้าคะนอง'; icon = '⛈️'; }
-                    else if(ev.type === 'RAIN') { color = '#f39c12'; desc = 'ฝนตกปานกลาง-หนัก'; icon = '🌧️'; }
-                    else if(ev.type === 'LIGHT_RAIN') { color = '#3498db'; desc = 'ฝนตกปรอย (Light Rain)'; icon = '🌦️'; }
-                    else if(ev.type === 'VCSH') { color = '#a0aec0'; desc = 'เมฆฝนบริเวณใกล้เคียง (VCSH)'; icon = '☁️'; }
-                    else return '';
-
-                    let visKm = Math.round(ev.minVis/1000);
-                    let visStr = (ev.minVis < 5000) ? `<span style="color:#ff3333;">Vis: ${visKm}km</span>` : `Vis: ${visKm >= 10 ? '>10' : visKm}km`;
-                    
-                    let wDirStr = String(ev.wDir).padStart(3, '0');
-                    let gustStr = (ev.maxGust >= ev.wSpd + 5) ? `<span style="color:#ff3333;">G${ev.maxGust}</span>` : '';
-                    let wndStr = `${wDirStr}°/${ev.wSpd}KT ${gustStr}`;
-                    
-                    let rainStr = ev.maxRain > 0 ? ` | ฝน ${ev.maxRain.toFixed(1)} mm` : '';
-
-                    return `<div style="background:rgba(0,0,0,0.3); border-left:4px solid ${color}; padding:8px; border-radius:4px; margin-bottom:8px; font-size:1vw;">
-                                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                                    <span style="color:${color}; font-weight:bold;">${icon} เวลา ${timeText}</span>
-                                    <span style="color:#a0aec0;">โอกาส ${ev.maxProb}%${rainStr}</span>
-                                </div>
-                                <div style="color:#fff; font-weight:bold; font-size:1.1vw; margin-bottom:4px;">ลักษณะอากาศ: ${desc}</div>
-                                <div style="display:flex; justify-content:space-between; color:#a0aec0; font-size:0.9vw;">
-                                    <span>${visStr}</span>
-                                    <span style="color:#00ffcc;">ฐานเมฆ: ~${ev.minLcl} FT</span>
-                                    <span>ลม: ${wndStr}</span>
-                                </div>
-                            </div>`;
-                }
-
-                if(!eventHtml) eventHtml = `<div style="text-align:center; color:#00cc66; font-size:1.2vw; padding:20px;">✅ ไม่มีแนวโน้มฝนตก หรือสภาพอากาศเลวร้ายในห้วงเวลานี้</div>`;
-
-                let sDateStr = `${reqStart.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][reqStart.getMonth()]} ${reqStart.getFullYear()+543}`;
-                let eDateStr = `${reqEnd.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][reqEnd.getMonth()]} ${reqEnd.getFullYear()+543}`;
-                let displayDateStr = (sDateStr === eDateStr) ? sDateStr : `${sDateStr} - ${eDateStr}`;
-                
                 // --- ดึงสถานะจาก 5-Pillar Engine ของเป้าหมายปัจจุบัน ---
                 let eng = window.ATC_ALERT_ENGINE ? window.ATC_ALERT_ENGINE.last : null;
                 if(eng && eng.target &&
                     (Number(eng.target.lat)!==lat || Number(eng.target.lon)!==lon ||
                      eng.target.revision!==request.snapshot.targetRevision)) eng = null;
+
+                // --- 2. จัดกลุ่มเหตุการณ์ (Event Breakdown Synced with 5-Pillars) ---
+                let eventHtml = '';
+                let currentEvent = null;
+                let engineRowsInRange = 0;
+
+                if(eng && Array.isArray(eng.rows)) eng.rows.forEach(r => {
+                    let dt = new Date(r.t);
+                    if (dt >= reqStart && dt <= reqEnd) {
+                        engineRowsInRange++;
+                        let eventType = 'CLEAR';
+                        if (r.p3 === true) eventType = 'THUNDERSTORM';
+                        else if (r.p2 === true) eventType = 'RAIN';
+                        else if (r.p1 === true) eventType = 'LIGHT_RAIN';
+                        else if (r.maxPop >= 30) eventType = 'VCSH';
+
+                        let timeStr = String(r.t).substring(11,16) + ' น.';
+                        let visVal = (r.rain > 10) ? 1500 : (r.rain > 2.5 ? 3000 : (r.rain > 0 ? 6000 : 10000));
+
+                        if (!currentEvent || currentEvent.type !== eventType) {
+                            if (currentEvent) eventHtml += renderEventRow(currentEvent);
+                            currentEvent = { type: eventType, start: timeStr, end: timeStr, maxProb: r.maxPop, maxRain: r.rain, minVis: visVal, maxGust: Number.isFinite(r.gust) ? r.gust : 0, spread: r.spread, ceiling: r.ceiling };
+                        } else {
+                            currentEvent.end = timeStr;
+                            if(r.maxPop > currentEvent.maxProb) currentEvent.maxProb = r.maxPop;
+                            if(r.rain > currentEvent.maxRain) currentEvent.maxRain = r.rain;
+                            if(visVal < currentEvent.minVis) currentEvent.minVis = visVal;
+                            if(Number.isFinite(r.gust) && r.gust > currentEvent.maxGust) currentEvent.maxGust = r.gust;
+                            if(r.ceiling !== null && Number.isFinite(r.ceiling) && (currentEvent.ceiling === null || r.ceiling < currentEvent.ceiling)) currentEvent.ceiling = r.ceiling;
+                        }
+                    }
+                });
+                if (currentEvent) eventHtml += renderEventRow(currentEvent);
+
+                function renderEventRow(ev) {
+                    let timeText = (ev.start === ev.end) ? ev.start : `${ev.start} - ${ev.end}`;
+                    let color = '#a0aec0', desc = 'ไม่มีฝน', icon = '🟢';
+                    
+                    if(ev.type === 'THUNDERSTORM') { color = '#ff3333'; desc = ev.maxGust >= 25 ? 'พายุฝนฟ้าคะนอง+ลมแรง' : 'พายุฝนฟ้าคะนอง'; icon = '⛈️'; }
+                    else if(ev.type === 'RAIN') { color = '#f39c12'; desc = ev.maxGust >= 25 ? 'ฝนตกปานกลาง+ลมแรง' : 'ฝนตกปานกลาง-หนัก'; icon = '🌧️'; }
+                    else if(ev.type === 'LIGHT_RAIN') { color = '#3498db'; desc = 'มีแนวโน้มฝนตก (Light Rain)'; icon = '🌦️'; }
+                    else if(ev.type === 'VCSH') { color = '#a0aec0'; desc = 'เฝ้าระวังกลุ่มฝนใกล้เคียง (VCSH)'; icon = '☁️'; }
+                    else return '';
+
+                    let visKm = Math.round(ev.minVis/1000);
+                    let visStr = (ev.minVis < 5000) ? `<span style="color:#ff3333;">Vis: ${visKm} km</span>` : `Vis: ${visKm >= 10 ? '>10' : visKm} km`;
+                    let gustStr = (ev.maxGust >= 25) ? `<span style="color:#ff3333;">G${ev.maxGust.toFixed(0)} KT</span>` : 'ลมกระโชก: ปกติ';
+                    let ceilStr = ev.ceiling ? `~${ev.ceiling} FT` : 'SCT/FEW';
+                    let rainStr = ev.maxRain > 0 ? ` | ฝน ${ev.maxRain.toFixed(1)} mm` : '';
+
+                    return `<div style="background:rgba(0,0,0,0.3); border-left:4px solid ${color}; padding:8px; border-radius:4px; margin-bottom:8px; font-size:1vw;">
+                                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                                    <span style="color:${color}; font-weight:bold;">${icon} เวลา ${timeText}</span>
+                                    <span style="color:#a0aec0;">ความเสี่ยง ${ev.maxProb}%${rainStr}</span>
+                                </div>
+                                <div style="color:#fff; font-weight:bold; font-size:1.1vw; margin-bottom:4px;">ลักษณะอากาศ: ${desc}</div>
+                                <div style="display:flex; justify-content:space-between; color:#a0aec0; font-size:0.9vw;">
+                                    <span>${visStr}</span>
+                                    <span style="color:#00ffcc;">เพดานเมฆ: ${ceilStr}</span>
+                                    <span>${gustStr}</span>
+                                </div>
+                            </div>`;
+                }
+
+                if(!eventHtml) {
+                    eventHtml = engineRowsInRange
+                        ? `<div style="text-align:center; color:#00cc66; font-size:1.2vw; padding:20px;">✅ ไม่มีแนวโน้มฝนตก หรือสภาพอากาศเลวร้ายในห้วงเวลานี้</div>`
+                        : `<div style="text-align:center; color:#f39c12; font-size:1.1vw; padding:20px;">⚠️ ไม่มีข้อมูล 5-Pillar Engine สำหรับช่วงเวลาที่เลือก</div>`;
+                }
+
+                let sDateStr = `${reqStart.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][reqStart.getMonth()]} ${reqStart.getFullYear()+543}`;
+                let eDateStr = `${reqEnd.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][reqEnd.getMonth()]} ${reqEnd.getFullYear()+543}`;
+                let displayDateStr = (sDateStr === eDateStr) ? sDateStr : `${sDateStr} - ${eDateStr}`;
+                
                 let alertColor = '#00cc66';
                 let alertTitle = '🟢 การพยากรณ์สภาพอากาศ (CLEAR)';
                 if(eng) {
@@ -2991,7 +2998,7 @@ function renderTafTimeline(tafRaw) {
                 let sP1 = eng && eng.hour ? eng.hour.p1 : 'UNK';
                 let sP2 = eng && eng.hour ? eng.hour.p2 : 'UNK';
                 let sP3 = eng && eng.hour ? eng.hour.p3 : 'UNK';
-                let sP4 = eng ? eng.taf : 'UNK';
+                let sP4 = (eng && eng.taf && typeof eng.taf.meets === 'boolean') ? eng.taf.meets : 'UNK';
                 let sP5 = 'UNK';
                 if(eng && eng.radar){
                   if(typeof eng.radar.meetsCriterion === 'boolean'){
@@ -3190,7 +3197,7 @@ function renderTafTimeline(tafRaw) {
                         let rainPass = rainMatch && rainMatch.length > 0;
                         let rainList = rainPass ? [...new Set(rainMatch)].join(', ') : '';
 
-                        let cbMatch = rawTafForP4.match(/\b(CB|TCU)\b/g);
+                        let cbMatch = rawTafForP4.match(/(CB|TCU)\b/g);
                         let cbPass = cbMatch && cbMatch.length > 0;
                         let cbList = cbPass ? [...new Set(cbMatch)].join(', ') : '';
 
@@ -4737,7 +4744,7 @@ function tafPillar(){
 
   var s = window.extractWxData ? window.extractWxData(window.cachedTafText, stCode, 'TAF') : null;
   if(!s || s.length < 20) return { status:'UNKNOWN', meets:null, why:'ไม่พบข้อมูล TAF สำหรับสถานี ' + stCode };
-  var hit = /(?:\+SHRA|\+RA|-RA|\b(?:TSRA|SHRA|TS|RA|VCTS|DZ|CB|TCU)\b)/.test(s);
+  var hit = /(?:\b(TSRA|\+SHRA|SHRA|TS|RA|\+RA|VCTS|-RA|DZ)\b|(CB|TCU)\b)/.test(s);
   return { status: hit?'PASS':'FAIL', meets:hit, raw:s,
     why: hit?'พบรหัสกลุ่มฝนหรือเมฆพายุ ใน TAF ของ '+stCode:'ไม่พบกลุ่มฝนหรือพายุใน TAF ของ '+stCode };
 }
@@ -4989,7 +4996,7 @@ function radarPillar(lat,lon){
           }
 
           var threatLevel = 'GREEN';
-          if(b_nr !== null) {
+          if(b_nr !== null && !isStale) {
               if (b_nr <= 5) threatLevel = 'RED';
               else if (b_nr <= 10 && closing === true) threatLevel = 'RED';
               else if (b_nr <= 10) threatLevel = 'AMBER';
