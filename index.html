@@ -540,33 +540,22 @@
     height: 100% !important;
 }
 
-/* กล่องรายงานยึดโครงสร้างไว้ ส่วนเนื้อหาแท็บเป็นพื้นที่สกรอล */
+/* ===== จัดการโครงสร้าง AI Report ให้ Flex ทำงานสมบูรณ์ ===== */
 #ai-report-content {
     flex: 1 1 auto !important;
     min-height: 0 !important;
     height: 100% !important;
-    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
     overflow: hidden !important;
-    display: block !important;
 }
 
-/* Keep descendants unconstrained so the report container owns scrolling. */
-#ai-report-content * {
-    max-height: none !important;
-}
-#ai-report-content > .ai-report-tab-content {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    padding-right: 5px;
-    padding-bottom: 52px !important;
-}
-#ai-report-content > .ai-report-tab-content.hide {
-    display: none !important;
+/* ให้กล่อง wrapper ที่มาจาก JS กินพื้นที่ทั้งหมดและส่งผ่าน Flex ลงไป */
+#ai-report-content > div {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
 }
 .ai-report-main-tab {
     flex: 1;
@@ -585,8 +574,6 @@
     background: #06251f;
     border-color: #00ffcc;
 }
-#ai-report-content > * { flex: 0 0 auto !important; }
-
 /* หัวข้อย่อย "รายละเอียดแยกตามช่วงเวลา:" (ติด class โดยสคริปต์ข้อ [2]) */
 #ai-report-content .atc-sec-head {
     position: static !important;
@@ -633,9 +620,16 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
 #taf-date-end::-webkit-datetime-edit-second-field,
 #taf-time-start::-webkit-datetime-edit-second-field,
 #taf-time-end::-webkit-datetime-edit-second-field { display: none; }
-/* ===== BOX3 AI REPORT SCROLL (ชุดเดียวกับ box1) ===== */
-#ai-report-content > * { flex: 0 0 auto; }
-#ai-report-content {
+/* ===== ย้าย Scrollbar มาที่เนื้อหาของ Tab แทน ===== */
+.ai-report-tab-content {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-right: 8px !important;
+    padding-bottom: 40px !important;
     scrollbar-gutter: stable;
     overscroll-behavior: contain;
     scroll-behavior: smooth;
@@ -644,11 +638,12 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
     -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 28px), transparent 100%);
             mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 28px), transparent 100%);
 }
-#ai-report-content::-webkit-scrollbar { width: 8px; }
-#ai-report-content::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 4px; }
-#ai-report-content::-webkit-scrollbar-thumb { background: #d4af37; border-radius: 4px; }
-#ai-report-content::-webkit-scrollbar-thumb:hover { background: #ffd966; }
-#ai-report-content > *:last-child { margin-bottom: 20px; }
+.ai-report-tab-content::-webkit-scrollbar { width: 8px; }
+.ai-report-tab-content::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 4px; }
+.ai-report-tab-content::-webkit-scrollbar-thumb { background: #d4af37; border-radius: 4px; }
+.ai-report-tab-content::-webkit-scrollbar-thumb:hover { background: #ffd966; }
+.ai-report-tab-content > *:last-child { margin-bottom: 20px; }
+.ai-report-tab-content.hide { display: none !important; }
 
 /* ===== BOX2 : SMART AREA PREDICTOR - กระจายพื้นที่ให้แผนที่ใหญ่สุด ===== */
 #box2-taf > * { flex-shrink: 0; }
@@ -3426,13 +3421,13 @@ function renderTafTimeline(tafRaw) {
                     </div>
 
                     <!-- แท็บ 1: WX REPORT -->
-                    <div id="ai-tab-summary" class="ai-report-tab-content ${currentAiReportTab === 'summary' ? '' : 'hide'}" role="tabpanel" aria-labelledby="btn-ai-tab-summary" style="flex-direction:column; overflow-y:auto; padding-right:5px;">
-                        <div style="color:#a0aec0; font-size:1vw; margin-bottom:8px; border-bottom:1px dashed #4a5568; padding-bottom:4px; position:sticky; top:0; background:rgba(20,30,48,0.95); z-index:10;">รายละเอียดแยกตามช่วงเวลา:</div>
+                    <div id="ai-tab-summary" class="ai-report-tab-content ${currentAiReportTab === 'summary' ? '' : 'hide'}" role="tabpanel" aria-labelledby="btn-ai-tab-summary">
+                        <div style="color:#a0aec0; font-size:1vw; margin-bottom:8px; border-bottom:1px dashed #4a5568; padding-bottom:4px; position:sticky; top:0; background:rgba(20,30,48,0.95); z-index:10; flex-shrink:0;">รายละเอียดแยกตามช่วงเวลา:</div>
                         ${eventHtml}
                     </div>
 
                     <!-- แท็บ 2: 5-PILLAR -->
-                    <div id="ai-tab-pillars" class="ai-report-tab-content ${currentAiReportTab === 'pillars' ? '' : 'hide'}" role="tabpanel" aria-labelledby="btn-ai-tab-pillars" style="flex-direction:column; overflow-y:auto; padding-right:5px;">
+                    <div id="ai-tab-pillars" class="ai-report-tab-content ${currentAiReportTab === 'pillars' ? '' : 'hide'}" role="tabpanel" aria-labelledby="btn-ai-tab-pillars">
                         ${tabsHtml}
                         <div style="flex:1 1 auto; min-height:0; background:rgba(0,0,0,0.3); border:1px solid #2a3f5f; border-radius:6px; padding:10px; margin-bottom:8px; overflow-y:auto;">
                             <!-- P1: MDL -->
