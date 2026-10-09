@@ -4606,7 +4606,7 @@ document.addEventListener('DOMContentLoaded', function(){
         el.style.removeProperty('overflow');
         /* ปลดสกรอลของ wrapper ชั้นในที่ครอบหัวข้อนี้อยู่ */
         var p = el.parentElement, guard = 0;
-        while (p && p !== box && guard++ < 6) {
+        while (p && p !== box && !p.classList.contains('ai-report-tab-content') && guard++ < 6) {
           p.style.setProperty('overflow', 'visible', 'important');
           p.style.setProperty('max-height', 'none', 'important');
           p.style.setProperty('height', 'auto', 'important');
@@ -5482,6 +5482,11 @@ else document.addEventListener('DOMContentLoaded',function(){ setTimeout(boot,80
       el.style.setProperty('overflow-x', 'hidden', 'important');
       el.style.setProperty('min-height', '0', 'important');
       el.style.setProperty('max-height', '100%', 'important');
+      el.style.removeProperty('overflow');
+      el.style.removeProperty('height');
+      el.style.setProperty('overflow-y', 'auto', 'important');
+      el.style.setProperty('overflow-x', 'hidden', 'important');
+      el.style.setProperty('flex', '1 1 auto', 'important');
     });
   }
 
