@@ -3239,7 +3239,33 @@ function renderTafTimeline(tafRaw) {
                             </button>`;
                 }
                 
-                let tabsHtml = `<div style="display:flex; gap:4px; margin-bottom:10px; background:rgba(0,0,0,0.4); padding:6px; border-radius:6px; border:1px solid #2a3f5f;">
+                // --- คำนวณข้อมูลสำหรับ Summary Bar ---
+                let vCount = 0, aCount = 0, popV = 0, rainV = '0.0', rdrStatus = 'UNK', rdrValid = 0;
+                if (eng) {
+                    if(eng.hour && eng.hour.mDict) {
+                        for(let m in eng.hour.mDict) {
+                            if(eng.hour.mDict[m].pop !== null) vCount++;
+                        }
+                    }
+                    if(eng.hour) {
+                        aCount = eng.hour.agree || 0;
+                        popV = eng.hour.maxPop !== null ? eng.hour.maxPop : 0;
+                        rainV = eng.hour.rain !== null ? eng.hour.rain.toFixed(1) : '0.0';
+                    }
+                    if(eng.radar) {
+                        rdrStatus = eng.radar.dataStatus || 'UNK';
+                        rdrValid = eng.radar.validDataPct !== undefined ? Math.round(eng.radar.validDataPct) : 0;
+                    }
+                }
+
+                let summaryBarHtml = `<div style="font-family:'Consolas', monospace; font-size:clamp(11px, 0.9vw, 15px); color:#a0aec0; text-align:center; margin-bottom:10px; font-weight:bold; letter-spacing:1px; border-bottom:1px dashed #2a3f5f; padding-bottom:8px;">
+                    AGREE <span style="color:#e2e8f0;">${aCount}/${vCount}</span> <span style="color:#4a5568; margin:0 6px;">|</span>
+                    POP <span style="color:#e2e8f0;">${popV}%</span> <span style="color:#4a5568; margin:0 6px;">|</span>
+                    RAIN <span style="color:#e2e8f0;">${rainV}mm</span> <span style="color:#4a5568; margin:0 6px;">|</span>
+                    RDR: <span style="color:#e2e8f0;">${rdrStatus}</span> <span style="font-size:0.85em; color:#e2e8f0; font-weight:normal;">valid:${rdrValid}%</span>
+                </div>`;
+
+                let tabsHtml = summaryBarHtml + `<div style="display:flex; gap:4px; margin-bottom:10px; background:rgba(0,0,0,0.4); padding:6px; border-radius:6px; border:1px solid #2a3f5f;">
                     ${mkTabBtn('P1', 'P1:MDL', sP1)}
                     ${mkTabBtn('P2', 'P2:RAIN', sP2)}
                     ${mkTabBtn('P3', 'P3:SVR', sP3)}
