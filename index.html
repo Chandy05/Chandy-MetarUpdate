@@ -3262,7 +3262,7 @@ function renderTafTimeline(tafRaw) {
                     AGREE <span style="color:#e2e8f0;">${aCount}/${vCount}</span> <span style="color:#4a5568; margin:0 6px;">|</span>
                     POP <span style="color:#e2e8f0;">${popV}%</span> <span style="color:#4a5568; margin:0 6px;">|</span>
                     RAIN <span style="color:#e2e8f0;">${rainV}mm</span> <span style="color:#4a5568; margin:0 6px;">|</span>
-                    RDR: <span style="color:#e2e8f0;">${rdrStatus}</span> <span style="font-size:0.85em; color:#e2e8f0; font-weight:normal;">valid:${rdrValid}%</span>
+                    RDR: <span style="color:#e2e8f0;">valid:${rdrValid}%</span>
                 </div>`;
 
                 let tabsHtml = summaryBarHtml + `<div style="display:flex; gap:4px; margin-bottom:10px; background:rgba(0,0,0,0.4); padding:6px; border-radius:6px; border:1px solid #2a3f5f;">
@@ -4888,9 +4888,10 @@ function evalModels(d){
 function tafPillar(){
   // Always use the selected station from the dropdown for TAF evaluation, regardless of map pin
   var stCode = document.getElementById('station-select') ? document.getElementById('station-select').value : null;
-  if(!window.cachedTafText || !stCode) return { status:'UNKNOWN', meets:null, why:'ไม่มีข้อมูล TAF ในระบบ' };
+  // ลบ window. ออก เพื่อให้มองเห็นตัวแปร cachedTafText ที่อยู่ร่วมกันใน Global Scope ได้
+  if(typeof cachedTafText === 'undefined' || !cachedTafText || !stCode) return { status:'UNKNOWN', meets:null, why:'ไม่มีข้อมูล TAF ในระบบ' };
 
-  var s = window.extractWxData ? window.extractWxData(window.cachedTafText, stCode, 'TAF') : null;
+  var s = typeof extractWxData === 'function' ? extractWxData(cachedTafText, stCode, 'TAF') : null;
   if(!s || s.length < 20) return { status:'UNKNOWN', meets:null, why:'ไม่พบข้อมูล TAF สำหรับสถานี ' + stCode };
   var hit = /(?:\b(TSRA|\+SHRA|SHRA|TS|RA|\+RA|VCTS|-RA|DZ)\b|(CB|TCU)\b)/.test(s);
   return { status: hit?'PASS':'FAIL', meets:hit, raw:s,
