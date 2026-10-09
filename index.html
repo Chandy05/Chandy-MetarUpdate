@@ -2944,10 +2944,14 @@ function renderTafTimeline(tafRaw) {
                     let pk = eng.hour || (Array.isArray(eng.rows) ? eng.rows[0] : null);
                     if(!pk) pk = { cape:null, gust:null, rain:null, maxPop:null,
                         ceiling:null, wDir:null, wSpd:null };
-                    let rDesc = Number.isFinite(pk.cape)
-                        ? (pk.cape >= 1000 ? 'พายุฝนฟ้าคะนอง' : 'ฝนตกหนัก')
-                        : (rData.threatLevel === 'RED' ? 'ฝนตกหนัก' : 'ฝนตกปานกลาง-หนัก');
-                    if(rData.threatLevel === 'AMBER') rDesc = 'ฝนตกปานกลาง-หนัก';
+                    // สร้างข้อความลักษณะอากาศแบบ Dynamic ตามสีของเรดาร์ที่แยกได้
+                    let radarIntensity = rData.intensityText || 'ปานกลาง';
+                    let rDesc = radarIntensity === 'ไม่พบกลุ่มฝน' ? 'ไม่มีเหตุการณ์สำคัญ' : `ฝนตก${radarIntensity}`;
+
+                    // เพิ่มระดับการเตือนถ้าโมเดลอ่านค่า CAPE ได้รุนแรง
+                    if(Number.isFinite(pk.cape) && pk.cape >= 1000) {
+                        rDesc = `พายุฝนฟ้าคะนอง (${radarIntensity})`;
+                    }
                     if(Number.isFinite(pk.gust) && pk.gust >= 25) rDesc += '+ลมแรง';
 
                     let actionStr = 'คงที่';
@@ -4908,6 +4912,18 @@ function evalModels(d){
       var vis=pick(H,'visibility',m,i);
       var ccl=pick(H,'cloud_cover_low',m,i);
 
+      // --- ชดเชยข้อมูล (Fallback) ให้โมเดลที่ไม่ส่ง POP และ CAPE (เช่น JMA) ---
+      if (r !== null && p === null) {
+          if (r >= 2.5) p = 90;
+          else if (r >= 1.0) p = 70;
+          else if (r > 0) p = 30;
+          else p = 0;
+      }
+      if (r !== null && c === null) {
+          c = 0; // ป้องกันค่า null เพื่อไม่ให้โมเดลถูกตัดทิ้ง
+      }
+      // ------------------------------------------------------------
+
       if(ccl != null && cclVal === 0) cclVal = ccl;
       if(w != null && (maxWindSpd === null || w / 1.852 > maxWindSpd)) {
         maxWindSpd = w / 1.852;
@@ -5120,6 +5136,8 @@ function frameScan(host,path,lat,lon){
     var sectorMapPx = { E:Infinity, SE:Infinity, S:Infinity, SW:Infinity, W:Infinity, NW:Infinity, N:Infinity, NE:Infinity };
     var secNames = ["E","SE","S","SW","W","NW","N","NE"];
     var px, py, dx, dy, dx2dy2, o, rC, gC, bC, aC;
+    var maxIntensity = 0; // ตัวแปรเก็บความรุนแรงฝน (1=เบา, 2=ปานกลาง, 3=หนัก)
+
     for(py=0;py<size;py++){
       for(px=0;px<size;px++){
         dx=px-r; dy=py-r;
@@ -5128,14 +5146,25 @@ function frameScan(host,path,lat,lon){
         circlePx++;
         o=(py*size+px)*4;
         aC=d[o+3];
-        if(aC < 45) continue; // ลดเกณฑ์ความโปร่งใสลงให้เห็นฝนเบา (Alpha < 45)
+
+        // กรองสัญญาณรบกวน ปรับ Alpha เป็น 70 เพื่อดรอปพิกเซลใส/รอยต่อแผนที่
+        if(aC < 70) continue;
         validPx++;
         rC=d[o]; gC=d[o+1]; bC=d[o+2];
         var maxC = Math.max(rC, gC, bC);
         var minC = Math.min(rC, gC, bC);
-        if(maxC - minC < 15 || maxC > 250 || maxC < 50) continue; // ขยายช่วงเฉดสีให้ครอบคลุมฟ้า/เขียวอ่อน
+
+        // กรองสีขาว ดำ และเทา (ต้องมีสีสันชัดเจนถึงจะเป็นเรดาร์ฝน)
+        if(maxC - minC < 25 || maxC > 240 || maxC < 60) continue;
 
         rainPx++;
+
+        // เช็คความรุนแรงจากสี (RGB Heuristics)
+        var currentInten = 1; // ค่าเริ่มต้นคือสีฟ้า/เขียว (Light)
+        if (rC > 180 && gC < 130) currentInten = 3; // แดง/ม่วง (Heavy)
+        else if (rC > 180 && gC >= 130) currentInten = 2; // เหลือง/ส้ม (Moderate)
+        if (currentInten > maxIntensity) maxIntensity = currentInten;
+
         if(dx2dy2 <= nearestDistPx) nearestDistPx = dx2dy2;
         if(dx2dy2 <= rtR2) rainAtTarget = true;
         var ang = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
@@ -5162,6 +5191,9 @@ function frameScan(host,path,lat,lon){
     } else {
       status='OK'; why='';
     }
+    var intenText = maxIntensity === 3 ? 'หนัก' : (maxIntensity === 2 ? 'ปานกลาง' : 'เล็กน้อย');
+    if (rainPx === 0) intenText = 'ไม่พบกลุ่มฝน';
+
     return {
       dataStatus: status, why: why,
       coveragePct: +cov.toFixed(2),
@@ -5169,6 +5201,8 @@ function frameScan(host,path,lat,lon){
       rainAtTarget: rainAtTarget,
       nearestRainNM: nearestNM!==null ? +nearestNM.toFixed(1) : null,
       sectorsNM: sectorsNM,
+      intensityLevel: maxIntensity,
+      intensityText: intenText,
       tileInfo: { total: totalTiles, ok: loadedTiles, fail: failedTiles },
       frameRaw: { rainPx:rainPx, validPx:validPx, circlePx:circlePx, rPx:r, kmpp:kmpp }
     };
@@ -5367,6 +5401,7 @@ function radarPillar(lat,lon){
             ageMin: ageMin,
             stale: isStale,
             targetRevision: _rev,
+            intensityText: b.intensityText,
             why: 'Threat: ' + threatLevel + ' | Dist: ' + b_nr + ' NM | Motion: ' + motionStatus
           };
         });
