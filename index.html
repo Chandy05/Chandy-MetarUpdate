@@ -635,8 +635,18 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
     scroll-behavior: smooth;
     scrollbar-width: thin;
     scrollbar-color: #d4af37 rgba(255,255,255,0.04);
-    -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 28px), transparent 100%);
-            mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 28px), transparent 100%);
+    position: relative;
+}
+.ai-report-tab-content::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 8px;
+    bottom: 0;
+    height: 24px;
+    background: linear-gradient(to bottom, transparent, rgba(20, 30, 48, 0.9));
+    pointer-events: none;
+    z-index: 2;
 }
 .ai-report-tab-content::-webkit-scrollbar { width: 8px; }
 .ai-report-tab-content::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 4px; }
