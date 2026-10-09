@@ -32,7 +32,7 @@
         optgroup, option { background-color: #0b131e; color: #fff; }
 
         .header-right-container { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
-        
+
         .action-btn { background-color: rgba(0, 255, 204, 0.1); border: 2px solid var(--data-color); color: var(--data-color); padding: 5px 12px; border-radius: 5px; font-family: 'Consolas', monospace; font-size: 1.1vw; font-weight: bold; cursor: pointer; box-shadow: 0 0 8px rgba(0, 255, 204, 0.3); transition: all 0.2s; }
         .action-btn:hover { background-color: var(--data-color); color: #000; }
         .action-btn:active { transform: scale(0.95); }
@@ -2981,10 +2981,30 @@ function renderTafTimeline(tafRaw) {
                     }
                     let wndStr = `ลม: ${wDirStr}/${wSpdStr} KT${gustStr}`;
 
+                    // --- คำนวณช่วงเวลาจากข้อมูลเรดาร์ล่วงหน้า (ETA/ETD) ---
+                    let dNow = new Date();
+                    if (rData.frameTime) dNow = new Date(rData.frameTime * 1000);
+                    let nowStr = String(dNow.getHours()).padStart(2, '0') + ':' + String(dNow.getMinutes()).padStart(2, '0');
+                    let headerTimeStr = '';
+                    let b_nr = rData.nearestRainNM;
+                    if (b_nr !== null) {
+                        if (b_nr > 5 && rData.closing === true) {
+                            headerTimeStr = `เวลา ${rData.etaStr || nowStr} - ${rData.etdStr || '--:--'} น. (คาดการณ์มีทิศทางเข้าหาเป้าหมาย)`;
+                        } else if (rData.rainAtTarget || (b_nr <= 5 && (rData.closing === true || rData.closing === null))) {
+                            headerTimeStr = `เวลา ${nowStr} - ${rData.etdStr || 'ต่อเนื่อง'} น. (ฝนตกทับเป้าหมาย)`;
+                        } else if (b_nr <= 5 && rData.closing === false) {
+                            headerTimeStr = `เวลา ${nowStr} - ${rData.etdStr || '--:--'} น. (ฝนกำลังเคลื่อนตัวพ้นระยะ 5 NM)`;
+                        } else {
+                            headerTimeStr = `เวลา ${nowStr} เป็นต้นไป (เฝ้าระวังกลุ่มฝนรอบนอกระยะ 5 NM)`;
+                        }
+                    } else {
+                        headerTimeStr = `เวลา ${nowStr} เป็นต้นไป (สัญญาณจากเรดาร์)`;
+                    }
+
                     radarEventHtml = `
                         <div style="background:rgba(0,0,0,0.3); border-left:4px solid ${rColor}; padding:8px; border-radius:4px; margin-bottom:12px; font-size:1vw;">
                             <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                                <span style="color:${rColor}; font-weight:bold;">${rIcon} ขณะนี้ (LIVE) - สัญญาณจากเรดาร์</span>
+                                <span style="color:${rColor}; font-weight:bold;">${rIcon} ${headerTimeStr}</span>
                             </div>
                             <div style="color:#fff; font-weight:bold; font-size:1.1vw; margin-bottom:2px;">ลักษณะอากาศ: ${rDesc}</div>
                             <div style="color:#a0aec0; font-size:0.9vw; margin-bottom:6px;">${rLoc}</div>
@@ -3115,9 +3135,63 @@ function renderTafTimeline(tafRaw) {
                 let sP1 = eng && eng.hour ? eng.hour.p1 : 'UNK';
                 let sP2 = eng && eng.hour ? eng.hour.p2 : 'UNK';
                 let sP3 = eng && eng.hour ? eng.hour.p3 : 'UNK';
-                let sP4_val = (eng && eng.taf && typeof eng.taf.meets === 'boolean') ? eng.taf.meets : 'UNK';
+                
+                // ประเมิน TAF ใหม่ด้วยเวลาที่ User เลือกจริงๆ เพื่อป้องกันการแจ้งเตือนข้ามเวลา
+                let targetInfo = window.__ATC_TARGET__ && typeof window.__ATC_TARGET__.get === 'function'
+                    ? window.__ATC_TARGET__.get() : null;
+                let stCode = (targetInfo && (targetInfo.source === 'station' || targetInfo.source === 'default')) ? (targetInfo.stationCode || document.getElementById('station-select').value) : null;
+                let rawTafStr = stCode && typeof cachedTafText !== 'undefined' ? extractWxData(cachedTafText, stCode, 'TAF') : null;
+                let userTafEval = typeof evaluateTafOverlap === 'function' ? evaluateTafOverlap(rawTafStr, reqStart.getTime(), reqEnd.getTime()) : {meets: false, blocks:[]};
+                let sP4_val = rawTafStr ? userTafEval.meets : 'UNK';
+
+                // --- สร้างกล่องอธิบายเหตุผลของ AI (Explainable AI) ฟอร์แมตมาตรฐาน ---
                 if(!eventHtml && !radarEventHtml) {
-                    eventHtml = `<div style="text-align:center; color:#00cc66; font-size:1.2vw; padding:20px;">✅ ไม่มีแนวโน้มฝนตก หรือสภาพอากาศเลวร้ายในห้วงเวลานี้</div>`;
+                    if (alertColor !== '#00cc66') {
+                        let ruleTitle = '';
+                        let ruleDesc = '';
+                        let p5Threat = eng && eng.radar ? eng.radar.threatLevel : 'GREEN';
+
+                        if (p5Threat === 'RED' || p5Threat === 'AMBER') {
+                            ruleTitle = p5Threat === 'RED' ? '🔴 กฎเรดาร์ระยะประชิด (Terminal Threat)' : '🟡 กฎเฝ้าระวังเรดาร์ใกล้เคียง (Vicinity Threat)';
+                            ruleDesc = 'ตรวจพบกลุ่มฝนผ่านทางภาพเรดาร์ เคลื่อนที่เข้าสู่พื้นที่ระยะประชิดหรือมีทิศทางพุ่งเข้าหาเป้าหมาย';
+                        } else {
+                            ruleTitle = alertColor === '#ff3333' ? '🔴 กฎพยากรณ์อันตรายสูงสุด (Severe Forecast)' : '🟡 กฎพยากรณ์แบบบูรณาการ (Consensus)';
+                            ruleDesc = 'ข้อมูลพยากรณ์ล่วงหน้า (NWP / TAF) ประเมินตรงกันตั้งแต่ 2 แหล่งข้อมูลขึ้นไป ว่าจะมีสภาพอากาศแปรปรวนในห้วงเวลาที่เลือก';
+                        }
+
+                        let reasons = [];
+                        if (sP1 === true) reasons.push(`<li><strong style="color:#00ffcc;">P1 (ข้อมูลโมเดล):</strong> โมเดลพยากรณ์ส่วนใหญ่เห็นตรงกัน<br><span style="color:#718096; font-size:0.85vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: โมเดลเกินครึ่งให้ผลตรงกัน</span> (เกณฑ์อ้างอิง: &gt;= 50% ของโมเดลทั้งหมด)</span></li>`);
+                        if (sP2 === true) {
+                            let rRain = eng && eng.hour && eng.hour.rain !== null ? eng.hour.rain.toFixed(1) : '--';
+                            reasons.push(`<li><strong style="color:#3498db;">P2 (ปริมาณฝน):</strong> โมเดลคำนวณพบโอกาสเกิดฝนตกถึงเกณฑ์<br><span style="color:#718096; font-size:0.85vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: ฝนสูงสุด ${rRain} mm/hr</span> (เกณฑ์อ้างอิง: ค่าเฉลี่ย &gt;= 0.3 หรือ มี 1 โมเดล &gt;= 2.5)</span></li>`);
+                        }
+                        if (sP3 === true) {
+                            let rCape = eng && eng.hour && eng.hour.cape !== null ? eng.hour.cape.toFixed(0) : '--';
+                            let rGust = eng && eng.hour && eng.hour.gust !== null ? eng.hour.gust.toFixed(1) : '--';
+                            reasons.push(`<li><strong style="color:#f39c12;">P3 (ลมพายุ):</strong> ตรวจพบค่าพลังงานพายุ หรือลมกระโชกแรง<br><span style="color:#718096; font-size:0.85vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: CAPE ${rCape} J/kg, GUST ${rGust} KT</span> (เกณฑ์อ้างอิง: CAPE &gt;= 1000 หรือ GUST &gt;= 25)</span></li>`);
+                        }
+                        if (sP4_val === true) {
+                            let bText = userTafEval.blocks.length > 0 ? userTafEval.blocks[0].substring(0, 30) + '...' : 'พบข้อมูลฝน/พายุ';
+                            reasons.push(`<li><strong style="color:#ff5555;">P4 (ประกาศเตือน TAF):</strong> นักพยากรณ์ระบุสภาวะอากาศเลวร้าย<br><span style="color:#718096; font-size:0.85vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: ${bText}</span> (เกณฑ์อ้างอิง: มีข้อความฝนหรือเมฆ CB ทับซ้อนในเวลาที่คุณเลือก)</span></li>`);
+                        }
+
+                        eventHtml = `
+                        <div style="background:rgba(0,0,0,0.4); border-left:5px solid ${alertColor}; padding:15px; border-radius:6px; margin-top:10px; text-align:left; font-size: 1vw;">
+                            <div style="color:${alertColor}; font-weight:bold; font-size:1.15vw; margin-bottom:10px; border-bottom:1px solid #2a3f5f; padding-bottom:5px;">⚠️ สรุปเหตุผลการแจ้งเตือนจากระบบ (AI Alert Engine)</div>
+                            <div style="margin-bottom:12px;">
+                                <div style="color:#f39c12; font-weight:bold; margin-bottom:4px;">[ กฎการตัดสินใจของ AI: ${ruleTitle} ]</div>
+                                <div style="color:#e2e8f0; line-height:1.5;">${ruleDesc}</div>
+                            </div>
+                            <div>
+                                <div style="color:#00ffcc; font-weight:bold; margin-bottom:6px;">[ รายการข้อมูลที่ผ่านเกณฑ์ความเสี่ยง ]</div>
+                                <ul style="color:#e2e8f0; line-height:1.6; margin-top:0; padding-left:25px;">
+                                    ${reasons.join('')}
+                                </ul>
+                            </div>
+                        </div>`;
+                    } else {
+                        eventHtml = `<div style="text-align:center; color:#00cc66; font-size:1.2vw; padding:40px 20px; background:rgba(0,204,102,0.05); border-radius:8px; border:1px dashed #00cc66; margin-top:10px;">✅ ไม่มีแนวโน้มฝนตก หรือสภาพอากาศเลวร้ายในห้วงเวลาที่เลือก</div>`;
+                    }
                 }
 
                 // Helper function for UI Color Coding
@@ -3325,32 +3399,34 @@ function renderTafTimeline(tafRaw) {
                 
                 // P4 TAF Highlight & Logic UI
                 let p4Html = '';
-                let targetInfo = window.__ATC_TARGET__ && typeof window.__ATC_TARGET__.get === 'function'
-                    ? window.__ATC_TARGET__.get() : null;
                 let isStation = (targetInfo && (targetInfo.source === 'station' || targetInfo.source === 'default'));
-                let stCode = isStation
-                    ? (targetInfo.stationCode || (document.getElementById('station-select') && document.getElementById('station-select').value))
-                    : null;
 
                 if (!isStation) {
                     p4Html = `<div style="color:#f39c12; font-size:1.1vw; margin-top:20px; text-align:center; background:rgba(243,156,18,0.1); padding:15px; border-radius:6px; border:1px solid #f39c12;">⚠️ พื้นที่เป้าหมายไม่ใช่สนามบิน/สถานีตรวจอากาศ<br><span style="font-size:0.9vw; color:#a0aec0;">(ระบบจะไม่นำข้อมูล TAF มาคำนวณร่วม และอ้างอิงจากโมเดล NWP เป็นหลัก)</span></div>`;
                 } else {
-                    let rawTafForP4 = stCode ? extractWxData(cachedTafText, stCode, 'TAF') : null;
-                    if (!rawTafForP4 || rawTafForP4.length < 20) {
+                    if (!rawTafStr || rawTafStr.length < 20) {
                         p4Html = `<div style="color:#ff5555; font-size:1.1vw; margin-top:20px; text-align:center; background:rgba(255,85,85,0.1); padding:15px; border-radius:6px; border:1px solid #ff5555;">⚠️ ไม่มีข้อมูล TAF สำหรับสถานี ${stCode || 'ไม่ระบุ'} ในระบบขณะนี้<br><span style="font-size:0.9vw; color:#a0aec0;">(ระบบประเมินจากข้อมูลโมเดล NWP และเรดาร์เป็นหลัก)</span></div>`;
                     } else {
-                        let rainMatch = rawTafForP4.match(/(?:\+SHRA|\+RA|-RA|\b(?:TSRA|SHRA|TS|RA|VCTS|DZ)\b)/g);
+                        // ดึงข้อมูลเฉพาะ Block ของ TAF ที่ทับซ้อนกับเวลาที่เลือกมาวิเคราะห์
+                        let rainMatch = userTafEval.blocks.join(' ').match(/(?:\+SHRA|\+RA|-RA|\b(?:TSRA|SHRA|TS|RA|VCTS|DZ)\b)/g);
                         let rainPass = rainMatch && rainMatch.length > 0;
                         let rainList = rainPass ? [...new Set(rainMatch)].join(', ') : '';
 
-                        let cbMatch = rawTafForP4.match(/(CB|TCU)\b/g);
+                        let cbMatch = userTafEval.blocks.join(' ').match(/(CB|TCU)\b/g);
                         let cbPass = cbMatch && cbMatch.length > 0;
                         let cbList = cbPass ? [...new Set(cbMatch)].join(', ') : '';
 
-                        let timeMatch = rawTafForP4.match(/\b\d{6}Z\s+(\d{4})\/(\d{4})\b/);
-                        let timeText = timeMatch ? `อ้างอิง TAF: ${timeMatch[1]}/${timeMatch[2]}` : `ตรวจพบ TAF ของ ${stCode}`;
-                        let p4Overall = rainPass || cbPass;
-                        let hlTaf = rawTafForP4.replace(/(\+SHRA|\+RA|-RA|\b(?:TSRA|SHRA|TS|RA|VCTS|DZ|CB|TCU)\b)/g, '<span style="background:#ff3333; color:#fff; padding:0 4px; border-radius:3px; box-shadow:0 0 5px #ff0000;">$1</span>');
+                        let timeMatch = rawTafStr.match(/\b\d{6}Z\s+(\d{2})(\d{2})\/(\d{2})(\d{2})\b/);
+                        let timeText = timeMatch ? `ข้อมูล TAF ล่าสุด: วันที่ ${timeMatch[1]} เวลา ${timeMatch[2]}Z` : `ตรวจพบ TAF ของ ${stCode}`;
+                        let p4Overall = userTafEval.meets;
+
+                        let hlTaf = rawTafStr.replace(/(\+SHRA|\+RA|-RA|\b(?:TSRA|SHRA|TS|RA|VCTS|DZ|CB|TCU)\b)/g, '<span style="background:#ff3333; color:#fff; padding:0 4px; border-radius:3px; box-shadow:0 0 5px #ff0000;">$1</span>');
+
+                        // ไฮไลต์บล็อก TAF ที่เวลาทับซ้อนและมีคำเตือน
+                        userTafEval.blocks.forEach(b => {
+                            let safeB = b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            hlTaf = hlTaf.replace(new RegExp(safeB, 'g'), `<span style="background:rgba(243, 156, 18, 0.2); border-left: 2px solid #f39c12; display:block; padding-left:4px;">${b}</span>`);
+                        });
 
                         p4Html = `
                         <div style="margin-bottom:12px; text-align:left; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; border-left:4px solid ${p4Overall ? '#00cc66' : '#718096'};">
@@ -4884,18 +4960,62 @@ function evalModels(d){
   return rows;
 }
 
+/* ---------- Helper: เช็คเวลา TAF ทับซ้อนกับเวลาที่เลือก ---------- */
+function evaluateTafOverlap(tafStr, startMs, endMs) {
+    if (!tafStr) return { meets: false, blocks: [] };
+    let blocks = tafStr.replace(/\n/g, ' ').split(/(?=BECMG|TEMPO|FM|PROB)/);
+    let baseMatch = tafStr.match(/\b\d{6}Z\s+(\d{2})(\d{2})\/(\d{2})(\d{2})\b/);
+    let cStart = startMs, cEnd = endMs;
+
+    let makeMs = (dayStr, hrStr) => {
+        let d = new Date(startMs);
+        d.setUTCDate(parseInt(dayStr, 10));
+        d.setUTCHours(parseInt(hrStr, 10), 0, 0, 0);
+        if (d.getTime() - startMs > 15*86400000) d.setUTCMonth(d.getUTCMonth() - 1);
+        else if (startMs - d.getTime() > 15*86400000) d.setUTCMonth(d.getUTCMonth() + 1);
+        return d.getTime();
+    };
+
+    if (baseMatch) {
+        cStart = makeMs(baseMatch[1], baseMatch[2]);
+        cEnd = makeMs(baseMatch[3], baseMatch[4]);
+    }
+
+    let hazardRegex = /(?:\+SHRA|\+RA|-RA|\b(?:TSRA|SHRA|TS|RA|VCTS|DZ)\b|(CB|TCU)\b)/;
+    let meets = false;
+    let matchedBlocks = [];
+
+    blocks.forEach(b => {
+        let bStart = cStart, bEnd = cEnd;
+        let tMatch = b.match(/(?:BECMG|TEMPO|PROB\d{2})\s+(\d{2})(\d{2})\/(\d{2})(\d{2})/);
+        if (tMatch) { bStart = makeMs(tMatch[1], tMatch[2]); bEnd = makeMs(tMatch[3], tMatch[4]); }
+        else { let fMatch = b.match(/FM(\d{2})(\d{2})(\d{2})/); if(fMatch) { bStart = makeMs(fMatch[1], fMatch[2]); } }
+
+        if (bStart <= endMs && bEnd >= startMs) {
+            if (hazardRegex.test(b)) {
+                meets = true;
+                matchedBlocks.push(b.trim());
+            }
+        }
+    });
+    return { meets, blocks: matchedBlocks };
+}
+
 /* ---------- เสา 4 : TAF (3-state: true/false/null) ---------- */
 function tafPillar(){
-  // Always use the selected station from the dropdown for TAF evaluation, regardless of map pin
   var stCode = document.getElementById('station-select') ? document.getElementById('station-select').value : null;
-  // ลบ window. ออก เพื่อให้มองเห็นตัวแปร cachedTafText ที่อยู่ร่วมกันใน Global Scope ได้
   if(typeof cachedTafText === 'undefined' || !cachedTafText || !stCode) return { status:'UNKNOWN', meets:null, why:'ไม่มีข้อมูล TAF ในระบบ' };
 
   var s = typeof extractWxData === 'function' ? extractWxData(cachedTafText, stCode, 'TAF') : null;
   if(!s || s.length < 20) return { status:'UNKNOWN', meets:null, why:'ไม่พบข้อมูล TAF สำหรับสถานี ' + stCode };
-  var hit = /(?:\b(TSRA|\+SHRA|SHRA|TS|RA|\+RA|VCTS|-RA|DZ)\b|(CB|TCU)\b)/.test(s);
-  return { status: hit?'PASS':'FAIL', meets:hit, raw:s,
-    why: hit?'พบรหัสกลุ่มฝนหรือเมฆพายุ ใน TAF ของ '+stCode:'ไม่พบกลุ่มฝนหรือพายุใน TAF ของ '+stCode };
+
+  // ให้ Engine ออโต้สแกนล่วงหน้า 12 ชั่วโมงจากเวลาปัจจุบัน
+  let nowMs = Date.now();
+  let endMs = nowMs + (12 * 3600000);
+  let evalTaf = evaluateTafOverlap(s, nowMs, endMs);
+
+  return { status: evalTaf.meets?'PASS':'FAIL', meets:evalTaf.meets, raw:s, matchedBlocks: evalTaf.blocks,
+    why: evalTaf.meets?'พบกลุ่มฝน/พายุใน TAF ห้วง 12ชม.: '+stCode:'ไม่พบกลุ่มฝน/พายุใน TAF ห้วง 12ชม.' };
 }
 
 /* ---------- Helper: normalize boolean pillar (UNKNOWN = null) ---------- */
