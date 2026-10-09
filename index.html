@@ -2812,6 +2812,20 @@ function renderTafTimeline(tafRaw) {
                     throw new Error('ช่วงวันที่และเวลาไม่ถูกต้อง');
                 }
 
+                let targetInfo = window.__ATC_TARGET__ && typeof window.__ATC_TARGET__.get === 'function'
+                    ? window.__ATC_TARGET__.get() : null;
+                let stationSelect = document.getElementById('station-select');
+                let stCode = targetInfo && (targetInfo.source === 'station' || targetInfo.source === 'default')
+                    ? (targetInfo.stationCode || (stationSelect ? stationSelect.value : null))
+                    : null;
+                let rawTafStr = stCode && typeof cachedTafText !== 'undefined'
+                    ? extractWxData(cachedTafText, stCode, 'TAF')
+                    : null;
+                let userTafEval = typeof evaluateTafOverlap === 'function'
+                    ? evaluateTafOverlap(rawTafStr, reqStart.getTime(), reqEnd.getTime())
+                    : { meets: false, blocks: [] };
+                let sP4_val = rawTafStr ? userTafEval.meets : 'UNK';
+
                 // Fetch dynamic model
                 const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,dewpoint_2m,precipitation_probability,precipitation,windspeed_10m,winddirection_10m,windgusts_10m,visibility,cape&models=${encodeURIComponent(request.snapshot.model)}&timezone=auto&forecast_days=7`;
 
@@ -3016,8 +3030,10 @@ function renderTafTimeline(tafRaw) {
                                 <span>${wndStr}</span>
                             </div>
                             <div style="background:rgba(0,0,0,0.4); padding:8px; border-radius:4px; font-size:0.85vw; color:#a0aec0; border:1px solid #2a3f5f; line-height:1.5;">
-                                <span style="color:#f39c12; font-weight:bold;">📝 เหตุผล (AI Note):</span>
-                                <div style="margin-top:4px; color:#e2e8f0;">• [P5 เรดาร์]: ตรวจพบกลุ่มฝนระยะ ${rDist} NM ${actionStr}</div>
+                                <div style="color:#f39c12; font-weight:bold; margin-bottom:4px;">📝 เหตุผลที่แจ้งเตือน (AI Note):</div>
+                                <ul style="margin:0; padding-left:20px; color:#e2e8f0;">
+                                    <li><strong style="color:#ff5555;">[P5 ข้อมูลเรดาร์]:</strong> ตรวจพบกลุ่มฝนเคลื่อนตัว<br><span style="color:#718096; font-size:0.8vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: ระยะ ${rDist} NM ${actionStr}</span> (เกณฑ์อ้างอิง: &lt;= 5 NM หรือ &lt;= 20 NM และมีทิศทางเข้าหา)</span></li>
+                                </ul>
                             </div>
                         </div>`;
                 }
@@ -3085,13 +3101,21 @@ function renderTafTimeline(tafRaw) {
                     let wndStr = `ลม: ${wDirStr}/${wSpdStr} KT${gustStr}`;
                     let rainText = pk.rain > 0 ? `${Number(pk.rain).toFixed(1)} mm` : 'ไม่พบปริมาณฝน';
                     let aiReasons = [];
-                    if(pk.p1 === true) aiReasons.push('[P1 ความน่าจะเป็น]: โอกาสเกิดฝนสูง');
-                    if(pk.p2 === true) aiReasons.push(`[P2 ปริมาณฝน]: ทำนายฝน ${Number(pk.rain || 0).toFixed(1)} mm`);
+                    if(pk.p1 === true) {
+                        aiReasons.push(`<li><strong style="color:#00ffcc;">[P1 ข้อมูลโมเดล]:</strong> โอกาสเกิดฝนสูง<br><span style="color:#718096; font-size:0.8vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: โมเดลตรงกัน ${pk.agree} แห่ง</span> (เกณฑ์อ้างอิง: &gt;= 50% ของโมเดลทั้งหมด)</span></li>`);
+                    }
+                    if(pk.p2 === true) {
+                        aiReasons.push(`<li><strong style="color:#3498db;">[P2 ปริมาณฝน]:</strong> คาดการณ์มีฝนตกถึงเกณฑ์<br><span style="color:#718096; font-size:0.8vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: ฝนสูงสุด ${Number(pk.rain || 0).toFixed(1)} mm/hr</span> (เกณฑ์อ้างอิง: เฉลี่ย &gt;= 0.3 หรือ สูงสุด &gt;= 2.5 mm/hr)</span></li>`);
+                    }
                     if(pk.p3 === true) {
                         let p3Reason = pk.p3Breakdown && pk.p3Breakdown.gust >= 25
-                            ? `ลมกระโชกแรง ${Math.round(pk.p3Breakdown.gust)} KT`
-                            : 'แจ้งเตือนสภาวะปั่นป่วน/พายุ';
-                        aiReasons.push(`[P3 อากาศแปรปรวน]: ${p3Reason}`);
+                            ? 'ลมกระโชกแรง'
+                            : 'สภาวะปั่นป่วน/พายุฝนฟ้าคะนอง';
+                        aiReasons.push(`<li><strong style="color:#f39c12;">[P3 ลมพายุ]:</strong> ${p3Reason}<br><span style="color:#718096; font-size:0.8vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: CAPE ${Math.round(pk.cape || 0)} J/kg, GUST ${Math.round(pk.gust || 0)} KT</span> (เกณฑ์อ้างอิง: CAPE &gt;= 1000 หรือ GUST &gt;= 25 KT)</span></li>`);
+                    }
+                    if(sP4_val === true && userTafEval.blocks.length > 0) {
+                        let bText = userTafEval.blocks[0].substring(0, 35) + '...';
+                        aiReasons.push(`<li><strong style="color:#ff5555;">[P4 ประกาศเตือน TAF]:</strong> นักพยากรณ์ระบุสภาวะอากาศเลวร้าย<br><span style="color:#718096; font-size:0.8vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: ${bText}</span> (เกณฑ์อ้างอิง: มีข้อความเตือนพายุทับซ้อนในห้วงเวลานี้)</span></li>`);
                     }
                     return `<div style="background:rgba(0,0,0,0.3); border-left:4px solid ${color}; padding:10px; border-radius:4px; margin-bottom:12px; font-size:1vw;">
                         <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
@@ -3106,8 +3130,10 @@ function renderTafTimeline(tafRaw) {
                             <span>${wndStr}</span>
                         </div>
                         <div style="background:rgba(0,0,0,0.4); padding:8px; border-radius:4px; font-size:0.85vw; color:#e2e8f0; border:1px solid #2a3f5f; line-height:1.5;">
-                            <span style="color:#f39c12; font-weight:bold;">📝 เหตุผล (AI Note):</span><br>
-                            <span style="color:#a0aec0;">• ${aiReasons.join('<br>• ')}</span>
+                            <div style="color:#f39c12; font-weight:bold; margin-bottom:4px;">📝 เหตุผลที่แจ้งเตือน (AI Note):</div>
+                            <ul style="margin:0; padding-left:20px; color:#e2e8f0;">
+                                ${aiReasons.join('')}
+                            </ul>
                         </div>
                     </div>`;
                 }
@@ -3135,14 +3161,6 @@ function renderTafTimeline(tafRaw) {
                 let sP1 = eng && eng.hour ? eng.hour.p1 : 'UNK';
                 let sP2 = eng && eng.hour ? eng.hour.p2 : 'UNK';
                 let sP3 = eng && eng.hour ? eng.hour.p3 : 'UNK';
-                
-                // ประเมิน TAF ใหม่ด้วยเวลาที่ User เลือกจริงๆ เพื่อป้องกันการแจ้งเตือนข้ามเวลา
-                let targetInfo = window.__ATC_TARGET__ && typeof window.__ATC_TARGET__.get === 'function'
-                    ? window.__ATC_TARGET__.get() : null;
-                let stCode = (targetInfo && (targetInfo.source === 'station' || targetInfo.source === 'default')) ? (targetInfo.stationCode || document.getElementById('station-select').value) : null;
-                let rawTafStr = stCode && typeof cachedTafText !== 'undefined' ? extractWxData(cachedTafText, stCode, 'TAF') : null;
-                let userTafEval = typeof evaluateTafOverlap === 'function' ? evaluateTafOverlap(rawTafStr, reqStart.getTime(), reqEnd.getTime()) : {meets: false, blocks:[]};
-                let sP4_val = rawTafStr ? userTafEval.meets : 'UNK';
 
                 // --- สร้างกล่องอธิบายเหตุผลของ AI (Explainable AI) ฟอร์แมตมาตรฐาน ---
                 if(!eventHtml && !radarEventHtml) {
@@ -4989,7 +5007,7 @@ function evaluateTafOverlap(tafStr, startMs, endMs) {
         let bStart = cStart, bEnd = cEnd;
         let tMatch = b.match(/(?:BECMG|TEMPO|PROB\d{2})\s+(\d{2})(\d{2})\/(\d{2})(\d{2})/);
         if (tMatch) { bStart = makeMs(tMatch[1], tMatch[2]); bEnd = makeMs(tMatch[3], tMatch[4]); }
-        else { let fMatch = b.match(/FM(\d{2})(\d{2})(\d{2})/); if(fMatch) { bStart = makeMs(fMatch[1], fMatch[2]); } }
+        else { let fMatch = b.match(/FM(\d{2})(\d{2})(\d{2})/); if(fMatch) { bStart = makeMs(fMatch[1], fMatch[2]); bEnd = cEnd; } }
 
         if (bStart <= endMs && bEnd >= startMs) {
             if (hazardRegex.test(b)) {
@@ -5009,13 +5027,28 @@ function tafPillar(){
   var s = typeof extractWxData === 'function' ? extractWxData(cachedTafText, stCode, 'TAF') : null;
   if(!s || s.length < 20) return { status:'UNKNOWN', meets:null, why:'ไม่พบข้อมูล TAF สำหรับสถานี ' + stCode };
 
-  // ให้ Engine ออโต้สแกนล่วงหน้า 12 ชั่วโมงจากเวลาปัจจุบัน
+  // ใช้ช่วงเวลาที่ผู้ใช้เลือก และใช้ 12 ชั่วโมงข้างหน้าเป็นค่าเริ่มต้น
   let nowMs = Date.now();
-  let endMs = nowMs + (12 * 3600000);
-  let evalTaf = evaluateTafOverlap(s, nowMs, endMs);
+  let startMs = nowMs, endMs = nowMs + (12 * 3600000);
+  let dateStart = document.getElementById('taf-date-start');
+  let timeStart = document.getElementById('taf-time-start');
+  let dateEnd = document.getElementById('taf-date-end');
+  let timeEnd = document.getElementById('taf-time-end');
+  if (dateStart && timeStart && dateEnd && timeEnd &&
+      dateStart.value && timeStart.value && dateEnd.value && timeEnd.value) {
+    let selectedStart = new Date(`${dateStart.value}T${timeStart.value}:00`);
+    let selectedEnd = new Date(`${dateEnd.value}T${timeEnd.value}:00`);
+    if (Number.isFinite(selectedStart.getTime()) &&
+        Number.isFinite(selectedEnd.getTime()) &&
+        selectedEnd > selectedStart) {
+      startMs = selectedStart.getTime();
+      endMs = selectedEnd.getTime();
+    }
+  }
+  let evalTaf = evaluateTafOverlap(s, startMs, endMs);
 
   return { status: evalTaf.meets?'PASS':'FAIL', meets:evalTaf.meets, raw:s, matchedBlocks: evalTaf.blocks,
-    why: evalTaf.meets?'พบกลุ่มฝน/พายุใน TAF ห้วง 12ชม.: '+stCode:'ไม่พบกลุ่มฝน/พายุใน TAF ห้วง 12ชม.' };
+    why: evalTaf.meets?'พบกลุ่มฝน/พายุใน TAF ห้วงเวลาที่เลือก':'ไม่พบกลุ่มฝน/พายุใน TAF ห้วงเวลาที่เลือก' };
 }
 
 /* ---------- Helper: normalize boolean pillar (UNKNOWN = null) ---------- */
