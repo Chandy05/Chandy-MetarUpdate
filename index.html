@@ -1113,6 +1113,7 @@ input.atc-time24.invalid { border-color: #e53e3e !important; }
                     <div class="panel-tabs" role="tablist" aria-label="มุมมองรายงาน AI">
                         <button id="btn-ai-tab-summary" type="button" role="tab" aria-controls="ai-tab-summary" aria-selected="true" class="panel-tab active" onclick="switchAiReportTab('summary')">WX REPORT</button>
                         <button id="btn-ai-tab-pillars" type="button" role="tab" aria-controls="ai-tab-pillars" aria-selected="false" class="panel-tab" onclick="switchAiReportTab('pillars')">5-PILLAR</button>
+                        <button id="btn-ai-settings" type="button" class="panel-tab" style="padding: 2px 8px; font-size: 1vw;" onclick="openSettingsModal()" title="ตั้งค่าระบบ AI">⚙️</button>
                     </div>
                     <div class="radar-title-text" style="color:#a0aec0; letter-spacing:1px;">DETAILED AI REPORT</div>
                 </div>
@@ -2785,6 +2786,10 @@ function renderTafTimeline(tafRaw) {
         async function analyzeAreaWeather(lat, lon, locName, dateStartStr, dateEndStr, timeStart, timeEnd) {
             const requestControl = window.__ATC_REPORT_REQUESTS__;
             const reportEl = document.getElementById('ai-report-content');
+            const dynCfg = window.ATC_DYN_CFG || {
+                p1_pop:60, p1_rain:1.0, p2_mean:0.7, p2_max:2.5,
+                p3_cape:1800, p3_gust:25, p5_nm:5
+            };
             if (reportEl) reportEl.dataset.waitingForEngine = 'false';
             const request = requestControl.begin({
                 lat: lat,
@@ -3124,19 +3129,19 @@ function renderTafTimeline(tafRaw) {
                     if(pk.p2 === true) {
                         let p2ValText = "", p2RefText = "";
                         if (pk.p2Breakdown) {
-                            if (pk.p2Breakdown.c3) { p2ValText = `ฝนสูงสุด ${pk.p2Breakdown.max.toFixed(1)} mm/hr`; p2RefText = `สูงสุด >= 2.5`; }
-                            else if (pk.p2Breakdown.c2) { p2ValText = `ฝนเฉลี่ย ${pk.p2Breakdown.mean.toFixed(1)} mm/hr`; p2RefText = `เฉลี่ย >= 0.7`; }
+                            if (pk.p2Breakdown.c3) { p2ValText = `ฝนสูงสุด ${pk.p2Breakdown.max.toFixed(1)} mm/hr`; p2RefText = `สูงสุด >= ${dynCfg.p2_max}`; }
+                            else if (pk.p2Breakdown.c2) { p2ValText = `ฝนเฉลี่ย ${pk.p2Breakdown.mean.toFixed(1)} mm/hr`; p2RefText = `เฉลี่ย >= ${dynCfg.p2_mean}`; }
                             else { p2ValText = `โมเดลให้ฝนตรงกัน`; p2RefText = `>= 50% ของโมเดล`; }
                         } else {
-                            p2ValText = `ฝนสูงสุด ${Number(pk.rain || 0).toFixed(1)} mm/hr`; p2RefText = `เฉลี่ย >= 0.7 หรือ สูงสุด >= 2.5`;
+                            p2ValText = `ฝนสูงสุด ${Number(pk.rain || 0).toFixed(1)} mm/hr`; p2RefText = `เฉลี่ย >= ${dynCfg.p2_mean} หรือ สูงสุด >= ${dynCfg.p2_max}`;
                         }
                         aiReasons.push(`<li><strong style="color:#3498db;">[P2 ปริมาณฝน]:</strong> คาดการณ์มีฝนตกถึงเกณฑ์<br><span style="color:#718096; font-size:0.8vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: ${p2ValText}</span> <span style="color:#718096;">(เกณฑ์อ้างอิง: ${p2RefText})</span></span></li>`);
                     }
                     if(pk.p3 === true) {
-                        let p3Reason = pk.p3Breakdown && pk.p3Breakdown.gust >= 25
+                        let p3Reason = pk.p3Breakdown && pk.p3Breakdown.gust >= dynCfg.p3_gust
                             ? 'ลมกระโชกแรง'
                             : 'สภาวะปั่นป่วน/พายุฝนฟ้าคะนอง';
-                        aiReasons.push(`<li><strong style="color:#f39c12;">[P3 ลมพายุ]:</strong> ${p3Reason}<br><span style="color:#718096; font-size:0.8vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: CAPE ${Math.round(pk.cape || 0)} J/kg, GUST ${Math.round(pk.gust || 0)} KT</span> (เกณฑ์อ้างอิง: CAPE &gt;= 1800 หรือ GUST &gt;= 25 KT)</span></li>`);
+                        aiReasons.push(`<li><strong style="color:#f39c12;">[P3 ลมพายุ]:</strong> ${p3Reason}<br><span style="color:#718096; font-size:0.8vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: CAPE ${Math.round(pk.cape || 0)} J/kg, GUST ${Math.round(pk.gust || 0)} KT</span> (เกณฑ์อ้างอิง: CAPE &gt;= ${dynCfg.p3_cape} หรือ GUST &gt;= ${dynCfg.p3_gust} KT)</span></li>`);
                     }
                     if(sP4_val === true && userTafEval.blocks.length > 0) {
                         let bText = extractTafHazard(userTafEval.blocks[0]);
@@ -3207,19 +3212,19 @@ function renderTafTimeline(tafRaw) {
                         if (sP2 === true) {
                             let p2ValSummary = "", p2RefSummary = "";
                             if (eng && eng.hour && eng.hour.p2Breakdown) {
-                                if (eng.hour.p2Breakdown.c3) { p2ValSummary = `ฝนสูงสุด ${eng.hour.p2Breakdown.max.toFixed(1)} mm/hr`; p2RefSummary = `สูงสุด >= 2.5`; }
-                                else if (eng.hour.p2Breakdown.c2) { p2ValSummary = `ฝนเฉลี่ย ${eng.hour.p2Breakdown.mean.toFixed(1)} mm/hr`; p2RefSummary = `เฉลี่ย >= 0.7`; }
+                                if (eng.hour.p2Breakdown.c3) { p2ValSummary = `ฝนสูงสุด ${eng.hour.p2Breakdown.max.toFixed(1)} mm/hr`; p2RefSummary = `สูงสุด >= ${dynCfg.p2_max}`; }
+                                else if (eng.hour.p2Breakdown.c2) { p2ValSummary = `ฝนเฉลี่ย ${eng.hour.p2Breakdown.mean.toFixed(1)} mm/hr`; p2RefSummary = `เฉลี่ย >= ${dynCfg.p2_mean}`; }
                                 else { p2ValSummary = `โมเดลให้ฝนตรงกัน`; p2RefSummary = `>= 50% ของโมเดล`; }
                             } else {
                                 let rRain = eng && eng.hour && eng.hour.rain !== null ? eng.hour.rain.toFixed(1) : '--';
-                                p2ValSummary = `ฝนสูงสุด ${rRain} mm/hr`; p2RefSummary = `เฉลี่ย >= 0.7 หรือ สูงสุด >= 2.5`;
+                                p2ValSummary = `ฝนสูงสุด ${rRain} mm/hr`; p2RefSummary = `เฉลี่ย >= ${dynCfg.p2_mean} หรือ สูงสุด >= ${dynCfg.p2_max}`;
                             }
                             reasons.push(`<li><strong style="color:#3498db;">P2 (ปริมาณฝน):</strong> โมเดลคำนวณพบโอกาสเกิดฝนตกถึงเกณฑ์<br><span style="color:#718096; font-size:0.85vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: ${p2ValSummary}</span> <span style="color:#718096;">(เกณฑ์อ้างอิง: ${p2RefSummary})</span></span></li>`);
                         }
                         if (sP3 === true) {
                             let rCape = eng && eng.hour && eng.hour.cape !== null ? eng.hour.cape.toFixed(0) : '--';
                             let rGust = eng && eng.hour && eng.hour.gust !== null ? eng.hour.gust.toFixed(1) : '--';
-                            reasons.push(`<li><strong style="color:#f39c12;">P3 (ลมพายุ):</strong> ตรวจพบค่าพลังงานพายุ หรือลมกระโชกแรง<br><span style="color:#718096; font-size:0.85vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: CAPE ${rCape} J/kg, GUST ${rGust} KT</span> (เกณฑ์อ้างอิง: CAPE &gt;= 1800 หรือ GUST &gt;= 25)</span></li>`);
+                            reasons.push(`<li><strong style="color:#f39c12;">P3 (ลมพายุ):</strong> ตรวจพบค่าพลังงานพายุ หรือลมกระโชกแรง<br><span style="color:#718096; font-size:0.85vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: CAPE ${rCape} J/kg, GUST ${rGust} KT</span> (เกณฑ์อ้างอิง: CAPE &gt;= ${dynCfg.p3_cape} หรือ GUST &gt;= ${dynCfg.p3_gust})</span></li>`);
                         }
                         if (sP4_val === true) {
                             let bText = userTafEval.blocks.length > 0 ? extractTafHazard(userTafEval.blocks[0]) : 'พบข้อมูลฝน/พายุ';
@@ -3299,10 +3304,10 @@ function renderTafTimeline(tafRaw) {
                                 <div style="font-size:0.95vw; line-height:1.5; color:#e2e8f0; font-family:'Consolas', monospace;">
                                     <div>${pk.c1 ? '✅' : '❌'} 1. เกณฑ์ฉันทามติ (โมเดลเกินครึ่งให้ฝน >= 0.5 mm/hr)</div>
                                     <div style="margin-left:22px; margin-bottom:4px;">ค่าที่ได้: ${fmtVal(pk.c1, pk.m05.length + ' จาก ' + pk.vCount + ' โมเดล', pk.m05.join(', '), '>= '+reqM+' โมเดล')}</div>
-                                    <div>${pk.c2 ? '✅' : '❌'} 2. เกณฑ์ฝนเฉลี่ย (เฉลี่ยทุกโมเดล >= 0.7 mm/hr)</div>
-                                    <div style="margin-left:22px; margin-bottom:4px;">ค่าที่ได้: ${fmtVal(pk.c2, pk.mean.toFixed(2) + ' mm/hr', null, '>= 0.7 mm/hr')}</div>
-                                    <div>${pk.c3 ? '✅' : '❌'} 3. เกณฑ์พายุรุนแรง (มีโมเดลให้ฝน >= 2.5 mm/hr)</div>
-                                    <div style="margin-left:22px; margin-bottom:6px;">ค่าที่ได้: ${fmtVal(pk.c3, pk.max.toFixed(2) + ' mm/hr', pk.maxM, '>= 2.5 mm/hr')}</div>
+                                    <div>${pk.c2 ? '✅' : '❌'} 2. เกณฑ์ฝนเฉลี่ย (เฉลี่ยทุกโมเดล >= ${dynCfg.p2_mean} mm/hr)</div>
+                                    <div style="margin-left:22px; margin-bottom:4px;">ค่าที่ได้: ${fmtVal(pk.c2, pk.mean.toFixed(2) + ' mm/hr', null, '>= ' + dynCfg.p2_mean + ' mm/hr')}</div>
+                                    <div>${pk.c3 ? '✅' : '❌'} 3. เกณฑ์พายุรุนแรง (มีโมเดลให้ฝน >= ${dynCfg.p2_max} mm/hr)</div>
+                                    <div style="margin-left:22px; margin-bottom:6px;">ค่าที่ได้: ${fmtVal(pk.c3, pk.max.toFixed(2) + ' mm/hr', pk.maxM, '>= ' + dynCfg.p2_max + ' mm/hr')}</div>
                                 </div>
                                 <div style="font-size:0.9vw; font-weight:bold; color:#00cc66;">📌 สรุป: ผ่านเกณฑ์ (P2 สนับสนุนการแจ้งเตือน)</div>
                             </div>`;
@@ -3326,12 +3331,12 @@ function renderTafTimeline(tafRaw) {
                             <div style="margin-bottom:12px; text-align:left; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; border-left:4px solid #ff3333;">
                                 <div style="color:#00ffcc; font-weight:bold; font-size:1vw; border-bottom:1px dashed #2a3f5f; padding-bottom:5px; margin-bottom:6px;">⏱️ ${timeText}</div>
                                 <div style="font-size:0.95vw; line-height:1.5; color:#e2e8f0; font-family:'Consolas', monospace;">
-                                    <div>${pk.c1 ? '✅' : '❌'} 1. เกณฑ์ฉันทามติพลังงานพายุ (โมเดล >= 50% ให้ CAPE >= 1800 J/kg)</div>
+                                    <div>${pk.c1 ? '✅' : '❌'} 1. เกณฑ์ฉันทามติพลังงานพายุ (โมเดล >= 50% ให้ CAPE >= ${dynCfg.p3_cape} J/kg)</div>
                                     <div style="margin-left:22px; margin-bottom:4px;">ค่าที่ได้: ${fmtVal(pk.c1, pk.m1000.length + ' จาก ' + pk.vCount + ' โมเดล', pk.m1000.join(', '), '>= '+reqM+' โมเดล')}</div>
                                     <div>${pk.c2 ? '✅' : '❌'} 2. เกณฑ์พลังงานสุดขั้ว (มีโมเดลให้ CAPE >= 2000 J/kg)</div>
                                     <div style="margin-left:22px; margin-bottom:4px;">ค่าที่ได้: ${fmtVal(pk.c2, pk.max.toFixed(0) + ' J/kg', pk.maxM, '>= 2000 J/kg')}</div>
-                                    <div>${pk.c3 ? '✅' : '❌'} 3. เกณฑ์ลมกระโชกแรงอันตราย (มีโมเดลให้ Gust >= 25 KT)</div>
-                                    <div style="margin-left:22px; margin-bottom:6px;">ค่าที่ได้: ${fmtVal(pk.c3, pk.gust.toFixed(1) + ' KT', pk.gustM, '>= 25 KT')}</div>
+                                    <div>${pk.c3 ? '✅' : '❌'} 3. เกณฑ์ลมกระโชกแรงอันตราย (มีโมเดลให้ Gust >= ${dynCfg.p3_gust} KT)</div>
+                                    <div style="margin-left:22px; margin-bottom:6px;">ค่าที่ได้: ${fmtVal(pk.c3, pk.gust.toFixed(1) + ' KT', pk.gustM, '>= ' + dynCfg.p3_gust + ' KT')}</div>
                                 </div>
                                 <div style="font-size:0.9vw; font-weight:bold; color:#00cc66;">📌 สรุป: ผ่านเกณฑ์ (P3 สนับสนุนการแจ้งเตือนพายุ/ลมแรง)</div>
                                 <div style="margin-top:8px; padding-top:8px; border-top:1px dashed #2a3f5f; font-size:0.85vw; color:#a0aec0;">
@@ -3425,7 +3430,7 @@ function renderTafTimeline(tafRaw) {
                             let rRain = mData.rain !== null ? mData.rain.toFixed(1) : '0.0';
                             let rCape = mData.cape !== null ? mData.cape.toFixed(0) : '0';
                             let reason = pass
-                                ? (mData.pop >= 60 && mData.rain >= 1.0 ? `POP >= 60% และ Rain >= 1.0 mm`
+                                ? (mData.pop >= dynCfg.p1_pop && mData.rain >= dynCfg.p1_rain ? `POP >= ${dynCfg.p1_pop}% และ Rain >= ${dynCfg.p1_rain} mm`
                                    : (mData.pop >= 40 && mData.rain >= 1.0 ? `POP >= 40% และ Rain >= 1.0 mm`
                                    : `POP >= 30%, Rain >= 1.0 mm, CAPE >= 1200`))
                                 : `ไม่ผ่านเกณฑ์`;
@@ -4943,6 +4948,10 @@ function modelUrl(lat,lon){
     '&models='+CFG.MODELS.join(',')+'&timezone=Asia/Bangkok&forecast_days=2';
 }
 function evalModels(d){
+  var dynCfg = window.ATC_DYN_CFG || {
+    p1_pop:60, p1_rain:1.0, p2_mean:0.7, p2_max:2.5,
+    p3_cape:1800, p3_gust:25, p5_nm:5
+  };
   var H=(d&&d.hourly)||{}, T=H.time||[], rows=[], now=Date.now(), i,j;
   for(i=0;i<T.length;i++){
     var ts = new Date(T[i] + '+07:00').getTime();
@@ -4994,7 +5003,7 @@ function evalModels(d){
 
       var modelPass = false;
       if (p != null && r != null) {
-        if (p >= 60 && r >= 1.0) { modelPass = true; }
+        if (p >= dynCfg.p1_pop && r >= dynCfg.p1_rain) { modelPass = true; }
         else if (p >= 40 && r >= 1.0) { modelPass = true; }
         else if (p >= 30 && r >= 1.0 && c >= 1200) { modelPass = true; }
       }
@@ -5012,7 +5021,7 @@ function evalModels(d){
       if (c != null) {
         capes.push(c);
         validCapeCount++;
-        if(c >= 1800) p3Models1000.push(mCleanName);
+        if(c >= dynCfg.p3_cape) p3Models1000.push(mCleanName);
         if(c >= p3MaxCape) { p3MaxCape = c; p3MaxCapeModel = mCleanName; }
       }
       if (g != null) {
@@ -5028,14 +5037,14 @@ function evalModels(d){
 
     var p2Mean = validRainCount > 0 ? (rainSum / validRainCount) : 0;
     var p2_c1 = (validRainCount > 0) && (p2Models05.length >= Math.ceil(validRainCount * 0.5));
-    var p2_c2 = p2Mean >= 0.7;
-    var p2_c3 = p2MaxRain >= 2.5;
+    var p2_c2 = p2Mean >= dynCfg.p2_mean;
+    var p2_c3 = p2MaxRain >= dynCfg.p2_max;
     var p2Result = p2_c1 || p2_c2 || p2_c3;
 
     var hasRainPotential = Math.max.apply(null, pops) >= 20 || p2MaxRain > 0;
     var p3_c1 = hasRainPotential && (validCapeCount > 0) && (p3Models1000.length >= Math.ceil(validCapeCount * 0.5));
     var p3_c2 = hasRainPotential && p3MaxCape >= 2000;
-    var p3_c3 = p3MaxGust >= 25;
+    var p3_c3 = p3MaxGust >= dynCfg.p3_gust;
     var p3Result = p3_c1 || p3_c2 || p3_c3;
 
     var minSpd=spd.length?Math.min.apply(null,spd):null;
@@ -5602,7 +5611,9 @@ function paint(res){
     var severity = 'ปกติ';
     if(lv==='RED') severity = res.hour && res.hour.cape >= 1000 ? 'พายุฝนฟ้าคะนอง' : 'ฝนตกหนัก';
     else if(lv==='AMBER') severity = res.hour && res.hour.rain >= 1.0 ? 'ฝนปานกลาง' : 'ฝนเบา/เมฆฝนใกล้เคียง';
-    var hasSevereGust = res.rows && res.rows.some(function(r) { return r.gust >= 25 && (r.p2 || r.p3); });
+    var gustThreshold = window.ATC_DYN_CFG && Number.isFinite(window.ATC_DYN_CFG.p3_gust)
+      ? window.ATC_DYN_CFG.p3_gust : 25;
+    var hasSevereGust = res.rows && res.rows.some(function(r) { return r.gust >= gustThreshold && (r.p2 || r.p3); });
     if (hasSevereGust && lv !== 'GREEN') {
         severity += '+ลมแรง';
     }
@@ -5795,6 +5806,369 @@ else document.addEventListener('DOMContentLoaded',function(){ setTimeout(boot,80
 
   document.addEventListener('DOMContentLoaded', forceScrollable);
   forceScrollable();
+})();
+</script>
+<!-- SETTINGS MODAL -->
+<div id="settings-modal" class="fullscreen-modal hide no-capture" data-html2canvas-ignore="true" style="z-index:4000;" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div style="background:rgba(11,19,30,0.95); border:2px solid var(--data-color); border-radius:8px; padding:20px; width:90%; max-width:550px; color:#fff; box-shadow:0 0 20px rgba(0,255,204,0.3); display:flex; flex-direction:column;">
+        <h2 id="settings-title" style="color:var(--data-color); margin-top:0; text-align:center; border-bottom:1px dashed #2a3f5f; padding-bottom:10px;">⚙️ AI SETTINGS &amp; SMART ADVISOR</h2>
+        <div style="text-align:center; margin-bottom:10px;">
+            <button type="button" onclick="runSmartAdvisor()" style="background:#3498db; color:#fff; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold; font-family:'Consolas',monospace; font-size:14px; box-shadow:0 0 10px rgba(52,152,219,0.4); transition:0.2s;">📊 รันระบบวิเคราะห์ Smart Advisor</button>
+        </div>
+        <div id="advisor-summary" class="hide" style="background:rgba(52,152,219,0.1); border:1px dashed #3498db; padding:10px; border-radius:6px; margin-bottom:15px; color:#e2e8f0; font-size:13px; line-height:1.5; font-family:'Consolas',monospace;"></div>
+
+        <div style="overflow-y:auto; max-height:55vh; padding-right:10px; font-family:'Consolas',monospace;">
+            <div style="margin-bottom:15px; background:rgba(0,0,0,0.3); padding:10px; border-left:3px solid #00ffcc;">
+                <h4 style="color:#00ffcc; margin:0 0 5px;">P1: MODEL CONSENSUS</h4>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                    <span>POP ต่ำสุด (%):</span>
+                    <div style="display:flex; align-items:center;">
+                        <span id="sugg-p1-pop" class="adv-sugg hide" onclick="applySugg('cfg-p1-pop', this)" style="color:#00ffcc; cursor:pointer; font-weight:bold; margin-right:8px;" title="คลิกเพื่อใช้ค่านี้"></span>
+                        <input type="number" min="0" max="100" step="1" id="cfg-p1-pop" style="background:#152233; color:#fff; border:1px solid #2a3f5f; padding:4px; width:60px; text-align:center;">
+                    </div>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>Rain ขั้นต่ำ (mm/hr):</span>
+                    <div style="display:flex; align-items:center;">
+                        <span id="sugg-p1-rain" class="adv-sugg hide" onclick="applySugg('cfg-p1-rain', this)" style="color:#00ffcc; cursor:pointer; font-weight:bold; margin-right:8px;" title="คลิกเพื่อใช้ค่านี้"></span>
+                        <input type="number" step="0.1" id="cfg-p1-rain" style="background:#152233; color:#fff; border:1px solid #2a3f5f; padding:4px; width:60px; text-align:center;">
+                    </div>
+                </div>
+            </div>
+            <div style="margin-bottom:15px; background:rgba(0,0,0,0.3); padding:10px; border-left:3px solid #3498db;">
+                <h4 style="color:#3498db; margin:0 0 5px;">P2: RAIN INTENSITY</h4>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                    <span>ฝนเฉลี่ยขั้นต่ำ (mm/hr):</span>
+                    <div style="display:flex; align-items:center;">
+                        <span id="sugg-p2-mean" class="adv-sugg hide" onclick="applySugg('cfg-p2-mean', this)" style="color:#00ffcc; cursor:pointer; font-weight:bold; margin-right:8px;" title="คลิกเพื่อใช้ค่านี้"></span>
+                        <input type="number" step="0.1" id="cfg-p2-mean" style="background:#152233; color:#fff; border:1px solid #2a3f5f; padding:4px; width:60px; text-align:center;">
+                    </div>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>ฝนสูงสุดขั้นต่ำ (mm/hr):</span>
+                    <div style="display:flex; align-items:center;">
+                        <span id="sugg-p2-max" class="adv-sugg hide" onclick="applySugg('cfg-p2-max', this)" style="color:#00ffcc; cursor:pointer; font-weight:bold; margin-right:8px;" title="คลิกเพื่อใช้ค่านี้"></span>
+                        <input type="number" step="0.1" id="cfg-p2-max" style="background:#152233; color:#fff; border:1px solid #2a3f5f; padding:4px; width:60px; text-align:center;">
+                    </div>
+                </div>
+            </div>
+            <div style="margin-bottom:15px; background:rgba(0,0,0,0.3); padding:10px; border-left:3px solid #f39c12;">
+                <h4 style="color:#f39c12; margin:0 0 5px;">P3: SEVERE WEATHER</h4>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                    <span>CAPE ขั้นต่ำ (J/kg):</span>
+                    <div style="display:flex; align-items:center;">
+                        <span id="sugg-p3-cape" class="adv-sugg hide" onclick="applySugg('cfg-p3-cape', this)" style="color:#00ffcc; cursor:pointer; font-weight:bold; margin-right:8px;" title="คลิกเพื่อใช้ค่านี้"></span>
+                        <input type="number" step="50" id="cfg-p3-cape" style="background:#152233; color:#fff; border:1px solid #2a3f5f; padding:4px; width:80px; text-align:center;">
+                    </div>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>GUST ขั้นต่ำ (KT):</span>
+                    <div style="display:flex; align-items:center;">
+                        <span id="sugg-p3-gust" class="adv-sugg hide" onclick="applySugg('cfg-p3-gust', this)" style="color:#00ffcc; cursor:pointer; font-weight:bold; margin-right:8px;" title="คลิกเพื่อใช้ค่านี้"></span>
+                        <input type="number" step="1" id="cfg-p3-gust" style="background:#152233; color:#fff; border:1px solid #2a3f5f; padding:4px; width:60px; text-align:center;">
+                    </div>
+                </div>
+            </div>
+            <div style="margin-bottom:10px; background:rgba(0,0,0,0.3); padding:10px; border-left:3px solid #ff5555;">
+                <h4 style="color:#ff5555; margin:0 0 5px;">P5: RADAR THREAT</h4>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>ระยะแจ้งเตือนพายุเข้า (NM):</span>
+                    <input type="number" id="cfg-p5-nm" style="background:#152233; color:#fff; border:1px solid #2a3f5f; padding:4px; width:60px; text-align:center;" disabled title="รอการอัปเดตในอนาคต">
+                </div>
+            </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-top:15px; padding-top:15px; border-top:1px solid #2a3f5f;">
+            <button type="button" onclick="restoreDefaultSettings()" style="background:#4a5568; color:#fff; border:0; padding:8px 12px; border-radius:4px; cursor:pointer; font-family:'Consolas',monospace;">🔄 คืนค่าเดิม</button>
+            <div>
+                <button type="button" onclick="closeSettingsModal()" style="background:transparent; color:#ff3333; border:1px solid #ff3333; padding:8px 12px; border-radius:4px; cursor:pointer; margin-right:10px; font-family:'Consolas',monospace;">ยกเลิก</button>
+                <button type="button" onclick="saveSettings()" style="background:var(--data-color); color:#000; border:0; padding:8px 12px; border-radius:4px; cursor:pointer; font-weight:bold; font-family:'Consolas',monospace;">💾 บันทึก</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+/* --- SMART ADVISOR: PHASE 1 (SETTINGS & GROUND-TRUTH LOGGER) --- */
+(function () {
+    'use strict';
+
+    const defaults = {
+        p1_pop: 60,
+        p1_rain: 1.0,
+        p2_mean: 0.7,
+        p2_max: 2.5,
+        p3_cape: 1800,
+        p3_gust: 25,
+        p5_nm: 5
+    };
+    const configStorageKey = 'atc_dyn_cfg';
+    const configInputs = {
+        p1_pop: 'cfg-p1-pop',
+        p1_rain: 'cfg-p1-rain',
+        p2_mean: 'cfg-p2-mean',
+        p2_max: 'cfg-p2-max',
+        p3_cape: 'cfg-p3-cape',
+        p3_gust: 'cfg-p3-gust',
+        p5_nm: 'cfg-p5-nm'
+    };
+
+    function readConfig() {
+        const config = Object.assign({}, defaults);
+        try {
+            const stored = localStorage.getItem(configStorageKey);
+            if (stored === null) return config;
+            const parsed = JSON.parse(stored);
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                console.warn('Invalid AI settings format; using defaults.');
+                return config;
+            }
+            Object.keys(configInputs).forEach(function (key) {
+                const value = parsed[key];
+                const valid = Number.isFinite(value) && value >= 0 &&
+                    (key !== 'p1_pop' || value <= 100);
+                if (valid) config[key] = value;
+                else if (value !== undefined) console.warn('Invalid AI setting; using default:', key);
+            });
+        } catch (error) {
+            console.error('Unable to load AI settings:', error);
+        }
+        return config;
+    }
+
+    window.ATC_DYN_CFG = readConfig();
+
+    function syncInputs() {
+        Object.keys(configInputs).forEach(function (key) {
+            const input = document.getElementById(configInputs[key]);
+            if (!input) throw new Error('Missing settings input: ' + configInputs[key]);
+            input.value = window.ATC_DYN_CFG[key];
+        });
+    }
+
+    window.openSettingsModal = function () {
+        syncInputs();
+        const modal = document.getElementById('settings-modal');
+        if (!modal) throw new Error('AI settings modal is unavailable.');
+        modal.classList.remove('hide');
+    };
+
+    window.closeSettingsModal = function () {
+        const modal = document.getElementById('settings-modal');
+        if (!modal) throw new Error('AI settings modal is unavailable.');
+        modal.classList.add('hide');
+    };
+
+    window.saveSettings = function () {
+        const nextConfig = Object.assign({}, window.ATC_DYN_CFG);
+        for (const key of Object.keys(configInputs)) {
+            if (key === 'p5_nm') continue;
+            const input = document.getElementById(configInputs[key]);
+            if (!input) throw new Error('Missing settings input: ' + configInputs[key]);
+            const value = input.value.trim() === '' ? NaN : Number(input.value);
+            if (!Number.isFinite(value) || value < 0 || (key === 'p1_pop' && value > 100)) {
+                alert('กรุณากรอกค่าตั้งแต่ 0 ขึ้นไป และ POP ต้องไม่เกิน 100');
+                input.focus();
+                return;
+            }
+            nextConfig[key] = value;
+        }
+        try {
+            localStorage.setItem(configStorageKey, JSON.stringify(nextConfig));
+        } catch (error) {
+            console.error('Unable to save AI settings:', error);
+            alert('บันทึกการตั้งค่าไม่สำเร็จ กรุณาตรวจสอบพื้นที่จัดเก็บของเบราว์เซอร์');
+            return;
+        }
+        window.ATC_DYN_CFG = nextConfig;
+        window.closeSettingsModal();
+        if (typeof window.triggerManualAIAnalysis === 'function') window.triggerManualAIAnalysis();
+    };
+
+    window.restoreDefaultSettings = function () {
+        try {
+            localStorage.removeItem(configStorageKey);
+        } catch (error) {
+            console.error('Unable to clear saved AI settings:', error);
+            alert('ลบการตั้งค่าที่บันทึกไว้ไม่สำเร็จ');
+            return;
+        }
+        window.ATC_DYN_CFG = Object.assign({}, defaults);
+        document.querySelectorAll('.adv-sugg').forEach(function (el) {
+            el.classList.add('hide');
+        });
+        const summary = document.getElementById('advisor-summary');
+        if (!summary) throw new Error('Smart Advisor summary is unavailable.');
+        summary.classList.add('hide');
+        syncInputs();
+    };
+
+    window.applySugg = function (inputId, suggestion) {
+        const input = document.getElementById(inputId);
+        if (!input || !suggestion) throw new Error('Smart Advisor suggestion target is unavailable.');
+        const value = Number(suggestion.textContent.replace('👉', '').trim());
+        if (!Number.isFinite(value)) throw new Error('Smart Advisor suggestion is not a valid number.');
+        input.value = String(value);
+        const previousColor = suggestion.style.color;
+        suggestion.style.color = '#fff';
+        window.setTimeout(function () {
+            suggestion.style.color = previousColor;
+        }, 200);
+    };
+
+    window.runSmartAdvisor = function () {
+        const summary = document.getElementById('advisor-summary');
+        if (!summary) throw new Error('Smart Advisor summary is unavailable.');
+        summary.classList.remove('hide');
+
+        let logs;
+        try {
+            const stored = localStorage.getItem('atc_ground_truth_log') || '[]';
+            logs = JSON.parse(stored);
+            if (!Array.isArray(logs)) throw new Error('Ground-truth log is not an array.');
+        } catch (error) {
+            console.error('Unable to read ground-truth log for Smart Advisor:', error);
+            summary.textContent = '⚠️ อ่านประวัติการพยากรณ์ไม่สำเร็จ กรุณาตรวจสอบข้อมูลในเบราว์เซอร์';
+            return;
+        }
+
+        const now = Date.now();
+        const sixHoursAgo = now - 6 * 60 * 60 * 1000;
+        const parseLogTime = function (entry) {
+            if (typeof entry.timestamp === 'string') return Date.parse(entry.timestamp);
+            if (typeof entry.hour !== 'string') return NaN;
+            const hourValue = /^\d{4}-\d{2}-\d{2}T\d{2}$/.test(entry.hour)
+                ? entry.hour + ':00:00Z'
+                : (/Z$|[+-]\d{2}:\d{2}$/.test(entry.hour) ? entry.hour : entry.hour + 'Z');
+            return Date.parse(hourValue);
+        };
+        const recentLogs = logs.map(function (entry) {
+            return { entry: entry, timestamp: parseLogTime(entry) };
+        }).filter(function (item) {
+            return Number.isFinite(item.timestamp) &&
+                item.timestamp >= sixHoursAgo && item.timestamp <= now;
+        }).sort(function (a, b) {
+            return a.timestamp - b.timestamp;
+        }).slice(-24).map(function (item) {
+            return item.entry;
+        });
+
+        if (recentLogs.length < 24) {
+            summary.innerHTML = `⚠️ ข้อมูลยังไม่เพียงพอต่อการวิเคราะห์ (มี ${recentLogs.length}/24 รายการ)<br><span style="color:#718096; font-size:11px;">ระบบต้องการประวัติการพยากรณ์จริงอย่างน้อย 6 ชั่วโมง (บันทึกทุก 15 นาที) เพื่อให้คำแนะนำที่แม่นยำ</span>`;
+            return;
+        }
+
+        let hits = 0, falseAlarms = 0, misses = 0;
+        recentLogs.forEach(function (entry) {
+            const isAlert = entry.forecastLvl === 'RED' || entry.forecastLvl === 'AMBER';
+            const isActualEvent = entry.actualStorm === true || entry.actualRain === true ||
+                entry.actualRadar === 'RED' || entry.actualRadar === 'AMBER';
+            if (isAlert && isActualEvent) hits++;
+            else if (isAlert && !isActualEvent) falseAlarms++;
+            else if (!isAlert && isActualEvent) misses++;
+        });
+
+        const totalEvents = hits + falseAlarms + misses;
+        if (totalEvents === 0) {
+            summary.textContent = '✅ สภาพอากาศสงบ ไม่มีเหตุการณ์รุนแรงในช่วงที่ผ่านมา (ไม่มีข้อมูลให้ปรับเทียบ)';
+            document.querySelectorAll('.adv-sugg').forEach(function (el) {
+                el.classList.add('hide');
+            });
+            return;
+        }
+
+        const falseAlarmRate = falseAlarms / (hits + falseAlarms || 1);
+        const missRate = misses / (hits + misses || 1);
+        let message = `📊 สถิติ 6 ชม.ล่าสุด: <span style="color:#00cc66;">แม่นยำ ${hits}</span> | <span style="color:#f39c12;">เตือนลวง ${falseAlarms}</span> | <span style="color:#ff5555;">ตกสำรวจ ${misses}</span><br>`;
+        let action = 'NONE';
+
+        if (falseAlarmRate > 0.35) {
+            message += '<strong style="color:#f39c12;">วิเคราะห์:</strong> ระบบแจ้งเตือนบ่อยเกินจริง (Over-warning)<br>💡 แนะนำ: <span style="color:#00ffcc;">คลิกตัวเลขสีเขียวด้านล่าง</span> เพื่อปรับเกณฑ์ให้สูงขึ้น';
+            action = 'INCREASE';
+        } else if (missRate > 0.15) {
+            message += '<strong style="color:#ff5555;">วิเคราะห์:</strong> ระบบพลาดการเตือนพายุ (Missed Events)<br>💡 แนะนำ: <span style="color:#00ffcc;">คลิกตัวเลขสีเขียวด้านล่าง</span> เพื่อปรับเกณฑ์ให้ต่ำลง (ไวขึ้น)';
+            action = 'DECREASE';
+        } else {
+            message += '<strong style="color:#00cc66;">วิเคราะห์:</strong> ระบบทำงานได้แม่นยำและสมดุลดีเยี่ยม คงค่าเดิมไว้ได้เลย';
+        }
+        summary.innerHTML = message;
+
+        const config = window.ATC_DYN_CFG;
+        const suggestions = action === 'INCREASE' ? {
+            'sugg-p1-pop': Math.min(80, config.p1_pop + 5),
+            'sugg-p1-rain': Math.min(3.0, config.p1_rain + 0.5).toFixed(1),
+            'sugg-p2-mean': Math.min(1.5, config.p2_mean + 0.2).toFixed(1),
+            'sugg-p2-max': Math.min(5.0, config.p2_max + 0.5).toFixed(1),
+            'sugg-p3-cape': Math.min(2500, config.p3_cape + 200),
+            'sugg-p3-gust': Math.min(35, config.p3_gust + 2)
+        } : action === 'DECREASE' ? {
+            'sugg-p1-pop': Math.max(30, config.p1_pop - 5),
+            'sugg-p1-rain': Math.max(0.3, config.p1_rain - 0.2).toFixed(1),
+            'sugg-p2-mean': Math.max(0.3, config.p2_mean - 0.1).toFixed(1),
+            'sugg-p2-max': Math.max(1.5, config.p2_max - 0.5).toFixed(1),
+            'sugg-p3-cape': Math.max(1000, config.p3_cape - 200),
+            'sugg-p3-gust': Math.max(20, config.p3_gust - 2)
+        } : null;
+
+        document.querySelectorAll('.adv-sugg').forEach(function (element) {
+            const value = suggestions && suggestions[element.id];
+            if (value === undefined) {
+                element.classList.add('hide');
+                return;
+            }
+            element.textContent = `👉 ${value}`;
+            element.classList.remove('hide');
+        });
+    };
+
+    const loggerInterval = 15 * 60 * 1000;
+    window.setInterval(function () {
+        const engine = window.ATC_ALERT_ENGINE;
+        const lastAlert = engine && engine.last;
+        const curMetar = typeof currentParsedData !== 'undefined'
+            ? currentParsedData : window.currentParsedData;
+        if (!lastAlert || !lastAlert.target || !curMetar || typeof curMetar.raw !== 'string') return;
+
+        const logKey = 'atc_ground_truth_log';
+        let logs = [];
+        try {
+            const stored = localStorage.getItem(logKey);
+            if (stored !== null) {
+                const parsed = JSON.parse(stored);
+                if (!Array.isArray(parsed)) throw new Error('Ground-truth log is not an array.');
+                logs = parsed;
+            }
+        } catch (error) {
+            console.error('Unable to load ground-truth log:', error);
+            return;
+        }
+
+        const now = new Date();
+        const sampleTime = new Date(now);
+        sampleTime.setUTCMinutes(Math.floor(sampleTime.getUTCMinutes() / 15) * 15, 0, 0);
+        const sampleKey = sampleTime.toISOString().slice(0, 16);
+        if (logs.length > 0 && logs[logs.length - 1].sampleKey === sampleKey) return;
+
+        const mRain = /RA|SHRA|DZ/.test(curMetar.raw);
+        const mStorm = /TS|CB|TCU/.test(curMetar.raw);
+        const radarThreat = lastAlert.radar ? lastAlert.radar.threatLevel : 'UNKNOWN';
+        logs.push({
+            hour: sampleKey,
+            sampleKey: sampleKey,
+            timestamp: now.toISOString(),
+            station: lastAlert.target.stationCode || 'UNK',
+            forecastLvl: lastAlert.lvl,
+            actualRain: mRain,
+            actualStorm: mStorm,
+            actualRadar: radarThreat,
+            metarRaw: curMetar.raw,
+            configUsed: Object.assign({}, window.ATC_DYN_CFG)
+        });
+        if (logs.length > 200) logs = logs.slice(-200);
+        try {
+            localStorage.setItem(logKey, JSON.stringify(logs));
+        } catch (error) {
+            console.error('Unable to save ground-truth log:', error);
+        }
+    }, loggerInterval);
 })();
 </script>
 </body>
