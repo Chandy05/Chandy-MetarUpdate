@@ -3093,8 +3093,10 @@ function renderTafTimeline(tafRaw) {
 
                 function renderEventRow(ev) {
                     let pk = ev.peak;
-                    let color = ev.type === 'THUNDERSTORM' || ev.type === 'WIND' ? '#ff3333' : '#f39c12';
-                    let icon = ev.type === 'THUNDERSTORM' || ev.type === 'WIND' ? '🔴' : '🟡';
+                    // ปรับสีและไอคอนให้สอดคล้องกับแบนเนอร์ภาพรวม (eng.lvl)
+                    let overallLvl = eng ? eng.lvl : (overallMaxProb >= 60 ? 'RED' : 'AMBER');
+                    let color = overallLvl === 'RED' ? '#ff3333' : '#f39c12';
+                    let icon = overallLvl === 'RED' ? '🔴' : '🟡';
                     let desc = ev.type === 'THUNDERSTORM' ? 'พายุฝนฟ้าคะนอง' :
                         (ev.type === 'WIND' ? 'ลมกระโชกแรง (ไม่มีฝนยืนยัน)' : 'ฝนตกปานกลาง-หนัก');
                     let locText = pk.rain >= 1.0
