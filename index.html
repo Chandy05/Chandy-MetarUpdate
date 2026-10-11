@@ -2806,8 +2806,10 @@ function renderTafTimeline(tafRaw) {
             }
 
             try {
-                let reqStart = new Date(`${dateStartStr}T${timeStart}:00`);
-                let reqEnd = new Date(`${dateEndStr}T${timeEnd}:00`);
+                let dsParts = dateStartStr.split('-'); let tsParts = timeStart.split(':');
+                let reqStart = new Date(dsParts[0], dsParts[1]-1, dsParts[2], tsParts[0], tsParts[1], 0);
+                let deParts = dateEndStr.split('-'); let teParts = timeEnd.split(':');
+                let reqEnd = new Date(deParts[0], deParts[1]-1, deParts[2], teParts[0], teParts[1], 0);
                 if (!Number.isFinite(reqStart.getTime()) || !Number.isFinite(reqEnd.getTime()) || reqEnd <= reqStart) {
                     throw new Error('ช่วงวันที่และเวลาไม่ถูกต้อง');
                 }
@@ -3050,7 +3052,7 @@ function renderTafTimeline(tafRaw) {
                     if(dt < reqStart || dt > reqEnd) return;
                     let score = (r.p1 === true ? 1 : 0) +
                         (r.p2 === true ? 1 : 0) + (r.p3 === true ? 1 : 0);
-                    let isAlert = score >= 2 || r.p3 === true;
+                    let isAlert = score >= 2;
 
                     if(isAlert) {
                         let hasRainPotential = r.maxPop >= 20 || r.rain > 0;
@@ -3434,7 +3436,7 @@ function renderTafTimeline(tafRaw) {
                         let rainPass = rainMatch && rainMatch.length > 0;
                         let rainList = rainPass ? [...new Set(rainMatch)].join(', ') : '';
 
-                        let cbMatch = userTafEval.blocks.join(' ').match(/(CB|TCU)\b/g);
+                        let cbMatch = userTafEval.blocks.join(' ').match(/(CB|TCU)/g);
                         let cbPass = cbMatch && cbMatch.length > 0;
                         let cbList = cbPass ? [...new Set(cbMatch)].join(', ') : '';
 
@@ -5015,7 +5017,7 @@ function evaluateTafOverlap(tafStr, startMs, endMs) {
         cEnd = makeMs(baseMatch[3], baseMatch[4]);
     }
 
-    let hazardRegex = /(?:\+SHRA|\+RA|-RA|\b(?:TSRA|SHRA|TS|RA|VCTS|DZ)\b|(CB|TCU)\b)/;
+    let hazardRegex = /(?:\+SHRA|\+RA|-RA|\b(?:TSRA|SHRA|TS|RA|VCTS|DZ)\b|(CB|TCU))/;
     let meets = false;
     let matchedBlocks = [];
 
@@ -5052,8 +5054,10 @@ function tafPillar(){
   let timeEnd = document.getElementById('taf-time-end');
   if (dateStart && timeStart && dateEnd && timeEnd &&
       dateStart.value && timeStart.value && dateEnd.value && timeEnd.value) {
-    let selectedStart = new Date(`${dateStart.value}T${timeStart.value}:00`);
-    let selectedEnd = new Date(`${dateEnd.value}T${timeEnd.value}:00`);
+    let ds = dateStart.value.split('-'); let ts = timeStart.value.split(':');
+    let selectedStart = new Date(ds[0], ds[1]-1, ds[2], ts[0], ts[1], 0);
+    let de = dateEnd.value.split('-'); let te = timeEnd.value.split(':');
+    let selectedEnd = new Date(de[0], de[1]-1, de[2], te[0], te[1], 0);
     if (Number.isFinite(selectedStart.getTime()) &&
         Number.isFinite(selectedEnd.getTime()) &&
         selectedEnd > selectedStart) {
@@ -5505,8 +5509,7 @@ function paint(res){
         var rowTime = new Date(row.t);
         var timestamp = rowTime.getTime();
         var isAlertHr = (row.p1 === true ? 1 : 0) +
-          (row.p2 === true ? 1 : 0) + (row.p3 === true ? 1 : 0) >= 2 ||
-          row.p3 === true;
+          (row.p2 === true ? 1 : 0) + (row.p3 === true ? 1 : 0) >= 2;
         if(!Number.isFinite(timestamp)) return;
         if(isAlertHr){
           var hrStr = String(row.t).substring(11,16);
