@@ -2823,8 +2823,8 @@ function renderTafTimeline(tafRaw) {
                 let rawTafStr = stCode && typeof cachedTafText !== 'undefined'
                     ? extractWxData(cachedTafText, stCode, 'TAF')
                     : null;
-                let userTafEval = typeof evaluateTafOverlap === 'function'
-                    ? evaluateTafOverlap(rawTafStr, reqStart.getTime(), reqEnd.getTime())
+                let userTafEval = typeof window.evaluateTafOverlap === 'function'
+                    ? window.evaluateTafOverlap(rawTafStr, reqStart.getTime(), reqEnd.getTime())
                     : { meets: false, blocks: [] };
                 let sP4_val = rawTafStr ? userTafEval.meets : 'UNK';
 
@@ -3111,13 +3111,21 @@ function renderTafTimeline(tafRaw) {
                         aiReasons.push(`<li><strong style="color:#00ffcc;">[P1 ข้อมูลโมเดล]:</strong> โอกาสเกิดฝนสูง<br><span style="color:#718096; font-size:0.8vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: โมเดลตรงกัน ${pk.agree} แห่ง</span> (เกณฑ์อ้างอิง: &gt;= 50% ของโมเดลทั้งหมด)</span></li>`);
                     }
                     if(pk.p2 === true) {
-                        aiReasons.push(`<li><strong style="color:#3498db;">[P2 ปริมาณฝน]:</strong> คาดการณ์มีฝนตกถึงเกณฑ์<br><span style="color:#718096; font-size:0.8vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: ฝนสูงสุด ${Number(pk.rain || 0).toFixed(1)} mm/hr</span> (เกณฑ์อ้างอิง: เฉลี่ย &gt;= 0.3 หรือ สูงสุด &gt;= 2.5 mm/hr)</span></li>`);
+                        let p2ValText = "";
+                        if (pk.p2Breakdown) {
+                            if (pk.p2Breakdown.c3) p2ValText = `ฝนสูงสุด ${pk.p2Breakdown.max.toFixed(1)} mm/hr (เกณฑ์อ้างอิง: สูงสุด >= 2.5)`;
+                            else if (pk.p2Breakdown.c2) p2ValText = `ฝนเฉลี่ย ${pk.p2Breakdown.mean.toFixed(1)} mm/hr (เกณฑ์อ้างอิง: เฉลี่ย >= 0.7)`;
+                            else p2ValText = `โมเดลให้ฝนตรงกัน (เกณฑ์อ้างอิง: >= 50% ของโมเดล)`;
+                        } else {
+                            p2ValText = `ฝนสูงสุด ${Number(pk.rain || 0).toFixed(1)} mm/hr (เกณฑ์อ้างอิง: เฉลี่ย >= 0.7 หรือ สูงสุด >= 2.5)`;
+                        }
+                        aiReasons.push(`<li><strong style="color:#3498db;">[P2 ปริมาณฝน]:</strong> คาดการณ์มีฝนตกถึงเกณฑ์<br><span style="color:#718096; font-size:0.8vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: ${p2ValText}</span></span></li>`);
                     }
                     if(pk.p3 === true) {
                         let p3Reason = pk.p3Breakdown && pk.p3Breakdown.gust >= 25
                             ? 'ลมกระโชกแรง'
                             : 'สภาวะปั่นป่วน/พายุฝนฟ้าคะนอง';
-                        aiReasons.push(`<li><strong style="color:#f39c12;">[P3 ลมพายุ]:</strong> ${p3Reason}<br><span style="color:#718096; font-size:0.8vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: CAPE ${Math.round(pk.cape || 0)} J/kg, GUST ${Math.round(pk.gust || 0)} KT</span> (เกณฑ์อ้างอิง: CAPE &gt;= 1000 หรือ GUST &gt;= 25 KT)</span></li>`);
+                        aiReasons.push(`<li><strong style="color:#f39c12;">[P3 ลมพายุ]:</strong> ${p3Reason}<br><span style="color:#718096; font-size:0.8vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: CAPE ${Math.round(pk.cape || 0)} J/kg, GUST ${Math.round(pk.gust || 0)} KT</span> (เกณฑ์อ้างอิง: CAPE &gt;= 1800 หรือ GUST &gt;= 25 KT)</span></li>`);
                     }
                     if(sP4_val === true && userTafEval.blocks.length > 0) {
                         let bText = userTafEval.blocks[0].substring(0, 35) + '...';
@@ -3187,12 +3195,21 @@ function renderTafTimeline(tafRaw) {
                         if (sP1 === true) reasons.push(`<li><strong style="color:#00ffcc;">P1 (ข้อมูลโมเดล):</strong> โมเดลพยากรณ์ส่วนใหญ่เห็นตรงกัน<br><span style="color:#718096; font-size:0.85vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: โมเดลเกินครึ่งให้ผลตรงกัน</span> (เกณฑ์อ้างอิง: &gt;= 50% ของโมเดลทั้งหมด)</span></li>`);
                         if (sP2 === true) {
                             let rRain = eng && eng.hour && eng.hour.rain !== null ? eng.hour.rain.toFixed(1) : '--';
-                            reasons.push(`<li><strong style="color:#3498db;">P2 (ปริมาณฝน):</strong> โมเดลคำนวณพบโอกาสเกิดฝนตกถึงเกณฑ์<br><span style="color:#718096; font-size:0.85vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: ฝนสูงสุด ${rRain} mm/hr</span> (เกณฑ์อ้างอิง: ค่าเฉลี่ย &gt;= 0.3 หรือ มี 1 โมเดล &gt;= 2.5)</span></li>`);
+                            let p2ValSummary = "";
+                            if (eng && eng.hour && eng.hour.p2Breakdown) {
+                                if (eng.hour.p2Breakdown.c3) p2ValSummary = `ฝนสูงสุด ${eng.hour.p2Breakdown.max.toFixed(1)} mm/hr (เกณฑ์: สูงสุด >= 2.5)`;
+                                else if (eng.hour.p2Breakdown.c2) p2ValSummary = `ฝนเฉลี่ย ${eng.hour.p2Breakdown.mean.toFixed(1)} mm/hr (เกณฑ์: เฉลี่ย >= 0.7)`;
+                                else p2ValSummary = `โมเดลให้ฝนตรงกัน (เกณฑ์: >= 50% ของโมเดล)`;
+                            } else {
+                                let rRain = eng && eng.hour && eng.hour.rain !== null ? eng.hour.rain.toFixed(1) : '--';
+                                p2ValSummary = `ฝนสูงสุด ${rRain} mm/hr (เกณฑ์: เฉลี่ย >= 0.7 หรือ สูงสุด >= 2.5)`;
+                            }
+                            reasons.push(`<li><strong style="color:#3498db;">P2 (ปริมาณฝน):</strong> โมเดลคำนวณพบโอกาสเกิดฝนตกถึงเกณฑ์<br><span style="color:#718096; font-size:0.85vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: ${p2ValSummary}</span></span></li>`);
                         }
                         if (sP3 === true) {
                             let rCape = eng && eng.hour && eng.hour.cape !== null ? eng.hour.cape.toFixed(0) : '--';
                             let rGust = eng && eng.hour && eng.hour.gust !== null ? eng.hour.gust.toFixed(1) : '--';
-                            reasons.push(`<li><strong style="color:#f39c12;">P3 (ลมพายุ):</strong> ตรวจพบค่าพลังงานพายุ หรือลมกระโชกแรง<br><span style="color:#718096; font-size:0.85vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: CAPE ${rCape} J/kg, GUST ${rGust} KT</span> (เกณฑ์อ้างอิง: CAPE &gt;= 1000 หรือ GUST &gt;= 25)</span></li>`);
+                            reasons.push(`<li><strong style="color:#f39c12;">P3 (ลมพายุ):</strong> ตรวจพบค่าพลังงานพายุ หรือลมกระโชกแรง<br><span style="color:#718096; font-size:0.85vw;">👉 <span style="color:#e2e8f0;">ค่าที่ได้: CAPE ${rCape} J/kg, GUST ${rGust} KT</span> (เกณฑ์อ้างอิง: CAPE &gt;= 1800 หรือ GUST &gt;= 25)</span></li>`);
                         }
                         if (sP4_val === true) {
                             let bText = userTafEval.blocks.length > 0 ? userTafEval.blocks[0].substring(0, 30) + '...' : 'พบข้อมูลฝน/พายุ';
@@ -3272,8 +3289,8 @@ function renderTafTimeline(tafRaw) {
                                 <div style="font-size:0.95vw; line-height:1.5; color:#e2e8f0; font-family:'Consolas', monospace;">
                                     <div>${pk.c1 ? '✅' : '❌'} 1. เกณฑ์ฉันทามติ (โมเดลเกินครึ่งให้ฝน >= 0.5 mm/hr)</div>
                                     <div style="margin-left:22px; margin-bottom:4px;">ค่าที่ได้: ${fmtVal(pk.c1, pk.m05.length + ' จาก ' + pk.vCount + ' โมเดล', pk.m05.join(', '), '>= '+reqM+' โมเดล')}</div>
-                                    <div>${pk.c2 ? '✅' : '❌'} 2. เกณฑ์ฝนเฉลี่ย (เฉลี่ยทุกโมเดล >= 0.3 mm/hr)</div>
-                                    <div style="margin-left:22px; margin-bottom:4px;">ค่าที่ได้: ${fmtVal(pk.c2, pk.mean.toFixed(2) + ' mm/hr', null, '>= 0.3 mm/hr')}</div>
+                                    <div>${pk.c2 ? '✅' : '❌'} 2. เกณฑ์ฝนเฉลี่ย (เฉลี่ยทุกโมเดล >= 0.7 mm/hr)</div>
+                                    <div style="margin-left:22px; margin-bottom:4px;">ค่าที่ได้: ${fmtVal(pk.c2, pk.mean.toFixed(2) + ' mm/hr', null, '>= 0.7 mm/hr')}</div>
                                     <div>${pk.c3 ? '✅' : '❌'} 3. เกณฑ์พายุรุนแรง (มีโมเดลให้ฝน >= 2.5 mm/hr)</div>
                                     <div style="margin-left:22px; margin-bottom:6px;">ค่าที่ได้: ${fmtVal(pk.c3, pk.max.toFixed(2) + ' mm/hr', pk.maxM, '>= 2.5 mm/hr')}</div>
                                 </div>
@@ -3299,7 +3316,7 @@ function renderTafTimeline(tafRaw) {
                             <div style="margin-bottom:12px; text-align:left; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; border-left:4px solid #ff3333;">
                                 <div style="color:#00ffcc; font-weight:bold; font-size:1vw; border-bottom:1px dashed #2a3f5f; padding-bottom:5px; margin-bottom:6px;">⏱️ ${timeText}</div>
                                 <div style="font-size:0.95vw; line-height:1.5; color:#e2e8f0; font-family:'Consolas', monospace;">
-                                    <div>${pk.c1 ? '✅' : '❌'} 1. เกณฑ์ฉันทามติพลังงานพายุ (โมเดล >= 50% ให้ CAPE >= 1000 J/kg)</div>
+                                    <div>${pk.c1 ? '✅' : '❌'} 1. เกณฑ์ฉันทามติพลังงานพายุ (โมเดล >= 50% ให้ CAPE >= 1800 J/kg)</div>
                                     <div style="margin-left:22px; margin-bottom:4px;">ค่าที่ได้: ${fmtVal(pk.c1, pk.m1000.length + ' จาก ' + pk.vCount + ' โมเดล', pk.m1000.join(', '), '>= '+reqM+' โมเดล')}</div>
                                     <div>${pk.c2 ? '✅' : '❌'} 2. เกณฑ์พลังงานสุดขั้ว (มีโมเดลให้ CAPE >= 2000 J/kg)</div>
                                     <div style="margin-left:22px; margin-bottom:4px;">ค่าที่ได้: ${fmtVal(pk.c2, pk.max.toFixed(0) + ' J/kg', pk.maxM, '>= 2000 J/kg')}</div>
@@ -3400,10 +3417,8 @@ function renderTafTimeline(tafRaw) {
                     let isDataMissing = (eng && eng.hour && eng.hour.mDict && (!eng.hour.mDict[m.id] || eng.hour.mDict[m.id].pop === null));
 
                     let textColor = isDataMissing ? '#4a5568' :
-                                    (mStatus === false ? '#ff5555' :
-                                    (isAct ? '#00ffcc' : (mStatus === true ? '#a0aec0' : '#718096')));
+                                    (mStatus === true ? '#ff5555' : '#00cc66');
                     let bgColor = isAct ? '#2a3f5f' : '#0b131e';
-                    if(mStatus === false && isAct) bgColor = 'rgba(255,85,85,0.2)';
 
                     let borderColor = isDataMissing ? '#1a2a40' : (isAct ? '#00ffcc' : '#4a5568');
                     let textStyle = isDataMissing ? 'text-decoration: line-through; pointer-events: none;' : '';
@@ -4956,7 +4971,7 @@ function evalModels(d){
       if (c != null) {
         capes.push(c);
         validCapeCount++;
-        if(c >= 1000) p3Models1000.push(mCleanName);
+        if(c >= 1800) p3Models1000.push(mCleanName);
         if(c >= p3MaxCape) { p3MaxCape = c; p3MaxCapeModel = mCleanName; }
       }
       if (g != null) {
@@ -4972,7 +4987,7 @@ function evalModels(d){
 
     var p2Mean = validRainCount > 0 ? (rainSum / validRainCount) : 0;
     var p2_c1 = (validRainCount > 0) && (p2Models05.length >= Math.ceil(validRainCount * 0.5));
-    var p2_c2 = p2Mean >= 0.3;
+    var p2_c2 = p2Mean >= 0.7;
     var p2_c3 = p2MaxRain >= 2.5;
     var p2Result = p2_c1 || p2_c2 || p2_c3;
 
@@ -5037,6 +5052,7 @@ function evaluateTafOverlap(tafStr, startMs, endMs) {
     return { meets, blocks: matchedBlocks };
 }
 
+window.evaluateTafOverlap = evaluateTafOverlap;
 /* ---------- เสา 4 : TAF (3-state: true/false/null) ---------- */
 function tafPillar(){
   var stCode = document.getElementById('station-select') ? document.getElementById('station-select').value : null;
@@ -5151,8 +5167,8 @@ function frameScan(host,path,lat,lon){
         o=(py*size+px)*4;
         aC=d[o+3];
 
-        // กรองสัญญาณรบกวน ปรับ Alpha เป็น 70 เพื่อดรอปพิกเซลใส/รอยต่อแผนที่
-        if(aC < 70) continue;
+        // กรองสัญญาณรบกวน ปรับ Alpha เป็น 140 เพื่อดรอปพิกเซลใส/รอยต่อแผนที่
+        if(aC < 140) continue;
         validPx++;
         rC=d[o]; gC=d[o+1]; bC=d[o+2];
         var maxC = Math.max(rC, gC, bC);
@@ -5177,6 +5193,16 @@ function frameScan(host,path,lat,lon){
         if(dx2dy2 < sectorMapPx[sName]) sectorMapPx[sName] = dx2dy2;
       }
     }
+
+    // กรองสัญญาณลวง (Ghost Echoes) ต้องมีกลุ่มฝนอย่างน้อย 5 พิกเซลขึ้นไป
+    if (rainPx < 5) {
+        rainPx = 0;
+        nearestDistPx = Infinity;
+        rainAtTarget = false;
+        maxIntensity = 0;
+        for (var sector in sectorMapPx) sectorMapPx[sector] = Infinity;
+    }
+
     var kmpp = mpp(lat,z)/1000;
     var nmpp = kmpp / 1.852;
     var cov = validPx>0 ? (rainPx/validPx*100) : 0;
