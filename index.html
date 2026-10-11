@@ -3839,6 +3839,9 @@ function getText(id) {
 
 function hasMetarText(el) {
   const t = (el && el.innerText) || '';
+  if (typeof currentWxMode !== 'undefined' && currentWxMode === 'TAF') {
+    return /FORECAST TIMELINE/.test(t) || /SMART AREA PREDICTOR/.test(t);
+  }
   return /VIS\./i.test(t) && /(FEW|SCT|BKN|OVC)/i.test(t) && /QNH/i.test(t);
 }
 
@@ -3918,14 +3921,15 @@ async function fetchRadarAsDataUrl(imageUrl, timeoutMs = 15000) {
 }
 
 async function generateBriefingImage() {
-  // โหมดปัจจุบัน (เตรียมรองรับ TAF ในอนาคต)
-  const briefingMode = 'METAR'; // เปลี่ยนเป็น 'TAF' ได้ในอนาคตเมื่อพัฒนาโหมด TAF
+  // โหมดปัจจุบัน
+  const briefingMode = typeof currentWxMode !== 'undefined' ? currentWxMode : 'METAR';
 
   const stationSelect = document.getElementById('station-select');
   const stationName = stationSelect ? stationSelect.options[stationSelect.selectedIndex].text : 'VTMM';
 
   document.getElementById('bt-station-name').textContent = 'WEATHER BRIEFING - ' + stationName;
-  document.getElementById('bt-mode-label').textContent = briefingMode + ' OBSERVATION';
+  document.getElementById('bt-mode-label').textContent =
+    briefingMode === 'TAF' ? 'TAF FORECAST' : 'METAR OBSERVATION';
 
   const now = new Date();
   const bkkTime = new Intl.DateTimeFormat('th-TH', {
@@ -4025,9 +4029,43 @@ async function generateBriefingImage() {
           s.innerHTML = s.innerHTML.replace(/max-width:\s*900px/g, 'max-width: 1px');
         });
 
+        const origMap = document.getElementById('taf-leaflet-map');
+        const mapH = origMap && origMap.clientHeight > 200 ? origMap.clientHeight : 400;
+
         // 1.5 อัดฉีด CSS ขยายโลโก้ ตัวหนังสือ และจัดระเบียบแถวให้แน่นขึ้นในรูป
         const bigTextStyles = doc.createElement('style');
+        let extraTafStyles = '';
+        if (typeof currentWxMode !== 'undefined' && currentWxMode === 'TAF') {
+          extraTafStyles = `
+            .dashboard-container { flex-direction: column !important; height: auto !important; overflow: visible !important; }
+            .panel { flex: none !important; width: 100% !important; box-sizing: border-box !important; height: auto !important; min-height: 0 !important; overflow: visible !important; margin-bottom: 20px !important; page-break-inside: avoid; }
+
+            #taf-view-content, #ai-report-content, #box3-taf, #box2-taf {
+              height: auto !important;
+              max-height: none !important;
+              overflow: visible !important;
+              flex: none !important;
+              -webkit-mask-image: none !important;
+              mask-image: none !important;
+            }
+
+            #taf-controls, .radar-tools-group, .rv-player-container, .panel-tabs, .header-mode-toggle, .leaflet-control-container {
+              display: none !important;
+            }
+
+            #taf-leaflet-map {
+              height: ${mapH}px !important;
+              flex: 0 0 ${mapH}px !important;
+              width: 100% !important;
+              border: 3px solid #2a3f5f !important;
+              border-radius: 8px !important;
+            }
+
+            .raw-metar-box { white-space: pre-wrap !important; word-break: break-word !important; overflow: visible !important; height: auto !important; }
+          `;
+        }
         bigTextStyles.innerHTML = `
+          ${extraTafStyles}
           .main-logo { height: 95px !important; min-height: 95px !important; }
           .station-title { font-size: 46px !important; }
           .chdy-icon { height: 42px !important; min-height: 42px !important; margin-left: 10px !important; }
