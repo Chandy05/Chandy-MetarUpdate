@@ -163,7 +163,7 @@
             .radar-title-text { font-size: 3.5vw; }
             .radar-dropdown { font-size: 3vw; max-width: 100%; }
             #box3-taf { min-height: 50vh; overflow-y: auto; }
-            #mission-viewport { min-height: 50vh; }
+            #mission-viewport, #radar-viewport, #windy-viewport { min-height: 50vh; }
             
             .tot-big-clock { font-size: 18vw; }
             .tot-record { font-size: 5vw; padding: 10px; }
@@ -405,13 +405,19 @@
 #taf-leaflet-map { box-sizing: border-box; min-width: 0; }
 @keyframes blink-warn { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 #taf-leaflet-map:fullscreen,
-#taf-leaflet-map:-webkit-full-screen {
+#taf-leaflet-map:-webkit-full-screen,
+#taf-leaflet-map.leaflet-pseudo-fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
     min-height: 0 !important;
     border: 0 !important;
     border-radius: 0 !important;
     background: #000;
+    z-index: 99999 !important;
+    margin: 0 !important;
 }
 .map-fs-btn {
     background: rgba(11, 19, 30, 0.85);
@@ -1983,6 +1989,25 @@ function renderTafTimeline(tafRaw) {
             return [destLatRad * 180 / Math.PI, destLngRad * 180 / Math.PI];
         }
 
+        function getMeanSteeringWind(alts) {
+            if (typeof uwState === 'undefined' || !Array.isArray(uwState.rows)) return null;
+            let uSum = 0, vSum = 0, count = 0;
+            alts.forEach(ft => {
+                let r = uwState.rows.find(row => row.ft === ft);
+                if (r && Number.isFinite(r.dir) && Number.isFinite(r.spd)) {
+                    let rad = r.dir * Math.PI / 180;
+                    uSum += -r.spd * Math.sin(rad);
+                    vSum += -r.spd * Math.cos(rad);
+                    count++;
+                }
+            });
+            if (!count) return null;
+            let u = uSum / count, v = vSum / count;
+            let spd = Math.round(Math.hypot(u, v));
+            let dir = Math.round((Math.atan2(-u, -v) * 180 / Math.PI + 360) % 360);
+            return { dir: dir, spd: spd };
+        }
+
         function updateTafWindArrow() {
             if (!tafMap) return;
 
@@ -1990,28 +2015,37 @@ function renderTafTimeline(tafRaw) {
             let rain = eng && eng.hour && eng.hour.rain != null ? eng.hour.rain : 0;
             let cape = eng && eng.hour && eng.hour.cape != null ? eng.hour.cape : 0;
             let gust = eng && eng.hour && eng.hour.gust != null ? eng.hour.gust : 0;
-
-            let targetAlt = 5000;
-            let altLabel = '5K';
-            if (rain >= 2.5 && (cape >= 1000 || gust >= 25)) {
-                targetAlt = 10000;
-                altLabel = '10K';
-            } else if (rain >= 1.0) {
-                targetAlt = 7000;
-                altLabel = '7K';
-            }
+            let rdr = eng && eng.radar ? eng.radar : null;
+            let rdrInten = rdr && rdr.intensityLevel ? rdr.intensityLevel : 0;
+            let rdrCov = rdr && rdr.coveragePct ? rdr.coveragePct : 0;
+            let rdrDist = rdr && rdr.nearestRainNM != null ? rdr.nearestRainNM : null;
 
             let steeringWind = null;
-            if (typeof uwState !== 'undefined' && uwState.rows) {
-                steeringWind = uwState.rows.find(r => r.ft === targetAlt || r.hdr === altLabel);
-                if (!steeringWind && targetAlt === 7000) {
+            let altLabel = '5K';
+
+            // 1. กรณีตรวจพบฝนหนัก/เมฆก่อตัวสูงจากเรดาร์ (แม้จะอยู่ไกล > 20 NM) หรือโมเดลชี้ว่ามีพายุรุนแรง
+            if (rdrInten >= 3 || (rdrInten === 2 && (rdrCov >= 3.0 || (rdrDist !== null && rdrDist > 15))) || (rain >= 2.5 && (cape >= 1000 || gust >= 25)) || cape >= 1500) {
+                steeringWind = getMeanSteeringWind([5000, 7000, 10000, 15000]);
+                altLabel = '5K-15K MEAN';
+                if (!steeringWind && typeof uwState !== 'undefined' && uwState.rows) {
                     steeringWind = uwState.rows.find(r => r.ft === 10000 || r.hdr === '10K');
                     altLabel = '10K';
                 }
-                if (!steeringWind) {
-                    steeringWind = uwState.rows.find(r => r.ft === 5000 || r.hdr === '5K');
-                    altLabel = '5K';
+            }
+            // 2. กรณีตรวจพบฝนปานกลางจากเรดาร์ หรือโมเดลให้ฝน >= 1.0 mm
+            else if (rdrInten === 2 || (rdrDist !== null && rdrDist > 20 && rdrInten >= 1) || rain >= 1.0 || cape >= 800) {
+                steeringWind = getMeanSteeringWind([5000, 7000, 10000]);
+                altLabel = '5K-10K MEAN';
+                if (!steeringWind && typeof uwState !== 'undefined' && uwState.rows) {
+                    steeringWind = uwState.rows.find(r => r.ft === 7000 || r.hdr === '7K') || uwState.rows.find(r => r.ft === 10000 || r.hdr === '10K');
+                    altLabel = '7K';
                 }
+            }
+
+            // 3. กรณีทั่วไปหรือฝนเล็กน้อยระดับต่ำ ใช้ลม 5,000 FT
+            if (!steeringWind && typeof uwState !== 'undefined' && uwState.rows) {
+                steeringWind = uwState.rows.find(r => r.ft === 5000 || r.hdr === '5K');
+                altLabel = '5K';
             }
 
             if (!steeringWind || !Number.isFinite(steeringWind.dir) ||
@@ -2390,37 +2424,13 @@ function renderTafTimeline(tafRaw) {
                     L.DomEvent.on(btn, 'click', function(e) {
                         L.DomEvent.stopPropagation(e);
                         var mapContainer = document.getElementById('taf-leaflet-map');
-                        var fullscreenElement = document.fullscreenElement ||
-                            document.webkitFullscreenElement || document.msFullscreenElement;
-                        if (!fullscreenElement) {
-                            var enterFullscreen = mapContainer.requestFullscreen ||
-                                mapContainer.webkitRequestFullscreen || mapContainer.msRequestFullscreen;
-                            if (!enterFullscreen) {
-                                alert('เบราว์เซอร์นี้ไม่รองรับการแสดงแผนที่เต็มหน้าจอ');
-                                return;
-                            }
-                            var fullscreenRequest = enterFullscreen.call(mapContainer);
-                            if (fullscreenRequest && typeof fullscreenRequest.catch === 'function') {
-                                fullscreenRequest.catch(function(error) {
-                                    console.error('Map fullscreen request failed:', error);
-                                    alert('ไม่สามารถขยายแผนที่เต็มหน้าจอได้');
-                                });
-                            }
+                        mapContainer.classList.toggle('leaflet-pseudo-fullscreen');
+                        if (mapContainer.classList.contains('leaflet-pseudo-fullscreen')) {
+                            btn.style.background = '#f39c12'; btn.style.color = '#fff';
                         } else {
-                            var exitFullscreen = document.exitFullscreen ||
-                                document.webkitExitFullscreen || document.msExitFullscreen;
-                            if (!exitFullscreen) {
-                                alert('ไม่สามารถออกจากโหมดเต็มหน้าจอได้');
-                                return;
-                            }
-                            var fullscreenExit = exitFullscreen.call(document);
-                            if (fullscreenExit && typeof fullscreenExit.catch === 'function') {
-                                fullscreenExit.catch(function(error) {
-                                    console.error('Map fullscreen exit failed:', error);
-                                    alert('ไม่สามารถออกจากโหมดเต็มหน้าจอได้');
-                                });
-                            }
+                            btn.style.background = 'rgba(11, 19, 30, 0.85)'; btn.style.color = '#00ffcc';
                         }
+                        setTimeout(function() { if (tafMap) tafMap.invalidateSize({ pan: false }); }, 200);
                     });
                     return btn;
                 }
@@ -2518,18 +2528,12 @@ function renderTafTimeline(tafRaw) {
                 }
             });
 
+            /* 
             tafMap.on('click', function() {
-                if(!isRulerActive) return;
-                isRulerActive = false;
-                if(rulerButton) {
-                    rulerButton.style.background = 'rgba(11, 19, 30, 0.85)';
-                    rulerButton.style.color = '#00ffcc';
-                    rulerButton.style.borderColor = '#00ffcc';
-                    rulerButton.setAttribute('aria-pressed', 'false');
-                }
-                tafMap.getContainer().style.cursor = '';
-                if(tafMap.dragging) tafMap.dragging.enable();
+                // ถูกคอมเมนต์ออก เพื่อให้หน้าจอมือถือสามารถแตะวัดระยะได้โดยที่ไม้บรรทัดไม่ปิดตัวเองอัตโนมัติ
+                // ต้องกดปิดที่ปุ่มไม้บรรทัดเท่านั้น
             });
+            */
 
             updateRainViewerLayer();
             if(rvInterval) clearInterval(rvInterval);
@@ -3326,6 +3330,8 @@ function renderTafTimeline(tafRaw) {
                                 : 'ไม่มีเพดานเมฆชั้นต่ำ (SCT/FEW)';
                             let spreadText = Number.isFinite(ev.peak.spread)
                                 ? `${ev.peak.spread.toFixed(1)} °C` : 'N/A';
+                            let microburstPotential = Number.isFinite(ev.peak.cape) && ev.peak.cape >= 1500 &&
+                                Number.isFinite(ev.peak.spread) && ev.peak.spread >= 7;
 
                             p3Html += `
                             <div style="margin-bottom:12px; text-align:left; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; border-left:4px solid #ff3333;">
@@ -3342,7 +3348,8 @@ function renderTafTimeline(tafRaw) {
                                 <div style="margin-top:8px; padding-top:8px; border-top:1px dashed #2a3f5f; font-size:0.85vw; color:#a0aec0;">
                                     [ ข้อมูลสนับสนุนทัศนวิสัยการบิน ณ ชั่วโมงพีค ]<br>
                                     • เพดานเมฆประเมิน (Est. Ceiling): <span style="color:#fff;">${ceilText}</span><br>
-                                    • ส่วนต่างอุณหภูมิ (T-Td Spread): <span style="color:#fff;">${spreadText}</span>
+                                    • ส่วนต่างอุณหภูมิ (T-Td Spread): <span style="color:#fff;">${spreadText}</span><br>
+                                    • ความเสี่ยง Downdraft / Gust Front: <span style="color:${microburstPotential ? '#ff5555' : '#a0aec0'};">${microburstPotential ? '⚠️ มีโอกาส (CAPE ≥ 1500 J/kg และ Spread ≥ 7 °C)' : 'ไม่เข้าเกณฑ์'}</span>
                                 </div>
                             </div>`;
                         });
@@ -3737,13 +3744,26 @@ function renderTafTimeline(tafRaw) {
         radarDraggable.style.top = currentOffset.top + 'px'; radarDraggable.style.left = currentOffset.left + 'px';
 
         let isDragging = false; let startX, startY, initialLeft, initialTop;
-        radarViewport.addEventListener('mousedown', (e) => {
-            isDragging = true; radarViewport.style.cursor = 'grabbing'; startX = e.clientX; startY = e.clientY;
+        
+        function startDrag(clientX, clientY) {
+            isDragging = true; radarViewport.style.cursor = 'grabbing'; startX = clientX; startY = clientY;
             initialLeft = parseInt(window.getComputedStyle(radarDraggable).left, 10) || 0; initialTop = parseInt(window.getComputedStyle(radarDraggable).top, 10) || 0;
-        });
-        document.addEventListener('mousemove', (e) => { if (!isDragging) return; radarDraggable.style.left = (initialLeft + (e.clientX - startX)) + 'px'; radarDraggable.style.top = (initialTop + (e.clientY - startY)) + 'px'; });
-        document.addEventListener('mouseup', () => { isDragging = false; radarViewport.style.cursor = 'grab'; });
-        document.addEventListener('mouseleave', () => { isDragging = false; radarViewport.style.cursor = 'grab'; });
+        }
+        function doDrag(clientX, clientY) {
+            if (!isDragging) return; 
+            radarDraggable.style.left = (initialLeft + (clientX - startX)) + 'px'; radarDraggable.style.top = (initialTop + (clientY - startY)) + 'px';
+        }
+        function stopDrag() { isDragging = false; radarViewport.style.cursor = 'grab'; }
+
+        radarViewport.addEventListener('mousedown', (e) => startDrag(e.clientX, e.clientY));
+        document.addEventListener('mousemove', (e) => doDrag(e.clientX, e.clientY));
+        document.addEventListener('mouseup', stopDrag);
+        document.addEventListener('mouseleave', stopDrag);
+
+        // รองรับการลากด้วยหน้าจอสัมผัส (Touch Screen) บนมือถือ
+        radarViewport.addEventListener('touchstart', (e) => { if(e.touches.length === 1) { startDrag(e.touches[0].clientX, e.touches[0].clientY); } }, {passive: false});
+        radarViewport.addEventListener('touchmove', (e) => { if(isDragging && e.touches.length === 1) { e.preventDefault(); doDrag(e.touches[0].clientX, e.touches[0].clientY); } }, {passive: false});
+        radarViewport.addEventListener('touchend', stopDrag);
 
         radarSelect.addEventListener('change', (e) => {
             radarIframe.src = e.target.value; currentOffset = radarOffsets[e.target.value] || { top: -110, left: -170 };
@@ -3976,7 +3996,20 @@ async function generateBriefingImage() {
     }
     const _px = window.scrollX, _py = window.scrollY;
     window.scrollTo(0, 0);
-    await new Promise(r => setTimeout(r, 120));
+
+    // บังคับจัดกึ่งกลางแผนที่และเคลียร์ขนาด Layout ก่อนถ่ายรูป ป้องกันแผนที่เบี้ยว
+    if (typeof currentWxMode !== 'undefined' && currentWxMode === 'TAF' && typeof tafMap !== 'undefined' && tafMap) {
+      let tgt = getTarget();
+      let mapEl = document.getElementById('taf-leaflet-map');
+      if (mapEl) {
+        mapEl.style.width = '860px';
+        mapEl.style.height = '520px';
+      }
+      tafMap.invalidateSize({ pan: false });
+      tafMap.setView([tgt.lat, tgt.lon], tafMap.getZoom(), { animate: false });
+    }
+
+    await new Promise(r => setTimeout(r, 450)); // ให้เวลา Leaflet เรนเดอร์กระเบื้องและล็อกพิกัดกึ่งกลาง
 
     // ปลดล็อก Dropdown ชั่วคราวเพื่อให้หลุดเข้าไปแปลงเป็น Text ใน onclone ได้
     const stSelect = document.getElementById('station-select');
@@ -4029,16 +4062,24 @@ async function generateBriefingImage() {
           s.innerHTML = s.innerHTML.replace(/max-width:\s*900px/g, 'max-width: 1px');
         });
 
+        // ดึงความกว้างและความสูงจริงของแผนที่ เพื่อล็อกขนาดในรูปไม่ให้แผนที่แหว่ง/Tile ขาดหาย
         const origMap = document.getElementById('taf-leaflet-map');
         const mapH = origMap && origMap.clientHeight > 200 ? origMap.clientHeight : 400;
+        const mapW = origMap && origMap.clientWidth > 200 ? origMap.clientWidth : 600;
 
         // 1.5 อัดฉีด CSS ขยายโลโก้ ตัวหนังสือ และจัดระเบียบแถวให้แน่นขึ้นในรูป
         const bigTextStyles = doc.createElement('style');
         let extraTafStyles = '';
         if (typeof currentWxMode !== 'undefined' && currentWxMode === 'TAF') {
           extraTafStyles = `
-            .dashboard-container { flex-direction: column !important; height: auto !important; overflow: visible !important; }
-            .panel { flex: none !important; width: 100% !important; box-sizing: border-box !important; height: auto !important; min-height: 0 !important; overflow: visible !important; margin-bottom: 20px !important; page-break-inside: avoid; }
+            /* จัดระเบียบ 2 คอลัมน์สมมาตร: TAF Timeline (ซ้าย) | Smart Map (ขวา) สูงเท่ากัน */
+            .dashboard-container { flex-direction: row !important; flex-wrap: wrap !important; align-items: stretch !important; gap: 20px !important; height: auto !important; overflow: visible !important; }
+
+            .conditions-panel { flex: 1 1 48% !important; max-width: 48% !important; height: auto !important; min-height: 620px !important; margin-bottom: 15px !important; overflow: visible !important; border: 3px solid #38bdf8 !important; border-radius: 12px !important; background: #0f1d28 !important; }
+            #panel-box-2 { flex: 1 1 48% !important; max-width: 48% !important; height: auto !important; min-height: 620px !important; margin-bottom: 15px !important; overflow: visible !important; padding-top: 60px !important; padding-left: 15px !important; padding-right: 15px !important; border: 3px solid #38bdf8 !important; border-radius: 12px !important; background: #0f1d28 !important; }
+
+            /* กล่อง AI Report ด้านล่าง ขยายเต็มหน้าจอ และบังคับเปิดแสดงทั้ง Tab Summary และ Pillars คู่กัน */
+            .radar-panel { flex: 0 0 100% !important; max-width: 100% !important; height: auto !important; min-height: 0 !important; overflow: visible !important; border: 3px solid #f39c12 !important; border-radius: 12px !important; background: #080d14 !important; }
 
             #taf-view-content, #ai-report-content, #box3-taf, #box2-taf {
               height: auto !important;
@@ -4049,19 +4090,52 @@ async function generateBriefingImage() {
               mask-image: none !important;
             }
 
-            #taf-controls, .radar-tools-group, .rv-player-container, .panel-tabs, .header-mode-toggle, .leaflet-control-container {
+            #taf-controls, .radar-tools-group, .rv-player-container, .panel-tabs, .header-mode-toggle, .leaflet-control-container, #mission-viewport, #btn-ai-tab-summary, #btn-ai-tab-pillars, #btn-ai-settings {
               display: none !important;
             }
 
-            #taf-leaflet-map {
-              height: ${mapH}px !important;
-              flex: 0 0 ${mapH}px !important;
+            /* บังคับเปิดแสดงเนื้อหาทั้ง 2 แท็บพร้อมกันในภาพถ่าย */
+            #ai-tab-summary, #ai-tab-pillars {
+              display: flex !important;
+              visibility: visible !important;
+              opacity: 1 !important;
+              position: static !important;
               width: 100% !important;
+            }
+
+            /* ล็อกขนาดแผนที่ให้กว้างเต็มกรอบสวยงาม */
+            #taf-leaflet-map {
+              height: 440px !important;
+              width: 100% !important;
+              flex: none !important;
+              max-width: 100% !important;
               border: 3px solid #2a3f5f !important;
-              border-radius: 8px !important;
+              border-radius: 10px !important;
+              margin: 0 auto !important;
+              display: block !important;
             }
 
             .raw-metar-box { white-space: pre-wrap !important; word-break: break-word !important; overflow: visible !important; height: auto !important; }
+
+            /* ตกแต่งรายงาน AI ให้สวยงาม เป็นระเบียบ เหมาะแก่การบรรยายสรุป */
+            #ai-report-content { padding: 20px 30px !important; }
+            #ai-report-content > div { padding: 15px !important; background: rgba(0,0,0,0.25) !important; border-radius: 10px !important; margin-top: 10px !important; }
+            .atc-sec-head { font-size: 32px !important; margin: 10px 0 !important; padding: 4px 0 !important; border-bottom: 2px dashed #f39c12 !important; color: #f39c12 !important; }
+            .ai-report-tab-content > div { padding: 12px 20px !important; margin-bottom: 12px !important; font-size: 24px !important; line-height: 1.4 !important; background: rgba(0,0,0,0.3) !important; border-radius: 8px !important; }
+
+            /* เพิ่มแถบ Footer ทางการท้ายภาพถ่าย */
+            .radar-panel::after {
+              content: "OFFICIAL TAF BRIEFING CARD — CHANDY RANGE COMMAND (RTAF) | SECURITY CLASSIFICATION: RESTRICTED";
+              display: block;
+              background: linear-gradient(90deg, #0a0f18, #152233, #0a0f18);
+              color: #f39c12;
+              font-size: 20px;
+              font-weight: bold;
+              text-align: center;
+              padding: 16px;
+              border-top: 3px solid #f39c12;
+              letter-spacing: 1.5px;
+            }
           `;
         }
         bigTextStyles.innerHTML = `
@@ -4932,7 +5006,7 @@ if(window.ATC_ALERT_ENGINE) return;
 var CFG = {
   POP_MIN:60,
   RAIN_MIN:1.0,
-  RADAR_NM:20,
+  RADAR_NM:40,
   MODELS:['ecmwf_ifs025','gfs_seamless','icon_seamless','jma_seamless'],
   AGREE:3,
   CAPE_MIN:1000,
@@ -5086,7 +5160,9 @@ function evalModels(d){
     var p3Result = p3_c1 || p3_c2 || p3_c3;
 
     var minSpd=spd.length?Math.min.apply(null,spd):null;
-    var estCeiling = (minSpd !== null) ? Math.max(200, Math.round(minSpd * 400)) : null;
+    // คำนวณเพดานเมฆ (Ceiling) เฉพาะเมื่อมีเมฆชั้นต่ำ >= 50% หรือมีโอกาสเกิดฝนชัดเจน
+    var hasSignificantCloud = (cclVal >= 50) || (p2MaxRain >= 0.2) || (Math.max.apply(null, pops) >= 50);
+    var estCeiling = (minSpd !== null && hasSignificantCloud) ? Math.max(200, Math.round(minSpd * 400)) : null;
 
     rows.push({ t:T[i], lead:lead, agree:agreeCount, mDict:mDict,
       maxPop:Math.max.apply(null,pops), rain:p2MaxRain, cape:p3MaxCape, spread:minSpd, ceiling:estCeiling, gust:p3MaxGust,
@@ -5242,6 +5318,7 @@ function frameScan(host,path,lat,lon){
     var rtR2 = CFG.RAIN_AT_TARGET_RADIUS_PX * CFG.RAIN_AT_TARGET_RADIUS_PX;
     var rainAtTarget = false;
     var sectorMapPx = { E:Infinity, SE:Infinity, S:Infinity, SW:Infinity, W:Infinity, NW:Infinity, N:Infinity, NE:Infinity };
+    var sectorMaxPx = { E:0, SE:0, S:0, SW:0, W:0, NW:0, N:0, NE:0 };
     var secNames = ["E","SE","S","SW","W","NW","N","NE"];
     var px, py, dx, dy, dx2dy2, o, rC, gC, bC, aC;
     var maxIntensity = 0; // ตัวแปรเก็บความรุนแรงฝน (1=เบา, 2=ปานกลาง, 3=หนัก)
@@ -5279,6 +5356,7 @@ function frameScan(host,path,lat,lon){
         var secIdx = Math.round(ang / 45) % 8;
         var sName = secNames[secIdx];
         if(dx2dy2 < sectorMapPx[sName]) sectorMapPx[sName] = dx2dy2;
+        if(dx2dy2 > sectorMaxPx[sName]) sectorMaxPx[sName] = dx2dy2;
       }
     }
 
@@ -5288,7 +5366,10 @@ function frameScan(host,path,lat,lon){
         nearestDistPx = Infinity;
         rainAtTarget = false;
         maxIntensity = 0;
-        for (var sector in sectorMapPx) sectorMapPx[sector] = Infinity;
+        for (var sector in sectorMapPx) {
+            sectorMapPx[sector] = Infinity;
+            sectorMaxPx[sector] = 0;
+        }
     }
 
     var kmpp = mpp(lat,z)/1000;
@@ -5298,8 +5379,12 @@ function frameScan(host,path,lat,lon){
     var nearestNM = isFinite(nearestDistPx) && nearestDistPx < Infinity ? Math.sqrt(nearestDistPx)*nmpp : null;
     if(rainAtTarget && nearestNM !== null) nearestNM = Math.max(0, nearestNM);
     var sectorsNM = {};
+    var sectorsMaxNM = {};
     for(var k in sectorMapPx) {
-      if(sectorMapPx[k] < Infinity) sectorsNM[k] = +(Math.sqrt(sectorMapPx[k])*nmpp).toFixed(1);
+      if(sectorMapPx[k] < Infinity) {
+        sectorsNM[k] = +(Math.sqrt(sectorMapPx[k])*nmpp).toFixed(1);
+        sectorsMaxNM[k] = +(Math.sqrt(sectorMaxPx[k])*nmpp).toFixed(1);
+      }
     }
     var status, why;
     if(loadedTiles===0 && failedTiles>0){
@@ -5319,6 +5404,7 @@ function frameScan(host,path,lat,lon){
       rainAtTarget: rainAtTarget,
       nearestRainNM: nearestNM!==null ? +nearestNM.toFixed(1) : null,
       sectorsNM: sectorsNM,
+      sectorsMaxNM: sectorsMaxNM,
       intensityLevel: maxIntensity,
       intensityText: intenText,
       tileInfo: { total: totalTiles, ok: loadedTiles, fail: failedTiles },
@@ -5374,7 +5460,7 @@ function radarPillar(lat,lon){
           var motionStatus = 'ทรงตัว หรือไม่ชัดเจน';
           var movStr = 'STNR';
 
-          // Select steering wind by forecast rain and storm potential.
+          // Select steering wind by live radar intensity, distant storm scale, and model potential.
           var steeringSpd = null;
           var steeringDir = null;
           var steeringSource = 'เรดาร์';
@@ -5383,33 +5469,35 @@ function radarPillar(lat,lon){
           var capeVal = eng && eng.hour && eng.hour.cape != null ? eng.hour.cape : 0;
           var gustVal = eng && eng.hour && eng.hour.gust != null ? eng.hour.gust : 0;
 
-          var altLevel = 5000;
-          var altLabel = '5K';
-          if (rainRate >= 2.5 && (capeVal >= 1000 || gustVal >= 25)) {
-            altLevel = 10000;
-            altLabel = '10K';
-          } else if (rainRate >= 1.0) {
-            altLevel = 7000;
-            altLabel = '7K';
+          var rdrInten = b.intensityLevel || 0;
+          var targetAlts = [5000];
+          var sourceLabel = 'ลมระดับ 5000 ft';
+
+          // หากเรดาร์พบฝนหนัก (สีแดง/เหลืองเข้ม) หรือฝนปานกลางระยะไกล หรือ CAPE สูง ให้ใช้ Deep-Layer Mean Wind (5K-15K ft)
+          if (rdrInten >= 3 || (rdrInten === 2 && (newCov >= 3.0 || (b_nr !== null && b_nr > 15))) || (rainRate >= 2.5 && (capeVal >= 1000 || gustVal >= 25)) || capeVal >= 1500) {
+            targetAlts = [5000, 7000, 10000, 15000];
+            sourceLabel = 'ลมเฉลี่ยชั้น 5,000-15,000 ft (Deep-Layer)';
+          } else if (rdrInten === 2 || (b_nr !== null && b_nr > 20 && rdrInten >= 1) || rainRate >= 1.0 || capeVal >= 800) {
+            targetAlts = [5000, 7000, 10000];
+            sourceLabel = 'ลมเฉลี่ยชั้น 5,000-10,000 ft (Mid-Layer)';
           }
 
-          if(typeof uwState !== 'undefined' && uwState.rows){
-            var w = uwState.rows.find(function(r){
-              return r.ft === altLevel || r.hdr === altLabel;
-            });
-            if(!w && altLevel === 7000) {
-              w = uwState.rows.find(function(r){
-                return r.ft === 10000 || r.hdr === '10K';
-              });
+          if(typeof uwState !== 'undefined' && Array.isArray(uwState.rows)){
+            var uSum = 0, vSum = 0, uCount = 0;
+            for(var ai = 0; ai < targetAlts.length; ai++){
+              var rowMatch = uwState.rows.find(function(r){ return r.ft === targetAlts[ai]; });
+              if(rowMatch && Number.isFinite(rowMatch.dir) && Number.isFinite(rowMatch.spd)){
+                var rad = rowMatch.dir * Math.PI / 180;
+                uSum += -rowMatch.spd * Math.sin(rad);
+                vSum += -rowMatch.spd * Math.cos(rad);
+                uCount++;
+              }
             }
-            if(!w) w = uwState.rows.find(function(r){
-              return r.ft === 5000 || r.hdr === '5K';
-            });
-
-            if(w && Number.isFinite(w.dir) && Number.isFinite(w.spd)){
-              steeringSpd = w.spd;
-              steeringDir = w.dir;
-              steeringSource = 'ลมระดับ ' + w.ft + ' ft';
+            if(uCount > 0){
+              var uAvg = uSum / uCount, vAvg = vSum / uCount;
+              steeringSpd = Math.hypot(uAvg, vAvg);
+              steeringDir = (Math.atan2(-uAvg, -vAvg) * 180 / Math.PI + 360) % 360;
+              steeringSource = sourceLabel;
             }
           }
 
@@ -5455,13 +5543,26 @@ function radarPillar(lat,lon){
           }
 
           var stormDiameterNM = null;
-          if(b.frameRaw && Number.isFinite(b.frameRaw.rainPx) &&
+          if(b.sectorsNM && b.sectorsMaxNM && Object.keys(b.sectorsNM).length > 0){
+            var nearestSec = '';
+            var minDist = Infinity;
+            for(var sk in b.sectorsNM){
+              if(b.sectorsNM[sk] < minDist){
+                minDist = b.sectorsNM[sk];
+                nearestSec = sk;
+              }
+            }
+            if(nearestSec && Number.isFinite(b.sectorsMaxNM[nearestSec])){
+              var radialDepth = b.sectorsMaxNM[nearestSec] - b.sectorsNM[nearestSec];
+              stormDiameterNM = Math.max(2.0, Math.min(15.0, +(radialDepth + 1.5).toFixed(1)));
+            }
+          } else if(b.frameRaw && Number.isFinite(b.frameRaw.rainPx) &&
              b.frameRaw.rainPx > 0 && Number.isFinite(b.frameRaw.kmpp)){
             var stormAreaSqKm = b.frameRaw.rainPx *
               b.frameRaw.kmpp * b.frameRaw.kmpp;
             stormDiameterNM = Math.max(
               2,
-              (Math.sqrt(stormAreaSqKm / Math.PI) * 2) / 1.852
+              Math.min(12, (Math.sqrt(stormAreaSqKm / Math.PI) * 2) / 1.852)
             );
           }
           var etaStr = null, etdStr = null;
@@ -5540,23 +5641,20 @@ function decide(h, p4, p5){
   var p4n = normP(p4);
   var pillars = [p1,p2,p3,p4n];
   var n = pillars.filter(function(v){ return v===true; }).length;
-  var r5Threat = p5 ? p5.threatLevel : 'UNKNOWN';
+  var r5Threat = (p5 && !p5.stale) ? p5.threatLevel : 'UNKNOWN';
   var r5 = (r5Threat === 'RED' || r5Threat === 'AMBER');
   var lead = h.lead, lvl='GREEN';
   var passList=[];
   if(p1===true) passList.push('P1'); if(p2===true) passList.push('P2');
   if(p3===true) passList.push('P3'); if(p4n===true) passList.push('P4');
   if(r5) passList.push('P5');
-  if (lead <= 2) {
-      if (r5Threat === 'RED') {
-          lvl = 'RED';
-      } else if (r5Threat === 'AMBER' || n >= 2) {
-          lvl = 'AMBER';
-      }
-  } else {
-      if (n >= 2) {
-          lvl = 'AMBER';
-      }
+  // เรดาร์ (P5) คือข้อมูลปัจจุบัน (LIVE) ต้องมีผลทันทีโดยไม่ขึ้นกับ lead ของโมเดล
+  if (r5Threat === 'RED') {
+      lvl = 'RED';
+  } else if (r5Threat === 'AMBER') {
+      lvl = 'AMBER';
+  } else if (n >= 2) {
+      lvl = 'AMBER';
   }
   var reason = 'lead='+lead.toFixed(1)+'h | P1-P4 pass='+n+' | P5_Threat='+r5Threat;
   return { lvl:lvl, n:n, r5:r5, passList:passList, reason:reason, lead:lead };
@@ -5714,7 +5812,9 @@ function run(){
         for(i=0;i<rows.length;i++){
           sc=(rows[i].p1?4:0)+(rows[i].p2?2:0)+(rows[i].p3?1:0);
           rows[i]._sc=sc;
-          if(!best||sc>best._sc) best=rows[i];
+          if(!best || sc > best._sc || (sc === best._sc && ((rows[i].rain || 0) > (best.rain || 0) || (rows[i].cape || 0) > (best.cape || 0)))) {
+            best=rows[i];
+          }
         }
         var dec = best?decide(best,p4,p5):{lvl:'GREEN',n:0,r5:false,passList:[],unkList:['P1','P2','P3','P4','P5'],reason:'ไม่มีข้อมูลโมเดลในช่วง'};
         var res = { id:Date.now(), lvl:dec.lvl, n:dec.n, hour:best, taf:p4,
@@ -6188,12 +6288,28 @@ else document.addEventListener('DOMContentLoaded',function(){ setTimeout(boot,80
         const mRain = /RA|SHRA|DZ/.test(curMetar.raw);
         const mStorm = /TS|CB|TCU/.test(curMetar.raw);
         const radarThreat = lastAlert.radar ? lastAlert.radar.threatLevel : 'UNKNOWN';
+
+        // ดึงเฉพาะผลการพยากรณ์ของชั่วโมงปัจจุบัน (Nowcast window: -0.6 ถึง +1.0 ชม.) เพื่อป้องกัน Time-lag False Alarm
+        let currentHourRow = null;
+        if (Array.isArray(lastAlert.rows)) {
+            currentHourRow = lastAlert.rows.find(function(r) { return r.lead >= -0.6 && r.lead <= 1.0; });
+        }
+        let nowcastPillarCount = currentHourRow
+            ? ((currentHourRow.p1 === true ? 1 : 0) + (currentHourRow.p2 === true ? 1 : 0) + (currentHourRow.p3 === true ? 1 : 0) + (lastAlert.taf && lastAlert.taf.meets === true ? 1 : 0))
+            : 0;
+        let effectiveForecastLvl = 'GREEN';
+        if (radarThreat === 'RED' || (currentHourRow && nowcastPillarCount >= 2 && currentHourRow.p3 === true)) {
+            effectiveForecastLvl = 'RED';
+        } else if (radarThreat === 'AMBER' || nowcastPillarCount >= 2) {
+            effectiveForecastLvl = 'AMBER';
+        }
+
         logs.push({
             hour: sampleKey,
             sampleKey: sampleKey,
             timestamp: now.toISOString(),
             station: lastAlert.target.stationCode || 'UNK',
-            forecastLvl: lastAlert.lvl,
+            forecastLvl: effectiveForecastLvl,
             actualRain: mRain,
             actualStorm: mStorm,
             actualRadar: radarThreat,
